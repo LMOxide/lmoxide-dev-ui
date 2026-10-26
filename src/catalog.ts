@@ -1,15 +1,21 @@
-import type { Effect, EffectPackage, Timeline } from './types'
+import type { Effect, EffectPackage, ParticleRef, SoundRef, Timeline } from './types'
 
-/** Timeline durations at or above this are "until stopped" (the catalog uses 86400). */
-export const ENDLESS = 3600
+/** How long the charts draw a part with no duration of its own (it lasts as long as its content). */
+export const OWN_LENGTH = 0.5
 
 export function isPackage(e: Effect): e is EffectPackage {
   return e.kind === 'effectpackage'
 }
 
 /** `sfx\swishes\swish_blade_throw_1.wav` → `swish_blade_throw_1` */
-export function soundName(path: string): string {
+export function soundName(sound: SoundRef | string): string {
+  const path = typeof sound === 'string' ? sound : sound.path
   return path.split(/[\\/]/).pop()!.replace(/\.wav$/i, '')
+}
+
+/** A particle's name, or its id when the client has no name for it. */
+export function particleLabel(p: ParticleRef): string {
+  return p.name ?? (p.id !== null ? `#${p.id}` : '?')
 }
 
 function unique(xs: string[]): string[] {
@@ -27,7 +33,7 @@ export function describe(e: Effect): string {
   const parts = [
     ...usedByNames(e).slice(0, 3),
     ...unique(e.sounds.map(soundName)).slice(0, 2).map((s) => `♪ ${s}`),
-    ...unique(e.particles).slice(0, 3).map((p) => `✦ ${p}`),
+    ...unique(e.particles.map(particleLabel)).slice(0, 3).map((p) => `✦ ${p}`),
   ]
   if (parts.length) return parts.join(' · ')
   return unique(e.timelines.map((t) => t.name)).slice(0, 4).join(' · ') || '(empty package)'
@@ -73,8 +79,8 @@ export function facts(e: Effect): Facts {
     haystack: [
       e.id,
       ...(e.used_by ?? []).map((u) => `${u.name} ${u.id}`),
-      ...e.sounds,
-      ...e.particles,
+      ...e.sounds.map((s) => s.path),
+      ...e.particles.map((p) => `${p.name ?? ''} ${p.id ?? ''}`),
       ...e.lua,
       ...e.animation_attributes,
       ...e.code_hooks,
@@ -152,10 +158,16 @@ export function matches(f: Filters, e: Effect, x: Facts): boolean {
   )
 }
 
+/** Where a part ends on a chart: `null` until the package is stopped (to the chart's end). */
+export function partEnd(t: Timeline): number | null {
+  if (t.until_stopped) return null
+  return t.start + (t.duration ?? OWN_LENGTH)
+}
+
 /** The seconds a timeline chart spans: every part that ends, and a bit past endless ones' starts. */
 export function timelineSpan(ts: Timeline[]): number {
   let span = 0
-  for (const t of ts) span = Math.max(span, t.duration >= ENDLESS ? t.start + 1 : t.start + t.duration)
+  for (const t of ts) span = Math.max(span, partEnd(t) ?? t.start + 1)
   return Math.max(span, 0.5)
 }
 

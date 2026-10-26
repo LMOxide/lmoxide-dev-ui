@@ -585,6 +585,10 @@ ul.plain li {
 .timeline-chart .lane.hover .lane-hit {
   fill: var(--surface-2);
 }
+.timeline-chart .lane-hook {
+  fill: var(--muted);
+  font-style: italic;
+}
 .timeline-chart .lane.hover .lane-label {
   fill: var(--text);
 }

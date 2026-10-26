@@ -43,12 +43,28 @@ export type TimelineType =
 export interface Timeline {
   type: TimelineType
   name: string
-  /** seconds */
+  /** seconds after the package (or its code hook) starts */
   start: number
-  /** seconds; looping parts use 86400 */
-  duration: number
+  /** seconds; null: none of its own (as long as its content) or until stopped; 0: an instant */
+  duration: number | null
+  /** lasts until the package is stopped */
+  until_stopped: boolean
   /** self, target, client, ground, other, mount */
   target: string
+  /** the code hook that starts this part's timeline (null: when the package starts) */
+  hook: string | null
+}
+
+/** RDB 1010207 particle: packages name some by id, some by name. */
+export interface ParticleRef {
+  id: number | null
+  name: string | null
+}
+
+/** A sound a package plays; `id` (RDB 1020002) is what GET /v1/catalog/sounds/{id} serves. */
+export interface SoundRef {
+  path: string
+  id: number | null
 }
 
 export interface UsedBy {
@@ -61,8 +77,8 @@ export interface EffectPackage {
   id: number
   kind: 'effectpackage'
   timelines: Timeline[]
-  particles: string[]
-  sounds: string[]
+  particles: ParticleRef[]
+  sounds: SoundRef[]
   animation_attributes: string[]
   code_hooks: string[]
   lua: string[]
@@ -89,6 +105,8 @@ export interface EffectCatalog {
 export interface Playfield {
   id: number
   name: string
+  /** a `!tp` destination (absent before lmoxide's full playfield list: all were) */
+  teleport?: boolean
 }
 
 /** `GET /v1/minifigures` (the fields this app uses): `!own <name>`, test scenario teams. */
@@ -115,4 +133,30 @@ export interface TestCatalog {
   loot_kinds: string[]
   spawnable: { name: string; kind: string; level: number; playfields: number[] }[]
   looks: { monster_data: number; names: string[]; kind: string }[]
+}
+
+/** `GET /v1/catalog/monsters`: every monster data (look) for `!skin`. */
+export interface MonsterData {
+  id: number
+  name: string
+  motion_set: number | null
+  anim_graph: number | null
+  actor: number | null
+  mesh: number | null
+  death_effect_package: number | null
+  used_by: { name: string; kind: string }[]
+  minifigures: number[]
+}
+
+/** `GET /v1/catalog/animations` */
+export interface AnimationCatalog {
+  attributes: { name: string; graphs: number[]; packages: number[]; package: number | null }[]
+  motion_sets: { id: number; name: string; motions: { id: string; file: string }[] }[]
+  anim_graphs: { id: number; name: string; attributes: string[]; motions: string[] }[]
+}
+
+/** `GET /v1/catalog/bcc-states`: character states (`!state <value>`) and substates. */
+export interface BccStates {
+  states: { value: number; name: string; groups: string[]; about?: string }[]
+  substates: { value: number; name: string; groups: string[]; priority?: number }[]
 }

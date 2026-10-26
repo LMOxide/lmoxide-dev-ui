@@ -20,12 +20,18 @@ function List({ title, items, mono }: { title: string; items: string[]; mono?: b
   )
 }
 
+export type FxAt = '' | '@near' | '@ground'
+
 export function Detail({
   effect,
   note,
   tags,
   canSend,
   onCommand,
+  play,
+  fxAt,
+  setFxAt,
+  listen,
   onNote,
 }: {
   effect: Effect
@@ -33,6 +39,12 @@ export function Detail({
   tags: string[]
   canSend: boolean
   onCommand: (cmd: string) => void
+  /** `!fx <id> [hook]` where `fxAt` says */
+  play: (hook?: string) => void
+  fxAt: FxAt
+  setFxAt: (at: FxAt) => void
+  /** plays a package's sound (RDB 1020002 id) in the browser */
+  listen: (id: number) => void
   onNote: (n: Note) => void
 }) {
   const [hook, setHook] = useState('')
@@ -53,14 +65,19 @@ export function Detail({
       </header>
 
       <section className="preview">
-        <button className="primary" disabled={disabled} onClick={() => onCommand(`!fx ${effect.id}`)} title="!fx <id>  (Enter)">
+        <button className="primary" disabled={disabled} onClick={() => play()} title="!fx <id>  (Enter)">
           ▶ Play
         </button>
         <button disabled={!canSend} onClick={() => onCommand('!fx stop')} title="!fx stop  (s)">
           ■ Stop
         </button>
+        <select value={fxAt} onChange={(e) => setFxAt(e.target.value as FxAt)} aria-label="Play where" title="Where !fx plays it (also when stepping)">
+          <option value="">on me</option>
+          <option value="@near">on the nearest enemy (@near)</option>
+          <option value="@ground">at my feet (@ground)</option>
+        </select>
         {pkg?.code_hooks.map((h) => (
-          <button key={h} disabled={disabled} onClick={() => onCommand(`!fx ${effect.id} ${h}`)} title={`!fx ${effect.id} ${h}`}>
+          <button key={h} disabled={disabled} onClick={() => play(h)} title={`!fx ${effect.id} ${h}: the timelines that start at this code hook`}>
             ▶ {h}
           </button>
         ))}
@@ -69,20 +86,12 @@ export function Detail({
             className="inline"
             onSubmit={(e) => {
               e.preventDefault()
-              if (hook.trim()) onCommand(`!fx ${effect.id} ${hook.trim()}`)
+              if (hook.trim()) play(hook.trim())
             }}
           >
-            <input
-              value={hook}
-              onChange={(e) => setHook(e.target.value)}
-              placeholder="code hook"
-              list="hook-suggestions"
-              aria-label="Play from code hook"
-              spellCheck={false}
-              size={11}
-            />
+            <input value={hook} onChange={(e) => setHook(e.target.value)} placeholder="other code hook" list="hook-suggestions" aria-label="Play from code hook" spellCheck={false} size={13} />
             <datalist id="hook-suggestions">
-              {[...new Set([...pkg.code_hooks, ...pkg.animation_attributes, 'limbostart'])].map((h) => (
+              {['onhit', 'charge', 'execute', 'on_projectile_fired', 'on_projectile_destroyed', 'collision_hit', 'on_chain_jump', 'ontick'].map((h) => (
                 <option key={h} value={h} />
               ))}
             </datalist>
@@ -148,9 +157,38 @@ export function Detail({
 
       {pkg && (
         <>
-          <List title="Sounds" items={pkg.sounds.map((s) => `${soundName(s)}  —  ${s}`)} mono />
-          <List title="Particles" items={pkg.particles} mono />
-          <List title="Animation attributes" items={pkg.animation_attributes} mono />
+          {pkg.sounds.length > 0 && (
+            <section>
+              <h3>
+                Sounds <span className="muted">{pkg.sounds.length}</span>
+              </h3>
+              <ul className="plain mono">
+                {pkg.sounds.map((s) => (
+                  <li key={s.path}>
+                    <button className="ghost small-btn" disabled={s.id === null} onClick={() => s.id !== null && listen(s.id)} title={s.id === null ? 'not in the client' : `listen (RDB 1020002/${s.id})`}>
+                      ♪
+                    </button>{' '}
+                    {soundName(s)} <span className="muted">— {s.path}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          <List title="Particles" items={pkg.particles.map((p) => (p.name ? `${p.name}${p.id !== null ? `  (${p.id})` : ''}` : `#${p.id} (no name in the client)`))} mono />
+          {pkg.animation_attributes.length > 0 && (
+            <section>
+              <h3>
+                Animation attributes <span className="muted">{pkg.animation_attributes.length}</span>
+              </h3>
+              <div className="chips">
+                {pkg.animation_attributes.map((a) => (
+                  <button key={a} className="chip mono" disabled={!canSend} onClick={() => onCommand(`!anim ${a}`)} title={`!anim ${a}: the package that plays this attribute alone`}>
+                    ▶ {a}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
           <List title="Code hooks" items={pkg.code_hooks} mono />
           {pkg.lua.length > 0 && (
             <section>

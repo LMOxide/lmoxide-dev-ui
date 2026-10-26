@@ -43,6 +43,7 @@ export const KEYS = {
   filters: 'lmofx.filters',
   autoplay: 'lmofx.autoplay',
   history: 'lmofx.history',
+  fxAt: 'lmofx.fxAt',
   view: 'lmofx.view',
   debugSection: 'lmofx.debugSection',
 } as const

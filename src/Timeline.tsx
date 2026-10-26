@@ -1,9 +1,16 @@
 import { useState } from 'react'
-import { ENDLESS, TYPE_LABELS, timelineSpan, typeColor } from './catalog'
+import { TYPE_LABELS, partEnd, timelineSpan, typeColor } from './catalog'
 import type { Timeline } from './types'
 
 function seconds(s: number) {
-  return s >= ENDLESS ? 'until stopped' : `${+s.toFixed(2)} s`
+  return `${+s.toFixed(2)} s`
+}
+
+/** How long a part lasts, in words. */
+function length(t: Timeline) {
+  if (t.until_stopped) return 'runs until the package stops'
+  if (t.duration === null) return 'as long as its content (no duration of its own)'
+  return t.duration === 0 ? 'at once' : `lasts ${seconds(t.duration)}`
 }
 
 /** The list's small chart: one thin bar per timeline part, start to end. */
@@ -18,7 +25,8 @@ export function MiniTimeline({ timelines, width = 120, height = 30 }: { timeline
     <svg className="mini-timeline" width={width} height={height} aria-hidden>
       {timelines.map((t, i) => {
         const x0 = x(t.start)
-        const x1 = t.duration >= ENDLESS ? width : x(t.start + t.duration)
+        const end = partEnd(t)
+        const x1 = end === null ? width : x(end)
         return (
           <rect
             key={i}
@@ -28,7 +36,7 @@ export function MiniTimeline({ timelines, width = 120, height = 30 }: { timeline
             height={bar}
             rx={Math.min(1, bar / 2)}
             fill={typeColor(t.type)}
-            opacity={t.duration >= ENDLESS ? 0.55 : 1}
+            opacity={t.duration === null ? 0.55 : 1}
           />
         )
       })}
@@ -70,17 +78,27 @@ export function TimelineChart({ timelines }: { timelines: Timeline[] }) {
           </g>
         ))}
         {timelines.map((t, i) => {
-          const endless = t.duration >= ENDLESS
+          const end = partEnd(t)
+          const endless = end === null
           const x0 = x(t.start)
-          const x1 = endless ? LABEL_W + plotW : x(t.start + t.duration)
+          const x1 = endless ? LABEL_W + plotW : x(end)
           const y = AXIS_H + i * LANE
           return (
             <g key={i} className={hover === i ? 'lane hover' : 'lane'} onMouseEnter={() => setHover(i)}>
               <rect x={0} y={y} width={width} height={LANE} className="lane-hit" />
               <text x={LABEL_W - 6} y={y + LANE / 2 + 4} textAnchor="end" className="lane-label">
-                {t.name.length > 24 ? t.name.slice(0, 23) + '…' : t.name}
+                {t.hook && <tspan className="lane-hook">{t.hook} · </tspan>}
+                {t.name.length > (t.hook ? 14 : 24) ? t.name.slice(0, t.hook ? 13 : 23) + '…' : t.name}
               </text>
-              <rect x={x0} y={y + 5} width={Math.max(3, x1 - x0)} height={LANE - 10} rx={2} fill={typeColor(t.type)} />
+              <rect
+                x={x0}
+                y={y + 5}
+                width={Math.max(3, x1 - x0)}
+                height={LANE - 10}
+                rx={2}
+                fill={typeColor(t.type)}
+                opacity={t.duration === null && !endless ? 0.5 : 1}
+              />
               {endless && (
                 <path d={`M${x1 - 1} ${y + 3} l5 ${LANE / 2 - 3} l-5 ${LANE / 2 - 3}`} className="endless" fill={typeColor(t.type)} />
               )}
@@ -92,7 +110,8 @@ export function TimelineChart({ timelines }: { timelines: Timeline[] }) {
         {h ? (
           <>
             <span className="swatch" style={{ background: typeColor(h.type) }} />
-            <b>{h.name}</b> ({TYPE_LABELS[h.type] ?? h.type}, on {h.target}): starts at {seconds(h.start)}, {h.duration >= ENDLESS ? 'runs until stopped' : `lasts ${seconds(h.duration)}`}
+            <b>{h.name}</b> ({TYPE_LABELS[h.type] ?? h.type}, on {h.target}): starts {seconds(h.start)} after {h.hook ? <>the <code>{h.hook}</code> hook</> : 'the package starts'},{' '}
+            {length(h)}
           </>
         ) : (
           <span className="muted">Point at a bar for its start, length and target.</span>

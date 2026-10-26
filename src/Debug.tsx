@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { best, bossNames, places, playfieldName, type GameData } from './suggest'
-import type { Player } from './types'
+import type { MonsterData, Player } from './types'
 
-export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'minifigures' | 'progress' | 'dialogues' | 'commands'
+export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'animations' | 'minifigures' | 'progress' | 'dialogues' | 'commands'
 
 const SECTIONS: [Section, string][] = [
   ['quick', 'Quick'],
@@ -11,6 +11,7 @@ const SECTIONS: [Section, string][] = [
   ['targets', 'Go to'],
   ['spawn', 'Spawn & loot'],
   ['looks', 'Looks & state'],
+  ['animations', 'Animations'],
   ['minifigures', 'Minifigures'],
   ['progress', 'Progress'],
   ['dialogues', 'Dialogues'],
@@ -57,6 +58,7 @@ export function Debug({
   section,
   setSection,
   fillCommand,
+  showEffect,
 }: {
   data: GameData
   testsError: string
@@ -66,6 +68,8 @@ export function Debug({
   section: Section
   setSection: (s: Section) => void
   fillCommand: (cmd: string) => void
+  /** shows an effect package in the effect view */
+  showEffect: (id: number) => void
 }) {
   const [q, setQ] = useState<Record<string, string>>({})
   const query = q[section] ?? ''
@@ -91,7 +95,7 @@ export function Debug({
             query={query}
             setQuery={setQuery}
             placeholder="Filter playfields…"
-            items={data.playfields}
+            items={data.playfields.filter((p) => p.teleport !== false)}
             fields={(p) => [p.name, String(p.id)]}
             itemKey={(p) => p.id}
             render={(p) => (
@@ -136,6 +140,7 @@ export function Debug({
         {section === 'targets' && <Targets data={data} query={query} setQuery={setQuery} send={send} canSend={canSend} here={here} />}
         {section === 'spawn' && <Spawn data={data} query={query} setQuery={setQuery} send={send} canSend={canSend} />}
         {section === 'looks' && <Looks data={data} query={query} setQuery={setQuery} send={send} canSend={canSend} />}
+        {section === 'animations' && <Animations data={data} query={query} setQuery={setQuery} send={send} canSend={canSend} showEffect={showEffect} />}
         {section === 'minifigures' && (
           <>
             <div className="chips row-gap">
@@ -384,6 +389,14 @@ function Spawn({ data, query, setQuery, send, canSend }: { data: GameData; query
         ))}
       </div>
       <h3>Spawn around you (15 minutes)</h3>
+      <div className="chips row-gap">
+        <button className="chip" disabled={!canSend} onClick={() => send('!despawn')} title="remove the test spawns within 30 m">
+          Despawn near me
+        </button>
+        <button className="chip" disabled={!canSend} onClick={() => send('!despawn all')} title="remove every test spawn on this playfield">
+          Despawn all here
+        </button>
+      </div>
       <label className="check">
         How many <input value={count} onChange={(e) => setCount(e.target.value)} inputMode="numeric" size={4} aria-label="How many" /> <span className="muted small">(1–30)</span>
       </label>
@@ -410,22 +423,38 @@ function Spawn({ data, query, setQuery, send, canSend }: { data: GameData; query
   )
 }
 
+/** A look's names for people: what the world calls it, the minifigures with its body, else the designers' name. */
+function lookTitle(data: GameData, m: MonsterData): string {
+  const figures = m.minifigures.map((t) => data.minifigures.find((f) => f.id === t)?.name).filter(Boolean)
+  const names = [...new Set([...m.used_by.map((u) => u.name), ...figures])]
+  return names.length ? names.join(', ') : m.name
+}
+
 function Looks({ data, query, setQuery, send, canSend }: { data: GameData; query: string; setQuery: (v: string) => void; send: (c: string) => void; canSend: boolean }) {
   const [skin, setSkin] = useState('')
   const [state, setState] = useState('')
+  const [onlyUsed, setOnlyUsed] = useState(false)
+  const states = data.bccStates?.states ?? [
+    { value: 1, name: 'normal', groups: [] },
+    { value: 29, name: 'Limbo (smashed)', groups: [] },
+    { value: 104, name: 'building', groups: [] },
+  ]
+  // used looks first, then by id
+  const looks = useMemo(
+    () =>
+      data.monsters
+        .filter((m) => !onlyUsed || m.used_by.length || m.minifigures.length)
+        .sort((a, b) => Number(!(b.used_by.length || b.minifigures.length)) - Number(!(a.used_by.length || a.minifigures.length)) || a.id - b.id),
+    [data.monsters, onlyUsed],
+  )
+  const motionSet = (id: number | null) => data.animations?.motion_sets.find((x) => x.id === id)
   return (
     <>
-      <h3>Character state (BCCState)</h3>
+      <h3>Character state (BCCState, stat 20)</h3>
       <div className="chips">
-        {(
-          [
-            [1, 'normal'],
-            [29, 'Limbo (smashed)'],
-            [104, 'building'],
-          ] as const
-        ).map(([v, label]) => (
-          <button key={v} className="chip" disabled={!canSend} onClick={() => send(`!state ${v}`)}>
-            {v} {label}
+        {states.map((st) => (
+          <button key={st.value} className="chip" disabled={!canSend} onClick={() => send(`!state ${st.value}`)} title={[st.about, st.groups.length ? `allows: ${st.groups.join(', ')}` : ''].filter(Boolean).join('\n')}>
+            {st.value} {st.name}
           </button>
         ))}
         <form
@@ -439,6 +468,11 @@ function Looks({ data, query, setQuery, send, canSend }: { data: GameData; query
           <button disabled={!canSend || !/^\d+$/.test(state.trim())}>Set</button>
         </form>
       </div>
+      {data.bccStates && (
+        <p className="muted small">
+          Substates (set by the game, not by <code>!state</code>): {data.bccStates.substates.map((x) => `${x.value} ${x.name}`).join(', ')}.
+        </p>
+      )}
       <h3>Look like (monster data)</h3>
       <div className="chips">
         <button className="chip" disabled={!canSend} onClick={() => send('!skin reset')}>
@@ -454,23 +488,98 @@ function Looks({ data, query, setQuery, send, canSend }: { data: GameData; query
           <input value={skin} onChange={(e) => setSkin(e.target.value)} placeholder="any monster data id" inputMode="numeric" size={16} aria-label="Monster data id" />
           <button disabled={!canSend || !/^\d+$/.test(skin.trim())}>Wear</button>
         </form>
+        <label className="check">
+          <input type="checkbox" checked={onlyUsed} onChange={(e) => setOnlyUsed(e.target.checked)} /> only looks the world or a minifigure uses
+        </label>
       </div>
+      {data.monsters.length ? (
+        <PickList
+          query={query}
+          setQuery={setQuery}
+          placeholder="Filter looks by name, designers' name or id…"
+          items={looks}
+          fields={(m) => [lookTitle(data, m), m.name, String(m.id), ...m.used_by.map((u) => u.kind)]}
+          itemKey={(m) => m.id}
+          render={(m) => (
+            <>
+              <span className="title">{lookTitle(data, m)}</span> {m.used_by[0] && <span className="badge dim">{m.used_by[0].kind}</span>}
+              {m.minifigures.length > 0 && <span className="badge dim">minifigure</span>} <span className="muted mono small">{m.id}</span>
+              <div className="desc">
+                {m.name}
+                {motionSet(m.motion_set) && ` · ${motionSet(m.motion_set)!.motions.length} motions`}
+                {m.death_effect_package && ` · death effect ${m.death_effect_package}`}
+              </div>
+            </>
+          )}
+          actions={(m) => [[`!skin ${m.id}`, 'Wear'], ...(m.death_effect_package ? ([[`!fx ${m.death_effect_package}`, 'Death fx']] as [string, string][]) : [])]}
+          send={send}
+          canSend={canSend}
+        />
+      ) : (
+        <PickList
+          query={query}
+          setQuery={setQuery}
+          placeholder="Filter looks by name or id…"
+          items={data.tests?.looks ?? []}
+          fields={(l) => [...l.names, String(l.monster_data), l.kind]}
+          itemKey={(l) => l.monster_data}
+          render={(l) => (
+            <>
+              <span className="title">{l.names.join(', ')}</span> <span className="badge dim">{l.kind}</span> <span className="muted mono small">{l.monster_data}</span>
+            </>
+          )}
+          actions={(l) => [[`!skin ${l.monster_data}`, 'Wear']]}
+          send={send}
+          canSend={canSend}
+        />
+      )}
+    </>
+  )
+}
+
+function Animations({ data, query, setQuery, send, canSend, showEffect }: { data: GameData; query: string; setQuery: (v: string) => void; send: (c: string) => void; canSend: boolean; showEffect: (id: number) => void }) {
+  const anim = data.animations
+  if (!anim) return <p className="banner warn">This API has no animation catalog (<code>GET /v1/catalog/animations</code>); <code>!anim &lt;attribute&gt;</code> may still work.</p>
+  // the looks whose anim graph reacts to an attribute
+  const looksWith = (graphs: number[]) => data.monsters.filter((m) => m.anim_graph !== null && graphs.includes(m.anim_graph))
+  return (
+    <>
+      <p className="muted small">
+        Animation attributes are what effect packages set to switch a character's animation (<code>emotionfxattribute</code> parts). <code>!anim</code> plays a package
+        that sets one, on your character: whether it shows depends on your look's anim graph.
+      </p>
       <PickList
         query={query}
         setQuery={setQuery}
-        placeholder="Filter looks by name or id…"
-        items={data.tests?.looks ?? []}
-        fields={(l) => [...l.names, String(l.monster_data), l.kind]}
-        itemKey={(l) => l.monster_data}
-        render={(l) => (
+        placeholder="Filter animation attributes…"
+        items={anim.attributes}
+        fields={(a) => [a.name]}
+        itemKey={(a) => a.name}
+        render={(a) => (
           <>
-            <span className="title">{l.names.join(', ')}</span> <span className="badge dim">{l.kind}</span> <span className="muted mono small">{l.monster_data}</span>
+            <span className="title mono">{a.name}</span>
+            <div className="desc">
+              {a.packages.length} packages set it · {a.graphs.length} anim graphs · {looksWith(a.graphs).length} looks
+              {a.package !== null && (
+                <>
+                  {' '}
+                  ·{' '}
+                  <button className="link" onClick={() => showEffect(a.package!)}>
+                    package {a.package}
+                  </button>
+                </>
+              )}
+            </div>
           </>
         )}
-        actions={(l) => [[`!skin ${l.monster_data}`, 'Wear']]}
+        actions={(a) => (a.package !== null ? [[`!anim ${a.name}`, 'Play']] : [])}
         send={send}
         canSend={canSend}
       />
+      <p className="muted small">
+        {anim.motion_sets.length} motion sets ({anim.motion_sets.reduce((n, m) => n + m.motions.length, 0)} motions) and {anim.anim_graphs.length} anim graphs in the
+        client.
+      </p>
     </>
   )
 }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Api, ApiError, defaultApiBase } from './api'
+import { Api, ApiError, defaultApiBase, normalizeCatalog } from './api'
 import { NO_FILTERS, facts as factsOf, matches, textMatcher, type Filters } from './catalog'
-import { Detail } from './Detail'
+import { Detail, type FxAt } from './Detail'
 import { EffectList } from './EffectList'
 import { FilterPanel } from './Filters'
 import { Login } from './Login'
@@ -12,7 +12,7 @@ import { Console, type LogEntry } from './Console'
 import { Debug, type Section } from './Debug'
 import { Palette } from './Palette'
 import { playfieldName, searchSuggestions, vocabulary, type GameData } from './suggest'
-import type { Effect, EffectCatalog, Minifigure, Player, Playfield, Session, TestCatalog } from './types'
+import type { AnimationCatalog, BccStates, Effect, EffectCatalog, Minifigure, MonsterData, Player, Playfield, Session, TestCatalog } from './types'
 
 /** The player chosen to preview on, remembered across visits (they may be offline now). */
 interface Chosen {
@@ -74,6 +74,10 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
   const [playfields, setPlayfields] = useState<Playfield[]>([])
   const [minifigures, setMinifigures] = useState<Minifigure[]>([])
   const [tests, setTests] = useState<TestCatalog | null>(null)
+  const [monsters, setMonsters] = useState<MonsterData[]>([])
+  const [animations, setAnimations] = useState<AnimationCatalog | null>(null)
+  const [bccStates, setBccStates] = useState<BccStates | null>(null)
+  const [fxAt, setFxAt] = useStored<FxAt>(KEYS.fxAt, '')
   const [testsError, setTestsError] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
   const consoleRef = useRef<HTMLInputElement>(null)
@@ -112,6 +116,10 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
   const loadGameData = useCallback(() => {
     api.playfields().then(setPlayfields).catch(() => {})
     api.minifigures().then(setMinifigures).catch(() => {})
+    // (absent from lmoxide-api builds before the catalogs: the pickers fall back to numbers)
+    api.monsters().then((m) => setMonsters(m.monster_data)).catch(() => {})
+    api.animations().then(setAnimations).catch(() => {})
+    api.bccStates().then(setBccStates).catch(() => {})
     api
       .testCatalog()
       .then((t) => {
@@ -139,7 +147,30 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
     return () => clearInterval(t)
   }, [loadPlayers])
 
-  const gameData: GameData = useMemo(() => ({ effects: catalog ?? [], playfields, minifigures, tests }), [catalog, playfields, minifigures, tests])
+  const gameData: GameData = useMemo(
+    () => ({ effects: catalog ?? [], playfields, minifigures, tests, monsters, animations, bccStates }),
+    [catalog, playfields, minifigures, tests, monsters, animations, bccStates],
+  )
+
+  /** `!fx <id> [hook]`, played where the effect view says (on me, @near, @ground). */
+  const fxCommand = useCallback((id: number, hook?: string) => ['!fx', id, hook, fxAt].filter(Boolean).join(' '), [fxAt])
+
+  // one sound at a time, from the API (GET /v1/catalog/sounds/{id})
+  const audio = useRef<HTMLAudioElement | null>(null)
+  const listen = useCallback(
+    async (id: number) => {
+      try {
+        const blob = await api.sound(id)
+        audio.current?.pause()
+        if (audio.current?.src) URL.revokeObjectURL(audio.current.src)
+        audio.current = new Audio(URL.createObjectURL(blob))
+        await audio.current.play()
+      } catch (e) {
+        setLog((l) => [{ id: ++logId.current, at: Date.now(), command: `♪ sound ${id}`, player: 'this browser', status: 'error' as const, message: failed(e) }, ...l])
+      }
+    },
+    [api, failed],
+  )
 
   const facts = useMemo(() => new Map((catalog ?? []).map((e) => [e.id, factsOf(e)])), [catalog])
   const byId = useMemo(() => new Map((catalog ?? []).map((e) => [e.id, e])), [catalog])
@@ -217,9 +248,9 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
       const next = filtered[i < 0 ? 0 : Math.min(filtered.length - 1, Math.max(0, i + by))]
       setSelected(next.id)
       setTab((t) => (t === 'notes' ? 'effect' : t))
-      if (autoplay && canSend && next.kind === 'effectpackage' && next.id !== selected) send(`!fx ${next.id}`)
+      if (autoplay && canSend && next.kind === 'effectpackage' && next.id !== selected) send(fxCommand(next.id))
     },
-    [filtered, selected, autoplay, canSend, send],
+    [filtered, selected, autoplay, canSend, send, fxCommand],
   )
 
   // keyboard: j/k or arrows step through the filtered list, Enter plays, s stops, 1-9 tag
@@ -244,7 +275,7 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
       else if (e.key === 'k' || e.key === 'ArrowUp') step(-1)
       else if (e.key === 'PageDown') step(10)
       else if (e.key === 'PageUp') step(-10)
-      else if ((e.key === 'Enter' || e.key === 'p') && sel?.kind === 'effectpackage' && canSend && !el.closest('button')) send(`!fx ${sel.id}`)
+      else if ((e.key === 'Enter' || e.key === 'p') && sel?.kind === 'effectpackage' && canSend && !el.closest('button')) send(fxCommand(sel.id))
       else if (e.key === 's' && canSend) send('!fx stop')
       else if (e.key === '/') searchRef.current?.focus()
       else if (/^[1-9]$/.test(e.key) && sel) {
@@ -257,7 +288,16 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [step, selected, byId, canSend, send, tags, notes, setNote, view])
+  }, [step, selected, byId, canSend, send, tags, notes, setNote, view, fxCommand])
+
+  /** Shows an entry in the effect view (clearing filters that hide it), and plays it if asked. */
+  function showEffect(id: number, play = false) {
+    setView('effects')
+    setFilters((f) => (filtered.some((e) => e.id === id) ? f : { ...NO_FILTERS, desc: f.desc }))
+    setSelected(id)
+    setTab('effect')
+    if (play && canSend && byId.get(id)?.kind === 'effectpackage') send(fxCommand(id))
+  }
 
   /** Shows the console (a tab in the effect view, always there in the debug view) and focuses it. */
   function focusConsole(value?: string) {
@@ -379,6 +419,7 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
               section={section}
               setSection={setSection}
               fillCommand={(c) => focusConsole(c)}
+              showEffect={(id) => showEffect(id)}
             />
           </div>
           <div className="right">
@@ -425,7 +466,7 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
                 setSelected(id)
                 setTab((t) => (t === 'notes' ? 'effect' : t))
               }}
-              onPlay={(id) => canSend && send(`!fx ${id}`)}
+              onPlay={(id) => canSend && send(fxCommand(id))}
             />
           </div>
           <div className="right">
@@ -450,6 +491,10 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
                     tags={tags}
                     canSend={canSend}
                     onCommand={send}
+                    play={(hook) => send(fxCommand(current.id, hook))}
+                    fxAt={fxAt}
+                    setFxAt={setFxAt}
+                    listen={listen}
                     onNote={(n) => {
                       for (const t of n.tags) if (!tags.includes(t)) setCustomTags((c) => [...c, t])
                       setNote(current.id, n)
@@ -485,13 +530,7 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
           send={send}
           onClose={() => setPalette(false)}
           fillCommand={(c) => focusConsole(c)}
-          showEffect={(id, play) => {
-            setView('effects')
-            setFilters((f) => (filtered.some((e) => e.id === id) ? f : { ...NO_FILTERS, desc: f.desc }))
-            setSelected(id)
-            setTab('effect')
-            if (play && canSend && byId.get(id)?.kind === 'effectpackage') send(`!fx ${id}`)
-          }}
+          showEffect={showEffect}
         />
       )}
 
@@ -527,7 +566,7 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
           e.target.value = ''
           if (!f) return
           try {
-            const c = JSON.parse(await f.text()) as EffectCatalog
+            const c = normalizeCatalog(JSON.parse(await f.text()) as EffectCatalog)
             if (!Array.isArray(c.effects)) throw new Error('no "effects" list')
             setCatalog(c.effects)
             setCatalogSource(f.name)

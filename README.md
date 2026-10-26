@@ -15,8 +15,11 @@ instead of typing them in the game chat. Background: LMOxide's `docs/EFFECT-BROW
   the word you type from the catalog's vocabulary; filters (kind, has / hasn't sound, particle,
   animation attribute or Lua, looping, used or unused, any timeline type, notes and tags), sort
   by id, and each package's timeline as a small bar chart;
-- plays on the chosen player: `!fx <id>`, `!fx <id> <hook>`, `!fx stop`, and keyboard stepping
-  through the *filtered* list (each step sends `!fx <id>` for the neighbour);
+- plays on the chosen player: `!fx <id>`, from each code hook (`onhit`, `charge`, ...), on the
+  player, the nearest enemy (`@near`) or the ground (`@ground`), `!fx stop`, and keyboard stepping
+  through the *filtered* list (each step sends `!fx <id>` for the neighbour); the chart labels
+  parts by the hook that starts them, ♪ plays a package's sounds in the browser, and the
+  animation attributes play with `!anim`;
 - notes: tags ("smash effect", "not it", your own) and free text per entry, kept in
   localStorage, exported as JSON or Markdown (and imported back from JSON).
 
@@ -28,8 +31,9 @@ instead of typing them in the game chat. Background: LMOxide's `docs/EFFECT-BROW
 | Teleport | `!tp <playfield>` (marks where the player is) |
 | Test scenarios | `!test <n>` (what each sets up: place, team, spawns) |
 | Go to | `!goto <kind> <n>`: bosses, champions, enemies, NPCs, smashables, pads, collectibles, arenas, ... by name or playfield, or only where you are |
-| Spawn & loot | `!spawn <count> <name>` (enemies and smashables, 15 minutes), `!loot <kind>` |
-| Looks & state | `!skin <monster data>` (the looks of the world's characters), `!skin reset`, `!state <n>` |
+| Spawn & loot | `!spawn <count> <name>` (enemies and smashables, 15 minutes), `!despawn [all]`, `!loot <kind>` |
+| Looks & state | `!skin <monster data>` (every look in the client, with what uses it), `!skin reset`, `!state <n>` by name (Idle, Fighting, Limbo, Building, ...) |
+| Animations | `!anim <attribute>` (limbostart, chainattack, get_hit, ...), with the packages and looks that use each |
 | Minifigures | `!own <name>`, `!aura <0-4>`, `!collection limit\|all` |
 | Progress | `!count kills\|smashes\|builds [n] [name]`, `!defeat <boss>`, `!ach` |
 | Dialogues | `!dialog <n>` |
@@ -48,8 +52,10 @@ API gaps found along the way are in [`docs/API-PROPOSALS.md`](docs/API-PROPOSALS
 
 ## Requirements
 
-- `lmoxide-api` from lmoxide `2c668c5` or later (test command catalog, command replies,
-  `!spawn`); older ones work for the effect browser, without the Debug pickers and replies.
+- `lmoxide-api` with the game data catalogs (lmoxide after `2c668c5`: monsters, animations,
+  character states, sounds) and started with `--client-dir` for the ♪ buttons. Older ones work
+  with less: without the catalogs the pickers fall back to number boxes, before `2c668c5`
+  without the Debug pickers and command replies.
 - An admin account (log in with it) or an API key with the admin scope. Read scope is enough to
   browse; commands need admin.
 - A running game server with a logged-in client whose account has GM level 1 or more (test
@@ -111,6 +117,7 @@ If the API is not reachable, the effect catalog can also be opened from a file
 | localStorage | `lmofx.player` | the player chosen to run commands as |
 | localStorage | `lmofx.view`, `lmofx.debugSection`, `lmofx.filters`, `lmofx.autoplay` | where you were, the last filters, "play on step" |
 | localStorage | `lmofx.history` | the command box history |
+| localStorage | `lmofx.fxAt` | where effects play (on me, `@near`, `@ground`) |
 | localStorage | `lmofx.notes`, `lmofx.tags` | notes by effect id; tags you added |
 
 Notes live only in this browser: export them before clearing site data.

@@ -1,115 +1,83 @@
 # Proposed API changes
 
-> **Items 1 and 2 landed in lmoxide `2c668c5`** ("Test command catalog, command replies,
-> !spawn"), together with `GET /v1/catalog/test-commands`, which the browser's Debug view and
-> command completion use (scenarios, `!goto` targets, dialogues, loot kinds, spawnable names,
-> looks). Each item says how. New proposals go under a new heading at the end.
+> **All eleven landed in lmoxide**: 1–2 in `2c668c5` ("Test command catalog, command replies,
+> !spawn"), 3–11 in `f1925b7` ("Game data catalogs, !fx on targets, !anim, !despawn"). Each item says how; the
+> file is kept as a record. New proposals go under a new heading at the end.
 
 Changes to `lmoxide-api` (and the test commands in `crates/lmoxide-server/src/devcmd.rs`) that
-the effect browser needs or would benefit from. Found while building its first version
-(2026-10-26), against `docs/openapi.json`, `docs/EFFECT-BROWSER.md` and
-`data/effect_catalog.json` as of that day. The browser does not work around any of them; each
-item says what it does today and what it would do once the change lands.
+the browser needed, found while building it (2026-10-26).
 
-## 1. Command replies
+## 1. Command replies (done)
 
-`POST /v1/players/{account_id}/command` answers `{"affected": n}`. What the command said
-("effect package 1748 (12 of 2518)", "usage: !skin <monster data id> | reset", the GM level
-refusal) only reaches the game chat, so the browser can't tell a played effect from a typo or a
-refused command: it only knows the request reached the player.
+The command answer only said how many players it reached; what the command said went to the
+game chat. **Done:** `{affected, replies}`: the chat lines produced while the command is handled
+(a dialogue's or a teleport's later lines aren't in it). The console shows them under each
+command.
 
-Proposed: the reply lines in the answer, e.g.
+## 2. Monster data catalog, for `!skin` (done)
 
-```json
-{ "affected": 1, "replies": ["effect package 1748 (12 of 2518)"], "ran": true }
-```
+**Done:** `GET /v1/catalog/monsters`: every monster data in the client (672, RDB 1010514,
+binary XML), with the designers' name, motion set, anim graph, death effect package, and what
+uses it (world characters and smashables by name, minifigures by template). Debug → Looks &
+state lists them, used ones first, with Wear and Death fx; `!skin` completes them.
 
-`ran: false` when the player's GM level is too low or the command is unknown (or a 403/422 with
-the reason). A command whose result arrives later can leave `replies` empty.
+## 3. BCCState names, for `!state` (done)
 
-**Done:** the answer is `{affected, replies}` (lines produced while the command is handled; a
-dialogue's or a teleport's later lines aren't in it). The console shows the replies under each
-command, and the status bar the latest.
+**Done:** `GET /v1/catalog/bcc-states`: the six states the client's behaviour tree defines (1 Idle,
+4 Fighting, 7 Flying, 29 Limbo, 69 Evade, 104 Building) with their action groups, and the
+substates. Debug → Looks & state shows a button per state; `!state` completes them.
 
-## 2. Monster data catalog (for `!skin`)
+## 4. Animation catalog (done)
 
-`!skin <monster data id>` takes ids nobody can browse. Proposed: `GET /v1/catalog/monsters`
-(scope read), `{monsters: [{id, name, mesh or look name, kind (npc, enemy, boss, smashable,
-mount, ...), used_by: [{playfield, spawn or encounter name}]}]}`, from the client RDB like the
-effect catalog.
+**Done:** `GET /v1/catalog/animations`: every animation attribute effect packages set (67), with
+the anim graphs that have it and the packages that set it, plus the client's 559 motion sets
+(4908 motions) and 33 anim graphs. The test command `!anim <attribute>` plays the package that
+sets it (one that sets only that attribute where there is one). Debug → Animations, the effect
+view's attribute buttons, and `!anim` completion use it.
 
-**Done, in part:** `looks` in `GET /v1/catalog/test-commands` lists the monster data of every
-character and smashable placed in the world, with their names (Debug → Looks & state, and `!skin`
-completion). Monster data that nothing in the world uses (unused looks, other minifigures'
-bodies) is still missing: a full list from the client RDB would add those.
+## 5. Code hooks (done)
 
-## 3. BCCState names (for `!state`)
+They were in the data as `<trigger type="code_hook" value="onhit">` on each timeline; the
+extractor looked for another form. **Done:** `code_hooks` lists them (onhit, charge, execute,
+on_projectile_fired, ...) and each timeline part has the `hook` that starts it. The effect view
+shows a button per hook and labels the chart's lanes with them.
 
-Only 1 (normal), 29 (Limbo, smashed) and 104 (building) are known to the browser, from the
-devcmd help. Proposed: the names of every BCCState value the client knows, e.g.
-`GET /v1/catalog/bcc-states` → `[{value, name}]` (or put them in the openapi schema as an enum
-with descriptions).
+## 6. A schema for the effect catalog (done)
 
-Browser today: three preset buttons and a number box. Then: a full picker.
+**Done:** `EffectCatalog` in `docs/openapi.json` (`Effect` = `EffectPackage` | `ParticleSystem`,
+`Timeline`, `Particle`, `Sound`, `UsedBy`). Parts that last until the package stops have
+`until_stopped: true` and `duration: null`; parts without a duration of their own
+(use_duration="False") have `duration: null`; 0 is an instant. Particles are `{id, name}` and
+sounds `{path, id}`, resolved through the client's resource name index (RDB 1020004,
+tools/re/rdb_names.py): 2208 of 2224 particle references get an id and 2218 a name (packages
+name most particles only by id). The browser still reads the old format from older servers.
 
-## 4. Animation catalog
+## 7. Caching the catalog (done)
 
-Packages switch EMotionFX animations through `animation_attributes` (`limbostart`,
-`chainattack`, ...), but there is no list of which motions an attribute selects or which
-animations exist. Proposed: `GET /v1/catalog/animations` → `{attributes: [{name, motions:
-[name], used_by_packages: [id]}]}`, and, if the game server can, a test command to play a motion
-on the character (e.g. `!anim <name>`).
+**Done:** the catalogs send `Cache-Control: private, max-age=3600` and an `ETag` (304 on
+`If-None-Match`), and the API compresses answers (gzip, brotli).
 
-## 5. Code hooks
+## 8. Playing on a target (done)
 
-`code_hooks` is empty in all 2518 packages of the current `effect_catalog.json`, while
-`!fx <id> <hook>` takes one ("e.g. limbostart"). Either the extractor misses them or the hook
-names live elsewhere. Proposed: fill `code_hooks` per package (or a top-level `code_hooks:
-[name]` list of every hook the client knows).
+**Done:** `!fx <id> [hook] [@near|@ground]`: `@near` plays the package with the nearest enemy or
+smashable (15 m) as its named target, `@ground` at the player's feet. The effect view's "play
+on" choice applies to Play, the hook buttons and stepping.
 
-Browser today: shows a button per listed hook (none appear with the current data) and a free
-"code hook" box suggesting the package's animation attributes and `limbostart`.
+## 9. Listen to a sound (done)
 
-## 6. A schema for the effect catalog
+**Done:** `GET /v1/catalog/sounds/{id}` (scope read) serves a sound effect packages play, as Ogg
+Vorbis from the client's RDB (only ids in the catalog; needs the API's `--client-dir`). The
+effect view has a ♪ button per sound. 4381 of the 4432 sound references resolve, by the client's
+own lookup; the rest are music (another index), paths with a wrong prefix or folder, and files
+that aren't in the client at all, which the game can't play either.
 
-`GET /v1/catalog/effects` is `type: object` in `docs/openapi.json`. Proposed: a real schema
-(`EffectCatalog`, `EffectPackage`, `ParticleSystem`, `Timeline`, `UsedBy`) so clients can generate
-types; this app keeps hand-written ones in `src/types.ts`. Worth stating in it:
+## 10. Names for every playfield (done)
 
-- looping timeline parts use `duration: 86400` ("until stopped"); a `null` duration or a flag
-  would be clearer;
-- 132 timeline parts have `duration` 0 or less;
-- `particles` mixes resource names and bare numeric ids (e.g. `"3429"`): resolving the ids to
-  names, or splitting `{id, name}`, would make them searchable.
+**Done:** `GET /v1/playfields` lists every playfield (247, from the playfield descriptions) with
+`teleport: true` for `!tp` destinations. Teleport lists only those; every other place shows a
+name.
 
-## 7. Caching the catalog
+## 11. Despawning test spawns (done)
 
-The catalog is about 2.2 MB, static for a given server build, and sent with `no-store` like
-every non-game-data route. Proposed: `Cache-Control: private, max-age=3600` plus an `ETag`
-(the file's hash), and gzip/br compression, so reloading the browser doesn't fetch it again.
-
-## 8. Playing on a target
-
-Many packages put parts on `target`, `ground` or `other` (981, 471 and 425 timeline parts);
-`!fx` plays the package on the player's own character, so those parts may show nothing or
-show at the character. Proposed: `!fx <id> [hook] [@target]`, where the target is the nearest
-NPC/enemy (as `!smash` picks one) or the player's current target.
-
-## 9. Listen to a sound
-
-Packages are mostly recognised by sound. Proposed (low priority): `GET /v1/assets/sound?path=`
-(scope read) serving a `.wav` from the client data, restricted to the paths that appear in
-the catalog, so the browser can play it inline.
-
-## 10. Names for every playfield
-
-`GET /v1/playfields` lists the `!tp` destinations, so targets and spawns in playfields without
-an arrival point show as bare numbers: 1300 (the tutorial) and 4610 appear in the test command
-catalog. Proposed: a name for every playfield id the API can return (e.g. `GET /v1/playfields`
-with a `teleport: bool` per entry), so tools never show a bare id.
-
-## 11. Despawning test spawns
-
-`!spawn` and `!test` spawns stay 15 minutes. Proposed: `!despawn` (every test spawn of the
-player, or around them), so a crowded test area can be cleared at once.
-
+**Done:** `!despawn` removes the test spawns (`!spawn`, `!test`) within 30 m, `!despawn all` every
+one on the playfield. Debug → Spawn & loot has both.

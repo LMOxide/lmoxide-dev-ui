@@ -1,5 +1,5 @@
 import { describe, isPackage, soundName } from './catalog'
-import type { Effect, Minifigure, Playfield, TestCatalog } from './types'
+import type { AnimationCatalog, BccStates, Effect, Minifigure, MonsterData, Playfield, TestCatalog } from './types'
 
 /** One completion: what the input becomes when it is taken. */
 export interface Suggestion {
@@ -22,6 +22,9 @@ export interface GameData {
   playfields: Playfield[]
   minifigures: Minifigure[]
   tests: TestCatalog | null
+  monsters: MonsterData[]
+  animations: AnimationCatalog | null
+  bccStates: BccStates | null
 }
 
 export function playfieldName(data: GameData, id: number | null | undefined): string {
@@ -90,7 +93,7 @@ export function vocabulary(effects: Effect[], tags: string[]): Term[] {
     for (const u of e.used_by ?? []) once(u.name, u.rdb)
     if (isPackage(e)) {
       for (const s of e.sounds) once(soundName(s), 'sound')
-      for (const p of e.particles) if (!/^\d+$/.test(p)) once(p, 'particle')
+      for (const p of e.particles) once(p.name, 'particle')
       for (const a of e.animation_attributes) once(a, 'anim attr')
       for (const h of e.code_hooks) once(h, 'hook')
       for (const t of e.timelines) once(t.name, t.type)
@@ -251,13 +254,21 @@ export function commandSuggestions(value: string, data: GameData): Suggestion[] 
     case 'skin':
       return [
         ...fixed([['reset', 'your minifigure again']]),
-        ...best(tests?.looks ?? [], rest, (l) => [...l.names, String(l.monster_data)]).map((l) => ({
-          key: `md${l.monster_data}`,
-          label: l.names.join(', '),
-          detail: `${l.kind} · ${l.monster_data}`,
-          value: `!skin ${l.monster_data}`,
-          complete: true,
-        })),
+        ...(data.monsters.length
+          ? best(data.monsters, rest, (m) => [...m.used_by.map((u) => u.name), m.name, String(m.id)]).map((m) => ({
+              key: `md${m.id}`,
+              label: [...new Set(m.used_by.map((u) => u.name))].join(', ') || m.name,
+              detail: `${m.name} · ${m.id}`,
+              value: `!skin ${m.id}`,
+              complete: true,
+            }))
+          : best(tests?.looks ?? [], rest, (l) => [...l.names, String(l.monster_data)]).map((l) => ({
+              key: `md${l.monster_data}`,
+              label: l.names.join(', '),
+              detail: `${l.kind} · ${l.monster_data}`,
+              value: `!skin ${l.monster_data}`,
+              complete: true,
+            }))),
       ]
     case 'dialog':
     case 'dialogue':
@@ -269,6 +280,22 @@ export function commandSuggestions(value: string, data: GameData): Suggestion[] 
         complete: true,
       }))
     case 'fx': {
+      // after the id: a code hook of that package, and where (@near, @ground)
+      const after = /^(\d+)\s+(.*)$/.exec(rest)
+      if (after) {
+        const e = data.effects.find((x) => x.id === Number(after[1]))
+        const words = after[2].split(/\s+/)
+        const last = words.pop() ?? ''
+        const before = `!fx ${after[1]} ${words.map((w) => w + ' ').join('')}`
+        const options: [string, string][] = [
+          ...(e && isPackage(e) ? e.code_hooks.filter((h) => !words.includes(h)).map((h) => [h, 'code hook'] as [string, string]) : []),
+          ['@near', 'on the nearest enemy or smashable'],
+          ['@ground', 'at your feet'],
+        ]
+        return options
+          .filter(([o]) => o.startsWith(last) && !words.includes(o))
+          .map(([o, detail]) => ({ key: o, label: o, detail, value: `${before}${o}`, complete: true }))
+      }
       const special = fixed([['stop'], ['next'], ['prev']])
       const q = rest.trim()
       if (!q) return special
@@ -276,8 +303,27 @@ export function commandSuggestions(value: string, data: GameData): Suggestion[] 
       const hits = /^\d+$/.test(q) ? pkgs.filter((e) => String(e.id).startsWith(q)).slice(0, 10) : best(pkgs, q, (e) => [describe(e)], 10)
       return [...special, ...hits.map((e) => ({ key: `fx${e.id}`, label: String(e.id), detail: describe(e), value: `!fx ${e.id}`, complete: true }))]
     }
+    case 'anim':
+      return best(data.animations?.attributes.filter((a) => a.package !== null) ?? [], rest, (a) => [a.name]).map((a) => ({
+        key: a.name,
+        label: a.name,
+        detail: `${a.packages.length} packages set it`,
+        value: `!anim ${a.name}`,
+        complete: true,
+      }))
+    case 'despawn': {
+      return fixed([['all', "every test spawn on this playfield (without: within 30 m)"]])
+    }
     case 'state':
-      return fixed(STATES.map(([n, s]) => [String(n), s]))
+      return data.bccStates
+        ? best(data.bccStates.states, rest, (st) => [String(st.value), st.name]).map((st) => ({
+            key: `st${st.value}`,
+            label: `${st.value} ${st.name}`,
+            detail: st.about,
+            value: `!state ${st.value}`,
+            complete: true,
+          }))
+        : fixed(STATES.map(([n, s]) => [String(n), s]))
     case 'aura':
       return fixed(AURAS.map((a, i) => [String(i), a]))
     case 'count': {

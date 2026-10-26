@@ -30,7 +30,17 @@ function entries(data: GameData): Hit[] {
     for (const t of k.targets) out.push({ key: `t${k.kind}${t.n}`, kind: `go to ${k.kind}`, title: t.label, detail: pf(t.playfield), command: `!goto ${k.kind} ${t.n}` })
   for (const s of data.tests?.spawnable ?? [])
     out.push({ key: `sp${s.name}`, kind: 'spawn', title: s.name, detail: `${s.kind}, level ${s.level} · ${places(data, s.playfields)}`, command: `!spawn ${s.name}` })
-  for (const l of data.tests?.looks ?? []) out.push({ key: `l${l.monster_data}`, kind: 'look', title: l.names.join(', '), detail: `monster data ${l.monster_data}`, command: `!skin ${l.monster_data}` })
+  if (data.monsters.length) {
+    for (const m of data.monsters) {
+      const names = [...new Set(m.used_by.map((u) => u.name))].join(', ')
+      out.push({ key: `l${m.id}`, kind: 'look', title: names || m.name, detail: `${names ? m.name + ' · ' : ''}monster data ${m.id}`, command: `!skin ${m.id}` })
+    }
+  } else {
+    for (const l of data.tests?.looks ?? []) out.push({ key: `l${l.monster_data}`, kind: 'look', title: l.names.join(', '), detail: `monster data ${l.monster_data}`, command: `!skin ${l.monster_data}` })
+  }
+  for (const a of data.animations?.attributes ?? [])
+    if (a.package !== null) out.push({ key: `a${a.name}`, kind: 'animation', title: a.name, detail: `${a.packages.length} packages set it`, command: `!anim ${a.name}` })
+  for (const st of data.bccStates?.states ?? []) out.push({ key: `st${st.value}`, kind: 'state', title: st.name, detail: st.about || `BCCState ${st.value}`, command: `!state ${st.value}` })
   for (const f of data.minifigures) out.push({ key: `f${f.id}`, kind: 'own', title: f.name, detail: `series ${f.series}`, command: `!own ${f.name}` })
   for (const d of data.tests?.dialogues ?? []) out.push({ key: `d${d.n}`, kind: 'dialogue', title: d.npc, detail: pf(d.playfield), command: `!dialog ${d.n}` })
   for (const k of data.tests?.loot_kinds ?? []) out.push({ key: `lo${k}`, kind: 'loot', title: `${k} loot bag`, detail: 'at your feet', command: `!loot ${k}` })
