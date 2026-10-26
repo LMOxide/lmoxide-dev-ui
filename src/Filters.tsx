@@ -1,4 +1,6 @@
+import { AutoInput } from './AutoInput'
 import { NO_FILTERS, type Filters, type Tri } from './catalog'
+import type { Suggestion } from './suggest'
 
 function TriChip({ label, value, onChange, title }: { label: string; value: Tri; onChange: (t: Tri) => void; title?: string }) {
   const next: Record<Tri, Tri> = { any: 'yes', yes: 'no', no: 'any' }
@@ -28,6 +30,7 @@ export function FilterPanel({
   shown,
   total,
   searchRef,
+  suggest,
 }: {
   filters: Filters
   set: (f: Partial<Filters>) => void
@@ -36,21 +39,24 @@ export function FilterPanel({
   shown: number
   total: number
   searchRef: React.RefObject<HTMLInputElement | null>
+  /** completions for the word being typed */
+  suggest: (v: string) => Suggestion[]
 }) {
   const changed = JSON.stringify({ ...filters, desc: false }) !== JSON.stringify({ ...NO_FILTERS, desc: false })
   return (
     <section className="filters" aria-label="Search and filters">
-      <input
-        ref={searchRef}
+      <AutoInput
+        inputRef={searchRef}
         type="search"
         className="search"
         placeholder="Search id, item/spell names, sounds, particles, Lua…  ( / )"
         value={filters.text}
-        onChange={(e) => set({ text: e.target.value })}
+        onChange={(text) => set({ text })}
+        suggest={suggest}
         onKeyDown={(e) => {
           if (e.key === 'Escape' || e.key === 'Enter') e.currentTarget.blur()
         }}
-        spellCheck={false}
+        aria-label="Search effects"
       />
       <div className="chips">
         <TriChip label="sound" value={filters.sound} onChange={(sound) => set({ sound })} />

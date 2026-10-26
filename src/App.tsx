@@ -8,8 +8,11 @@ import { Login } from './Login'
 import { DEFAULT_TAGS, isEmpty, type Note, type Notes } from './notes'
 import { NotesPanel } from './NotesPanel'
 import { KEYS, loadJson, saveJson } from './storage'
-import { CommandLog, Tools, type LogEntry } from './Tools'
-import type { Effect, EffectCatalog, Player, Session } from './types'
+import { Console, type LogEntry } from './Console'
+import { Debug, type Section } from './Debug'
+import { Palette } from './Palette'
+import { playfieldName, searchSuggestions, vocabulary, type GameData } from './suggest'
+import type { Effect, EffectCatalog, Minifigure, Player, Playfield, Session, TestCatalog } from './types'
 
 /** The player chosen to preview on, remembered across visits (they may be offline now). */
 interface Chosen {
@@ -18,7 +21,8 @@ interface Chosen {
   character_name: string
 }
 
-type Tab = 'effect' | 'tools' | 'notes'
+type Tab = 'effect' | 'console' | 'notes'
+type View = 'effects' | 'debug'
 
 function useStored<T>(key: string, fallback: T, inSession = false): [T, (v: T | ((old: T) => T)) => void] {
   const [value, setValue] = useState<T>(() => loadJson(key, fallback, inSession))
@@ -63,7 +67,16 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
   const [playing, setPlaying] = useState<number | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
   const [tab, setTab] = useState<Tab>('effect')
+  const [view, setView] = useStored<View>(KEYS.view, 'effects')
+  const [section, setSection] = useStored<Section>(KEYS.debugSection, 'quick')
+  const [consoleValue, setConsoleValue] = useState('')
+  const [palette, setPalette] = useState(false)
+  const [playfields, setPlayfields] = useState<Playfield[]>([])
+  const [minifigures, setMinifigures] = useState<Minifigure[]>([])
+  const [tests, setTests] = useState<TestCatalog | null>(null)
+  const [testsError, setTestsError] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
+  const consoleRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const logId = useRef(0)
 
@@ -95,6 +108,21 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
 
   useEffect(loadCatalog, [loadCatalog])
 
+  // game data for the pickers and completions (public lists, and the test command catalog)
+  const loadGameData = useCallback(() => {
+    api.playfields().then(setPlayfields).catch(() => {})
+    api.minifigures().then(setMinifigures).catch(() => {})
+    api
+      .testCatalog()
+      .then((t) => {
+        setTests(t)
+        setTestsError('')
+      })
+      .catch((e) => setTestsError(failed(e)))
+  }, [api, failed])
+
+  useEffect(loadGameData, [loadGameData])
+
   const loadPlayers = useCallback(() => {
     api
       .players()
@@ -111,6 +139,8 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
     return () => clearInterval(t)
   }, [loadPlayers])
 
+  const gameData: GameData = useMemo(() => ({ effects: catalog ?? [], playfields, minifigures, tests }), [catalog, playfields, minifigures, tests])
+
   const facts = useMemo(() => new Map((catalog ?? []).map((e) => [e.id, factsOf(e)])), [catalog])
   const byId = useMemo(() => new Map((catalog ?? []).map((e) => [e.id, e])), [catalog])
   const timelineTypes = useMemo(() => [...new Set([...facts.values()].flatMap((f) => [...f.types]))].sort(), [facts])
@@ -118,6 +148,9 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
     const used = Object.values(notes).flatMap((n) => n.tags)
     return [...new Set([...DEFAULT_TAGS, ...customTags, ...used])]
   }, [notes, customTags])
+
+  const terms = useMemo(() => vocabulary(catalog ?? [], tags), [catalog, tags])
+  const suggestSearch = useCallback((v: string) => searchSuggestions(v, terms, catalog ?? []), [terms, catalog])
 
   const filtered = useMemo(() => {
     const text = textMatcher(filters.text)
@@ -154,7 +187,7 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
       try {
         const r = await api.command(chosen.account_id, command)
         if (r.affected > 0) {
-          update({ status: 'ok' })
+          update({ status: 'ok', replies: r.replies })
           const fx = /^!fx\s+(\d+)/.exec(command)
           if (fx) setPlaying(Number(fx[1]))
           else if (/^!fx\s+stop/.test(command)) setPlaying(null)
@@ -192,9 +225,20 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
   // keyboard: j/k or arrows step through the filtered list, Enter plays, s stops, 1-9 tag
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPalette((p) => !p)
+        return
+      }
       if (e.ctrlKey || e.metaKey || e.altKey) return
       const el = e.target as HTMLElement
       if (el.closest('input, textarea, select, [contenteditable]')) return
+      if (e.key === ':') {
+        e.preventDefault()
+        focusConsole()
+        return
+      }
+      if (view !== 'effects') return
       const sel = selected === null ? undefined : byId.get(selected)
       if (e.key === 'j' || e.key === 'ArrowDown') step(1)
       else if (e.key === 'k' || e.key === 'ArrowUp') step(-1)
@@ -213,7 +257,14 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [step, selected, byId, canSend, send, tags, notes, setNote])
+  }, [step, selected, byId, canSend, send, tags, notes, setNote, view])
+
+  /** Shows the console (a tab in the effect view, always there in the debug view) and focuses it. */
+  function focusConsole(value?: string) {
+    if (value !== undefined) setConsoleValue(value)
+    if (view === 'effects') setTab('console')
+    setTimeout(() => consoleRef.current?.focus(), 0)
+  }
 
   const current = selected === null ? undefined : byId.get(selected)
   const noteCount = Object.values(notes).filter((n) => !isEmpty(n)).length
@@ -223,11 +274,22 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
     <div className="app">
       <header className="top">
         <h1>
-          LMOxide <span className="muted">effect browser</span>
+          LMOxide <span className="muted">debug browser</span>
         </h1>
+        <nav className="views" aria-label="Views">
+          <button className={view === 'effects' ? 'on' : ''} onClick={() => setView('effects')}>
+            Effects
+          </button>
+          <button className={view === 'debug' ? 'on' : ''} onClick={() => setView('debug')}>
+            Debug
+          </button>
+          <button className="ghost search-all" onClick={() => setPalette(true)} title="Search everything (Ctrl+K)">
+            ⌕ Search all <kbd>Ctrl K</kbd>
+          </button>
+        </nav>
         <div className="player">
           <label>
-            Preview on
+            Player
             <select
               value={chosen?.account_id ?? ''}
               onChange={(e) => {
@@ -251,6 +313,7 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
           <button className="ghost" onClick={loadPlayers} title="Refresh the players online">
             ↻
           </button>
+          {online?.playfield != null && <span className="muted small">in {playfieldName(gameData, online.playfield)}</span>}
           <label className="check" title="Play each entry as you step with j/k or the arrow keys">
             <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} /> play on step
           </label>
@@ -304,7 +367,27 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
         </div>
       )}
 
-      {!catalog ? (
+      {view === 'debug' ? (
+        <main className="panes debug-panes">
+          <div className="left">
+            <Debug
+              data={gameData}
+              testsError={testsError}
+              online={online}
+              canSend={canSend}
+              send={send}
+              section={section}
+              setSection={setSection}
+              fillCommand={(c) => focusConsole(c)}
+            />
+          </div>
+          <div className="right">
+            <div className="tab-body">
+              <Console log={log} data={gameData} canSend={canSend} onCommand={send} value={consoleValue} setValue={setConsoleValue} inputRef={consoleRef} />
+            </div>
+          </div>
+        </main>
+      ) : !catalog ? (
         <main className="loading">
           {catalogError ? (
             <div className="card">
@@ -330,6 +413,7 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
               shown={filtered.length}
               total={catalog.length}
               searchRef={searchRef}
+              suggest={suggestSearch}
             />
             <EffectList
               items={filtered}
@@ -349,8 +433,8 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
               <button role="tab" aria-selected={tab === 'effect'} className={tab === 'effect' ? 'on' : ''} onClick={() => setTab('effect')}>
                 Effect
               </button>
-              <button role="tab" aria-selected={tab === 'tools'} className={tab === 'tools' ? 'on' : ''} onClick={() => setTab('tools')}>
-                Game tools
+              <button role="tab" aria-selected={tab === 'console'} className={tab === 'console' ? 'on' : ''} onClick={() => setTab('console')}>
+                Console
               </button>
               <button role="tab" aria-selected={tab === 'notes'} className={tab === 'notes' ? 'on' : ''} onClick={() => setTab('notes')}>
                 Notes {noteCount > 0 && <span className="pill">{noteCount}</span>}
@@ -374,12 +458,8 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
                 ) : (
                   <p className="muted">Pick an entry on the left.</p>
                 ))}
-              {tab === 'tools' && (
-                <>
-                  <Tools canSend={canSend} onCommand={send} />
-                  <h3>Sent</h3>
-                  <CommandLog log={log} />
-                </>
+              {tab === 'console' && (
+                <Console log={log} data={gameData} canSend={canSend} onCommand={send} value={consoleValue} setValue={setConsoleValue} inputRef={consoleRef} />
               )}
               {tab === 'notes' && (
                 <NotesPanel
@@ -398,14 +478,38 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
         </main>
       )}
 
+      {palette && (
+        <Palette
+          data={gameData}
+          canSend={canSend}
+          send={send}
+          onClose={() => setPalette(false)}
+          fillCommand={(c) => focusConsole(c)}
+          showEffect={(id, play) => {
+            setView('effects')
+            setFilters((f) => (filtered.some((e) => e.id === id) ? f : { ...NO_FILTERS, desc: f.desc }))
+            setSelected(id)
+            setTab('effect')
+            if (play && canSend && byId.get(id)?.kind === 'effectpackage') send(`!fx ${id}`)
+          }}
+        />
+      )}
+
       <footer className="status">
         <span className="keys">
-          <kbd>j</kbd>/<kbd>k</kbd> or <kbd>↓</kbd>/<kbd>↑</kbd> next/prev · <kbd>Enter</kbd> play · <kbd>s</kbd> stop · <kbd>1</kbd>–<kbd>9</kbd> tag · <kbd>/</kbd> search
+          <kbd>Ctrl K</kbd> search all · <kbd>:</kbd> command
+          {view === 'effects' && (
+            <>
+              {' '}
+              · <kbd>j</kbd>/<kbd>k</kbd> next/prev · <kbd>Enter</kbd> play · <kbd>s</kbd> stop · <kbd>1</kbd>–<kbd>9</kbd> tag · <kbd>/</kbd> search
+            </>
+          )}
         </span>
         <span className={`last ${last?.status ?? ''}`}>
           {last ? (
             <>
-              <code>{last.command}</code> {last.status === 'pending' ? '…' : last.status === 'ok' ? '✓' : `— ${last.message}`}
+              <code>{last.command}</code>{' '}
+              {last.status === 'pending' ? '…' : last.status === 'ok' ? (last.replies?.length ? `✓ ${last.replies.join(' · ')}` : '✓') : `— ${last.message}`}
             </>
           ) : (
             catalogSource && <span className="muted">{catalog?.length.toLocaleString()} effects from {catalogSource}</span>

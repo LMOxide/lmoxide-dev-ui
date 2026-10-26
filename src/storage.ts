@@ -42,4 +42,7 @@ export const KEYS = {
   tags: 'lmofx.tags',
   filters: 'lmofx.filters',
   autoplay: 'lmofx.autoplay',
+  history: 'lmofx.history',
+  view: 'lmofx.view',
+  debugSection: 'lmofx.debugSection',
 } as const

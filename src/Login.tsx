@@ -48,10 +48,11 @@ export function Login({ apiBase, onApiBase, onSession }: { apiBase: string; onAp
   return (
     <main className="login">
       <form onSubmit={submit} className="card">
-        <h1>LMOxide effect browser</h1>
+        <h1>LMOxide debug browser</h1>
         <p className="muted">
-          Browse the game client's effect packages and play them on a character in the running game.
-          Needs an admin account (or an API key with the admin scope) on <code>lmoxide-api</code>.
+          Browse the game client's effects and play them on a character in the running game; teleport, run test
+          scenarios, spawn enemies and more through the test commands. Needs an admin account (or an API key with the
+          admin scope) on <code>lmoxide-api</code>.
         </p>
         <label>
           API base URL

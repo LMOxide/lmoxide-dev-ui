@@ -1,4 +1,4 @@
-import type { EffectCatalog, Player, Scope } from './types'
+import type { CommandResult, EffectCatalog, Minifigure, Player, Playfield, Scope, TestCatalog } from './types'
 
 /** `{"error": {"code", "message"}}` from the API, or a network failure (code `network`). */
 export class ApiError extends Error {
@@ -87,8 +87,20 @@ export class Api {
     return this.call<EffectCatalog>('GET', '/v1/catalog/effects')
   }
 
-  /** A test command run as that player, as if typed in chat. Only `affected` comes back. */
+  testCatalog() {
+    return this.call<TestCatalog>('GET', '/v1/catalog/test-commands')
+  }
+
+  playfields() {
+    return this.call<Playfield[]>('GET', '/v1/playfields')
+  }
+
+  minifigures() {
+    return this.call<Minifigure[]>('GET', '/v1/minifigures')
+  }
+
+  /** A test command run as that player, as if typed in chat; `replies` are its chat answers. */
   command(accountId: number, command: string) {
-    return this.call<{ affected: number }>('POST', `/v1/players/${accountId}/command`, { command })
+    return this.call<CommandResult>('POST', `/v1/players/${accountId}/command`, { command })
   }
 }

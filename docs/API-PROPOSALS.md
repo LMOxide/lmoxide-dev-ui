@@ -1,5 +1,10 @@
 # Proposed API changes
 
+> **Items 1 and 2 landed in lmoxide `2c668c5`** ("Test command catalog, command replies,
+> !spawn"), together with `GET /v1/catalog/test-commands`, which the browser's Debug view and
+> command completion use (scenarios, `!goto` targets, dialogues, loot kinds, spawnable names,
+> looks). Each item says how. New proposals go under a new heading at the end.
+
 Changes to `lmoxide-api` (and the test commands in `crates/lmoxide-server/src/devcmd.rs`) that
 the effect browser needs or would benefit from. Found while building its first version
 (2026-10-26), against `docs/openapi.json`, `docs/EFFECT-BROWSER.md` and
@@ -22,8 +27,9 @@ Proposed: the reply lines in the answer, e.g.
 `ran: false` when the player's GM level is too low or the command is unknown (or a 403/422 with
 the reason). A command whose result arrives later can leave `replies` empty.
 
-Browser today: logs each command with ✓ (affected > 0) or ⚠ (affected 0, "reached nobody")
-and says the answer is in the game chat. Then: show the replies in the log and the status bar.
+**Done:** the answer is `{affected, replies}` (lines produced while the command is handled; a
+dialogue's or a teleport's later lines aren't in it). The console shows the replies under each
+command, and the status bar the latest.
 
 ## 2. Monster data catalog (for `!skin`)
 
@@ -32,8 +38,10 @@ and says the answer is in the game chat. Then: show the replies in the log and t
 mount, ...), used_by: [{playfield, spawn or encounter name}]}]}`, from the client RDB like the
 effect catalog.
 
-Browser today: a number box plus "Reset". Then: a searchable list like the effect list, with
-"Wear" per entry and keyboard stepping that sends `!skin <id>`.
+**Done, in part:** `looks` in `GET /v1/catalog/test-commands` lists the monster data of every
+character and smashable placed in the world, with their names (Debug → Looks & state, and `!skin`
+completion). Monster data that nothing in the world uses (unused looks, other minifigures'
+bodies) is still missing: a full list from the client RDB would add those.
 
 ## 3. BCCState names (for `!state`)
 
@@ -92,3 +100,16 @@ NPC/enemy (as `!smash` picks one) or the player's current target.
 Packages are mostly recognised by sound. Proposed (low priority): `GET /v1/assets/sound?path=`
 (scope read) serving a `.wav` from the client data, restricted to the paths that appear in
 the catalog, so the browser can play it inline.
+
+## 10. Names for every playfield
+
+`GET /v1/playfields` lists the `!tp` destinations, so targets and spawns in playfields without
+an arrival point show as bare numbers: 1300 (the tutorial) and 4610 appear in the test command
+catalog. Proposed: a name for every playfield id the API can return (e.g. `GET /v1/playfields`
+with a `teleport: bool` per entry), so tools never show a bare id.
+
+## 11. Despawning test spawns
+
+`!spawn` and `!test` spawns stay 15 minutes. Proposed: `!despawn` (every test spawn of the
+player, or around them), so a crowded test area can be cleared at once.
+
