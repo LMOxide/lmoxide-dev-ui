@@ -16,6 +16,8 @@ import type {
   Surveyor,
   Vec3,
   TriggerTargets,
+  PublishRequest,
+  Unpublished,
   WallLook,
   WallSettings,
   WaveRef,
@@ -70,6 +72,10 @@ export interface SurveyBackend {
   forget(id: string): Promise<SurveyObject | null>
   /** Makes it exactly as the snapshot has it (undo and redo). */
   put(id: string, snapshot: SurveyObject): Promise<SurveyObject>
+  /** Changes not published yet (saved on the server, not seen by play servers), the caller's first. */
+  unpublished(): Promise<Unpublished[]>
+  /** Publishes changes (by default all of the caller's): play servers take them in. */
+  publish(req: PublishRequest): Promise<{ records: number; unpublished: Unpublished[] }>
   setInfo(): Promise<SetInfo>
   saveSetInfo(info: SetInfo): Promise<SetInfo>
   exportSet(playfield: number | null): Promise<Bundle>
@@ -205,6 +211,12 @@ export class HttpBackend implements SurveyBackend {
   }
   put(id: string, snapshot: SurveyObject) {
     return this.call<SurveyObject>('PUT', `/objects/${encodeURIComponent(id)}`, snapshot)
+  }
+  unpublished() {
+    return this.call<Unpublished[]>('GET', '/unpublished')
+  }
+  publish(req: PublishRequest) {
+    return this.call<{ records: number; unpublished: Unpublished[] }>('POST', '/publish', req)
   }
   setInfo() {
     return this.call<SetInfo>('GET', '/set')

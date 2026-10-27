@@ -203,6 +203,30 @@ export interface PlayfieldNotes {
   scripts: Script[]
 }
 
+/** One editor's changes to one feature in one playfield that aren't published yet
+ * (`GET /v1/survey/unpublished`). Play servers only see what is published. */
+export interface Unpublished {
+  playfield: number
+  playfield_name: string
+  feature: string
+  feature_path: string
+  author: string
+  /** the caller's own */
+  mine: boolean
+  /** "2 added, 1 changed" */
+  summary: string
+  items: { kind: 'placement' | 'trigger' | 'note' | 'script'; id: string; name: string; op: 'added' | 'changed' | 'removed'; details?: string[]; updated: number }[]
+}
+
+/** `POST /v1/survey/publish`: only the given playfield, feature, author (default: the caller;
+ * `*`: everyone) and records. */
+export interface PublishRequest {
+  playfield?: number
+  feature?: string
+  author?: string
+  ids?: string[]
+}
+
 export interface SetInfo {
   name: string
   authors: string[]

@@ -105,6 +105,7 @@ the survey server (*Editing as*): its position and facing place things.
   editing (moves and turns typed in quick succession are one step), confirming, deleting and
   resetting, for this page's session. **Reset** on the selection: an edited or confirmed guess
   back to the guess; anything else back to how it was when the page was opened.
+- **Publish**: edits are saved on the survey server as you make them (written to disk once you pause), so a crash loses nothing, but play servers only see what you publish. The header button counts your unpublished records (`Publish (n)`, or *Saved · all published*); the dialog publishes all of yours or one playfield/feature/author group, and lists each record (`GET /v1/survey/unpublished`, `POST /v1/survey/publish`, lmoxide d07b419).
 - **Import / export**: one file per set or playfield; importing previews duplicates,
   near-duplicates (within a distance and angle you set, each can be taken anyway) and conflicts.
 

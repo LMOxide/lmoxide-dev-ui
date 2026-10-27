@@ -281,3 +281,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.badge.warn {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+.sv-publish-items {
+  margin: 4px 0 8px 34px;
+}
+.sv-publish-items li {
+  padding: 2px 0;
+}

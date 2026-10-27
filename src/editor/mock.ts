@@ -19,6 +19,8 @@ import type {
   SurveyObject,
   Vec3,
   TriggerTargets,
+  PublishRequest,
+  Unpublished,
   WallSettings,
   WaveRef,
 } from './types'
@@ -94,10 +96,17 @@ export class MockBackend implements SurveyBackend {
     p.pos = [p.pos[0] + Math.sin(p.heading) * forward, p.pos[1], p.pos[2] + Math.cos(p.heading) * forward]
   }
 
-  private bump() {
+  private bump(touched?: SurveyObject, op: 'added' | 'changed' | 'removed' = 'changed') {
     this.revision++
     this.player.revision = this.revision
+    if (touched) {
+      const kind = touched.kind === 'trigger' ? 'trigger' : 'placement'
+      const old = this.unpublishedItems.get(touched.id)
+      this.unpublishedItems.set(touched.id, { kind, id: touched.id, name: touched.name, op: old?.op === 'added' && op !== 'removed' ? 'added' : op, updated: now(), feature: touched.feature ?? 'live' })
+    }
   }
+  /** what the mock's editor changed since publishing */
+  private unpublishedItems = new Map<string, Unpublished['items'][number] & { feature: string }>()
 
   private get(id: string) {
     const o = this.objectsById.get(id)
@@ -173,7 +182,7 @@ export class MockBackend implements SurveyBackend {
     this.objectsById.set(o.id, o)
     this.player.selected = o.id
     if (wave) this.player.shown_waves[wave.script] = wave.wave
-    this.bump()
+    this.bump(o, 'added')
     return structuredClone(o)
   }
   private featureList: Feature[] = []
@@ -233,7 +242,7 @@ export class MockBackend implements SurveyBackend {
     }
     this.objectsById.set(o.id, o)
     this.player.selected = o.id
-    this.bump()
+    this.bump(o, 'added')
     return structuredClone(o)
   }
   async triggerTargets(): Promise<TriggerTargets> {
@@ -302,12 +311,12 @@ export class MockBackend implements SurveyBackend {
     const o = this.surveyed(this.get(id))
     Object.assign(o, changes, { updated: now() })
     if (o.kind !== 'enemy' && o.kind !== 'npc') delete o.patrol
-    this.bump()
+    this.bump(o)
     return structuredClone(o)
   }
   async confirm(id: string) {
     const o = this.surveyed(this.get(id))
-    this.bump()
+    this.bump(o)
     return structuredClone(o)
   }
   async remove(id: string) {
@@ -315,7 +324,7 @@ export class MockBackend implements SurveyBackend {
     if (o.category !== 'guessed' && o.category !== 'surveyed') throw new Error(`${o.category} objects can only be hidden`)
     this.objectsById.delete(id)
     if (this.player.selected === id) this.player.selected = null
-    this.bump()
+    this.bump(o, 'removed')
     if (o.category !== 'guessed') return { id }
     const record = newId('p')
     this.removals.set(record, o)
@@ -338,6 +347,25 @@ export class MockBackend implements SurveyBackend {
     this.objectsById.set(id, o)
     this.bump()
     return structuredClone(o)
+  }
+  async unpublished(): Promise<Unpublished[]> {
+    const groups = new Map<string, Unpublished>()
+    for (const { feature, ...item } of this.unpublishedItems.values()) {
+      const g = groups.get(feature) ?? { playfield: 4600, playfield_name: 'Pirate World', feature, feature_path: feature, author: 'mock', mine: true, summary: '', items: [] }
+      g.items.push(item)
+      groups.set(feature, g)
+    }
+    return [...groups.values()].map((g) => ({ ...g, summary: (['added', 'changed', 'removed'] as const).map((op) => [g.items.filter((i) => i.op === op).length, op] as const).filter(([n]) => n).map(([n, op]) => `${n} ${op}`).join(', ') }))
+  }
+  async publish(req: PublishRequest) {
+    let records = 0
+    for (const [id, item] of this.unpublishedItems) {
+      if ((req.feature === undefined || item.feature === req.feature) && (!req.ids || req.ids.includes(id))) {
+        this.unpublishedItems.delete(id)
+        records++
+      }
+    }
+    return { records, unpublished: await this.unpublished() }
   }
   async setInfo() {
     return structuredClone(this.info)

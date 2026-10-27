@@ -8,17 +8,20 @@ import { Catalog } from './Catalog'
 import { Editor } from './Editor'
 import { fmtPos, toDegrees } from './geometry'
 import { ImportExport } from './ImportExport'
+import { Publish, recordCount } from './Publish'
 import type { MockBackend } from './mock'
 import { NotesPanel } from './NotesPanel'
 import { Objects } from './Objects'
 import { ScriptsPanel } from './ScriptsPanel'
 import { FeaturePicker } from './Features'
-import type { FeaturesView, WallLook, Placeable, PlayerState, PlayfieldNotes, SurveyObject, Surveyor, TriggerTargets, WaveRef } from './types'
+import type { FeaturesView, WallLook, Placeable, PlayerState, PlayfieldNotes, SurveyObject, Surveyor, TriggerTargets, Unpublished, WaveRef } from './types'
 
 const ACCOUNT_KEY = 'lmofx.survey.account'
 /** the feature new things go into */
 const FEATURE_KEY = 'lmofx.editor.feature'
 const POLL_MS = 1000
+/** how often the unpublished changes are counted */
+const UNPUBLISHED_MS = 5000
 
 type RightTab = 'selection' | 'scripts' | 'notes'
 
@@ -73,6 +76,9 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
   /** narrow screens: which column shows (0 place, 1 the playfield's objects, 2 the right one) */
   const [col, setCol] = useState(1)
   const [transfer, setTransfer] = useState(false)
+  const [publishing, setPublishing] = useState(false)
+  /** null: the server can't tell (older than publishing) */
+  const [unpublished, setUnpublished] = useState<Unpublished[] | null>(null)
   const [waveFilter, setWaveFilter] = useState<WaveRef | 'static' | null>(null)
   const loaded = useRef<{ playfield: number; revision: number } | null>(null)
 
@@ -113,6 +119,19 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
     backend.features().then(setFeatures).catch(() => {})
     backend.markLooks().then(setMarkLooks).catch(() => {})
   }, [backend, failed])
+
+  // what isn't published yet (edits are saved on the server as they are made)
+  useEffect(() => {
+    const load = () =>
+      backend
+        .unpublished()
+        .then(setUnpublished)
+        .catch(() => setUnpublished(null))
+    load()
+    const t = setInterval(() => document.visibilityState === 'visible' && load(), UNPUBLISHED_MS)
+    return () => clearInterval(t)
+  }, [backend])
+  const mineUnpublished = recordCount(unpublished?.filter((c) => c.mine) ?? [])
 
   // pick the only surveyor online if none is chosen
   useEffect(() => {
@@ -238,6 +257,15 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
           <button disabled={!history.redoStack.length || account === null} onClick={() => undoRedo(false)} title={history.redoStack.length ? `Redo: ${describe(history.redoStack[history.redoStack.length - 1])} (Ctrl+Shift+Z)` : 'Nothing to redo'}>
             ↷ Redo
           </button>
+          {unpublished && (
+            <button
+              className={mineUnpublished ? 'primary' : ''}
+              onClick={() => setPublishing(true)}
+              title="Your work is saved on the server as you go; play servers only take in what you publish"
+            >
+              {mineUnpublished ? `Publish (${mineUnpublished})` : 'Saved · all published'}
+            </button>
+          )}
           <button onClick={() => setTransfer(true)}>Import / export</button>
           <span className="muted small">{backend.label}</span>
           {onLogout && (
@@ -296,6 +324,7 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
           </section>
         </main>
       )}
+      {publishing && unpublished && <Publish backend={backend} unpublished={unpublished} setUnpublished={setUnpublished} onClose={() => setPublishing(false)} />}
       {transfer && <ImportExport backend={backend} playfield={state?.playfield ?? null} objects={objects} onClose={() => setTransfer(false)} onImported={() => refresh(true).catch(failed)} />}
     </div>
   )
