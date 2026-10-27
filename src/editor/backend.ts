@@ -16,6 +16,7 @@ import type {
   Surveyor,
   Vec3,
   TriggerTargets,
+  WallLook,
   WallSettings,
   WaveRef,
 } from './types'
@@ -49,7 +50,7 @@ export interface SurveyBackend {
   /** The editor's marks on groups of objects (replacing theirs). */
   setMarks(account: number, marks: Mark[]): Promise<PlayerState>
   /** The looks a trigger wall can have. */
-  wallLooks(): Promise<string[]>
+  wallLooks(): Promise<WallLook[]>
   /** The locations, achievements and dialogues a trigger wall can discover or open. */
   triggerTargets(): Promise<TriggerTargets>
   select(account: number, id: string | null): Promise<PlayerState>
@@ -163,7 +164,8 @@ export class HttpBackend implements SurveyBackend {
     return this.call<PlayerState>('PUT', `/players/${account}/marks`, marks)
   }
   async wallLooks() {
-    return (await this.call<{ color: string }[]>('GET', '/wall-looks')).map((l) => l.color)
+    // (servers before trigger radii send no shape: walls)
+    return (await this.call<{ color: string; shape?: WallLook['shape'] }[]>('GET', '/wall-looks')).map((l) => ({ color: l.color, shape: l.shape ?? 'wall' }))
   }
   triggerTargets() {
     return this.call<TriggerTargets>('GET', '/trigger-targets')

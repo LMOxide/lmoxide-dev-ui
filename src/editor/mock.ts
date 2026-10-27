@@ -223,6 +223,7 @@ export class MockBackend implements SurveyBackend {
       heading: this.player.heading,
       category: 'surveyed',
       size: wall.size,
+      radius: wall.radius,
       color: wall.color,
       action: wall.action,
       once: wall.once,
@@ -256,7 +257,10 @@ export class MockBackend implements SurveyBackend {
     }
   }
   async wallLooks() {
-    return ['green', 'shield', 'low shield', 'forcefield']
+    return [
+      ...['green', 'shield', 'low shield', 'forcefield'].map((color) => ({ color, shape: 'wall' as const })),
+      ...['green plate', 'yellow plate', 'red plate'].map((color) => ({ color, shape: 'radius' as const })),
+    ]
   }
   async select(_a: number, id: string | null) {
     this.player.selected = id

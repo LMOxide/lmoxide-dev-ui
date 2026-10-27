@@ -50,7 +50,7 @@ export function Catalog({ ctx, catalog }: { ctx: Ctx; catalog: Placeable[] }) {
       <h2>Place</h2>
       <div className="sv-row">
         <button className={wall ? 'primary' : ''} onClick={() => (wall ? setWall(null) : (setWall(NEW_WALL), setChosen(null)))} title="A wall that does something when a player walks through it">
-          Trigger wall
+          Trigger wall / radius
         </button>
         <span className="muted small">or pick a spawn below</span>
       </div>

@@ -24,11 +24,19 @@ export interface TriggerTargets {
   portals?: { window: number; to: number; to_name: string | null; plain: boolean; playfields: number[] }[]
 }
 
+/** A look trigger walls (`wall`) or radii (`radius`) can have (GET /v1/survey/wall-looks). */
+export interface WallLook {
+  color: string
+  shape: 'wall' | 'radius'
+}
+
 /** A trigger wall's settings (place-trigger, and the editor). */
 export interface WallSettings {
   name: string
-  /** width, height, depth (m) */
+  /** width, height, depth (m); a trigger radius uses the height only */
   size: Vec3
+  /** a trigger radius (m) instead of a wall: walking into the circle sets it off */
+  radius: number | null
   color: string
   action: WallAction
   once: boolean
@@ -65,6 +73,8 @@ export interface SurveyObject {
   /** enemies and NPCs: the looping route it walks (2+ points; none: it stays put) */
   patrol?: Vec3[]
   size?: Vec3
+  /** trigger radii: the radius (m) */
+  radius?: number | null
   color?: string
   action?: WallAction
   once?: boolean
@@ -234,6 +244,8 @@ export interface ObjectChanges {
   patrol?: Vec3[]
   /** trigger walls */
   size?: Vec3
+  /** a radius makes it a trigger radius; null a wall */
+  radius?: number | null
   color?: string
   action?: WallAction
   once?: boolean

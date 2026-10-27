@@ -1,10 +1,10 @@
 import { SuggestInput, type Suggestion } from './Suggest'
-import type { Script, TriggerTargets, Vec3, WallAction, WallSettings } from './types'
+import type { Script, TriggerTargets, Vec3, WallAction, WallLook, WallSettings } from './types'
 
 /** "Achievement_PirateTown" / "BA_Explore_Docks" -> "PirateTown" / "Docks" (the raw name stays the value). */
 const prettyArea = (n: string) => n.replace(/^(Achievement_|BA_Explore_|Explore_)/, '').replace(/_/g, ' ')
 
-export const NEW_WALL: WallSettings = { name: '', size: [6, 3, 1], color: 'green', action: 'other', once: false }
+export const NEW_WALL: WallSettings = { name: '', size: [6, 3, 1], radius: null, color: 'green', action: 'other', once: false }
 
 type ActionType = 'script' | 'discover' | 'dialog' | 'portal' | 'message' | 'other'
 
@@ -30,7 +30,7 @@ function fresh(t: ActionType, scripts: Script[]): WallAction {
 
 const SIZE_LABELS = ['width', 'height', 'depth']
 
-/** A trigger wall's size, look, what crossing it does, and whether only once. */
+/** A trigger wall's (or radius's) shape and size, look, what crossing it does, and whether only once. */
 export function WallFields({
   value,
   onChange,
@@ -42,16 +42,48 @@ export function WallFields({
   value: WallSettings
   onChange: (w: Partial<WallSettings>) => void
   scripts: Script[]
-  looks: string[]
+  looks: WallLook[]
   targets: TriggerTargets | null
   playfield: number
 }) {
   const a = value.action
   const t = typeOf(a)
   const setSize = (i: number, v: number) => onChange({ size: value.size.map((x, j) => (j === i ? Math.max(0.1, Math.round(v * 10) / 10) : x)) as Vec3 })
+  const circle = value.radius !== null
+  const setRadius = (v: number) => onChange({ radius: Math.min(100, Math.max(0.5, Math.round(v * 10) / 10)) })
+  const shapeLooks = looks.filter((l) => l.shape === (circle ? 'radius' : 'wall'))
+  const firstLook = (shape: WallLook['shape']) => looks.find((l) => l.shape === shape)?.color ?? 'green'
   return (
     <>
-      {SIZE_LABELS.map((label, i) => (
+      <div className="sv-field">
+        <span>shape</span>
+        <div className="segmented" role="tablist">
+          <button className={circle ? '' : 'on'} onClick={() => circle && onChange({ radius: null, color: firstLook('wall') })} title="A wall: crossing it sets it off">
+            Wall
+          </button>
+          <button
+            className={circle ? 'on' : ''}
+            onClick={() => !circle && onChange({ radius: Math.max(1, Math.round(value.size[0] * 5) / 10), color: firstLook('radius') })}
+            title="A circle around its spot: walking into it, from any side, sets it off"
+          >
+            Radius
+          </button>
+        </div>
+      </div>
+      {circle && (
+        <div className="sv-field">
+          <span>radius</span>
+          <div className="sv-row tight sv-nudge">
+            <button onClick={() => setRadius(value.radius! - 1)}>−1</button>
+            <button onClick={() => setRadius(value.radius! - 0.5)}>−.5</button>
+            <input className="sv-num" type="number" min={0.5} step={0.5} value={value.radius!} onChange={(e) => e.target.value !== '' && setRadius(Number(e.target.value))} />
+            <button onClick={() => setRadius(value.radius! + 0.5)}>+.5</button>
+            <button onClick={() => setRadius(value.radius! + 1)}>+1</button>
+            <span className="muted small">m</span>
+          </div>
+        </div>
+      )}
+      {SIZE_LABELS.map((label, i) => ({ label, i })).filter(({ i }) => !circle || i === 1).map(({ label, i }) => (
         <div className="sv-field" key={label}>
           <span>{label}</span>
           <div className="sv-row tight sv-nudge">
@@ -67,9 +99,9 @@ export function WallFields({
       <div className="sv-field">
         <span>look</span>
         <div className="sv-row tight">
-          {looks.map((l) => (
-            <button key={l} className={`chip ${value.color === l ? 'on' : ''}`} onClick={() => onChange({ color: l })}>
-              {l}
+          {shapeLooks.map((l) => (
+            <button key={l.color} className={`chip ${value.color === l.color ? 'on' : ''}`} onClick={() => onChange({ color: l.color })}>
+              {l.color}
             </button>
           ))}
         </div>

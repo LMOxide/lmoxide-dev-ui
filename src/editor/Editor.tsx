@@ -30,7 +30,7 @@ interface Draft {
 
 const draftOf = (o: SurveyObject): Draft => ({
   kind: o.kind,
-  wall: o.kind === 'trigger' ? { name: o.name, size: [...(o.size ?? [6, 3, 1])] as Vec3, color: o.color === 'red' || !o.color ? 'green' : o.color, action: o.action ?? 'other', once: !!o.once } : null,
+  wall: o.kind === 'trigger' ? { name: o.name, size: [...(o.size ?? [6, 3, 1])] as Vec3, radius: o.radius ?? null, color: o.color === 'red' || !o.color ? 'green' : o.color, action: o.action ?? 'other', once: !!o.once } : null,
   monster_data: o.monster_data ?? null,
   template: o.template ?? null,
   patrol: (o.patrol ?? []).map((p) => [...p] as Vec3),
@@ -110,7 +110,7 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
     if (d.wave !== undefined) c.wave = next.wave
     if (d.kind !== undefined) Object.assign(c, { kind: next.kind, monster_data: next.monster_data, template: next.template })
     if (d.patrol !== undefined) c.patrol = next.patrol
-    if (d.wall && next.wall) Object.assign(c, { size: next.wall.size, color: next.wall.color, action: next.wall.action, once: next.wall.once })
+    if (d.wall && next.wall) Object.assign(c, { size: next.wall.size, radius: next.wall.radius, color: next.wall.color, action: next.wall.action, once: next.wall.once })
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(flush, SEND_MS)
   }

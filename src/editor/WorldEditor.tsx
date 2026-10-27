@@ -13,7 +13,7 @@ import { NotesPanel } from './NotesPanel'
 import { Objects } from './Objects'
 import { ScriptsPanel } from './ScriptsPanel'
 import { FeaturePicker } from './Features'
-import type { FeaturesView, Placeable, PlayerState, PlayfieldNotes, SurveyObject, Surveyor, TriggerTargets, WaveRef } from './types'
+import type { FeaturesView, WallLook, Placeable, PlayerState, PlayfieldNotes, SurveyObject, Surveyor, TriggerTargets, WaveRef } from './types'
 
 const ACCOUNT_KEY = 'lmofx.survey.account'
 /** the feature new things go into */
@@ -30,8 +30,8 @@ export interface Ctx {
   objects: SurveyObject[]
   notes: PlayfieldNotes
   catalog: Placeable[]
-  /** the looks trigger walls can have */
-  looks: string[]
+  /** the looks trigger walls and radii can have */
+  looks: WallLook[]
   /** what trigger walls can discover or open (null: not loaded) */
   targets: TriggerTargets | null
   /** what records can belong to */
@@ -58,7 +58,7 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
   const [objects, setObjects] = useState<SurveyObject[]>([])
   const [notes, setNotes] = useState<PlayfieldNotes>({ notes: [], scripts: [] })
   const [catalog, setCatalog] = useState<Placeable[]>([])
-  const [looks, setLooks] = useState<string[]>(['green'])
+  const [looks, setLooks] = useState<WallLook[]>([{ color: 'green', shape: 'wall' }])
   const [targets, setTargets] = useState<TriggerTargets | null>(null)
   const [features, setFeatures] = useState<FeaturesView>({ categories: [], features: [] })
   const [feature, setFeatureState] = useState<string>(() => loadJson(FEATURE_KEY, 'live'))
