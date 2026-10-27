@@ -80,6 +80,8 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
   const [view, setView] = useStored<View>(KEYS.view, 'effects')
   const [section, setSection] = useStored<Section>(KEYS.debugSection, 'quick')
   const [consoleValue, setConsoleValue] = useState('')
+  /** narrow screens, Debug view: which pane shows */
+  const [narrowPane, setNarrowPane] = useState<'main' | 'console'>('main')
   const [palette, setPalette] = useState(false)
   const [playfields, setPlayfields] = useState<Playfield[]>([])
   const [minifigures, setMinifigures] = useState<Minifigure[]>([])
@@ -422,7 +424,16 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
 
       {view === 'debug' ? (
         <main className="panes debug-panes">
-          <div className="left">
+          {/* narrow screens: one pane at a time */}
+          <div className="segmented narrow-tabs">
+            <button className={narrowPane === 'main' ? 'on' : ''} onClick={() => setNarrowPane('main')}>
+              Debug
+            </button>
+            <button className={narrowPane === 'console' ? 'on' : ''} onClick={() => setNarrowPane('console')}>
+              Console{log.length ? ` (${log.length})` : ''}
+            </button>
+          </div>
+          <div className={`left${narrowPane === 'main' ? '' : ' narrow-hidden'}`}>
             <Debug
               data={gameData}
               testsError={testsError}
@@ -436,7 +447,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
               showEffect={(id) => showEffect(id)}
             />
           </div>
-          <div className="right">
+          <div className={`right${narrowPane === 'console' ? '' : ' narrow-hidden'}`}>
             <div className="tab-body">
               <Console log={log} data={gameData} canSend={canSend} onCommand={send} value={consoleValue} setValue={setConsoleValue} inputRef={consoleRef} />
             </div>

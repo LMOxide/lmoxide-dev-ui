@@ -52,6 +52,8 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
   const history = useHistory(backend)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<RightTab>('selection')
+  /** narrow screens: which column shows (0 place, 1 the playfield's objects, 2 the right one) */
+  const [col, setCol] = useState(1)
   const [transfer, setTransfer] = useState(false)
   const [waveFilter, setWaveFilter] = useState<WaveRef | 'static' | null>(null)
   const loaded = useRef<{ playfield: number; revision: number } | null>(null)
@@ -227,13 +229,29 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
       </div>
       {ctx && (
         <main className="sv-cols">
-          <section className="sv-col">
+          {/* narrow screens: one column at a time */}
+          <div className="segmented narrow-tabs">
+            {['Place', 'In this playfield', selected ? 'Selection' : 'Selection & scripts'].map((label, i) => (
+              <button key={i} className={col === i ? 'on' : ''} onClick={() => setCol(i)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <section className={`sv-col${col === 0 ? '' : ' narrow-hidden'}`}>
             <Catalog ctx={ctx} catalog={catalog} />
           </section>
-          <section className="sv-col">
-            <Objects ctx={ctx} waveFilter={waveFilter} setWaveFilter={setWaveFilter} onSelect={() => setTab('selection')} />
+          <section className={`sv-col${col === 1 ? '' : ' narrow-hidden'}`}>
+            <Objects
+              ctx={ctx}
+              waveFilter={waveFilter}
+              setWaveFilter={setWaveFilter}
+              onSelect={() => {
+                setTab('selection')
+                setCol(2)
+              }}
+            />
           </section>
-          <section className="sv-col">
+          <section className={`sv-col${col === 2 ? '' : ' narrow-hidden'}`}>
             <div className="segmented sv-tabs">
               {(['selection', 'scripts', 'notes'] as RightTab[]).map((t) => (
                 <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>

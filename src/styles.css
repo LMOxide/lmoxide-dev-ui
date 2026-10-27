@@ -948,3 +948,50 @@ form.inline.wrap {
 .move-row input {
   width: 90px;
 }
+
+/* narrow screens (phones, a skinny window): tabs pick one pane (the debugger's Debug view below
+   860px, the world editor's columns below 1000px, where their layouts stack), and long lists
+   scroll inside a bounded box so what follows them stays reachable */
+.narrow-tabs {
+  display: none;
+}
+.narrow-tabs button {
+  flex: 1;
+}
+@media (max-width: 1000px) {
+  .sv-cols > .narrow-tabs {
+    display: flex;
+    margin: 8px 16px 0;
+  }
+  .sv-cols > .narrow-hidden {
+    display: none;
+  }
+  .sv-list,
+  .notes-list {
+    max-height: 55vh;
+    overflow: auto;
+  }
+}
+@media (max-width: 860px) {
+  .debug-panes {
+    display: flex;
+    flex-direction: column;
+  }
+  .debug-panes > .narrow-tabs {
+    display: flex;
+    margin: 8px 16px;
+  }
+  .debug-panes > .left,
+  .debug-panes > .right {
+    flex: 1;
+    min-height: 0;
+  }
+  .debug-panes > .narrow-hidden {
+    display: none;
+  }
+  .picklist,
+  .palette-list {
+    max-height: 55vh;
+    overflow: auto;
+  }
+}
