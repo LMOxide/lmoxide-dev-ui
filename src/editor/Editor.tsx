@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { awayFrom, distance, fmtPos, isHidden, toDegrees, toRadians } from './geometry'
 import { valuesOf, type Entry } from './history'
+import { FeatureSelect } from './Features'
 import { SpawnPicker } from './SpawnPicker'
 import { WallFields } from './Walls'
 import type { Ctx } from './WorldEditor'
@@ -29,7 +30,7 @@ interface Draft {
 
 const draftOf = (o: SurveyObject): Draft => ({
   kind: o.kind,
-  wall: o.kind === 'trigger' ? { name: o.name, size: [...(o.size ?? [6, 3, 1])] as Vec3, color: o.color ?? 'red', action: o.action ?? 'other', once: !!o.once } : null,
+  wall: o.kind === 'trigger' ? { name: o.name, size: [...(o.size ?? [6, 3, 1])] as Vec3, color: o.color === 'red' || !o.color ? 'green' : o.color, action: o.action ?? 'other', once: !!o.once } : null,
   monster_data: o.monster_data ?? null,
   template: o.template ?? null,
   patrol: (o.patrol ?? []).map((p) => [...p] as Vec3),
@@ -154,6 +155,19 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
         {object.updated ? ` · ${new Date(object.updated * 1000).toLocaleString()}` : ''}
         {sending && ' · sending…'}
       </div>
+      {can && object.kind !== 'buildie' && (
+        <label className="sv-field" title="What it is for; a server applies features by its own rules. Changing it moves the object (a guess becomes surveyed).">
+          <span>feature</span>
+          <FeatureSelect
+            features={ctx.features}
+            value={object.feature ?? 'live'}
+            onChange={async (feature) => {
+              const o = await ctx.run(() => backend.edit(object.id, { feature }), 'all')
+              if (o) ctx.upsert(o, object.id)
+            }}
+          />
+        </label>
+      )}
 
       {can ? (
         <>

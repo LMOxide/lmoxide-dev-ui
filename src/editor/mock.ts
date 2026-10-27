@@ -4,6 +4,9 @@
 import type { SurveyBackend } from './backend'
 import type {
   Bundle,
+  Feature,
+  FeaturesView,
+  Mark,
   MergeOptions,
   MergeReport,
   Note,
@@ -159,10 +162,11 @@ export class MockBackend implements SurveyBackend {
     this.player.wearing = what
     return this.snapshot()
   }
-  async place(_a: number, what: Placeable, wave: WaveRef | null) {
+  async place(_a: number, what: Placeable, wave: WaveRef | null, feature: string) {
     const o: SurveyObject = {
       ...base(newId('p'), what, [...this.player.pos], 'surveyed', this.player.heading),
       wave,
+      feature,
       author: 'mock',
       updated: now(),
     }
@@ -172,7 +176,45 @@ export class MockBackend implements SurveyBackend {
     this.bump()
     return structuredClone(o)
   }
-  async placeTrigger(_a: number, wall: WallSettings) {
+  private featureList: Feature[] = []
+  private featuresView(): FeaturesView {
+    const cat = (id: string, title: string): Feature => ({ id, title, path: title, category: id, comment: '', copied_from: null, author: '', updated: 0 })
+    const titleOf = (id: string) => [cat('live', 'Mimic live'), cat('feature', 'New content'), cat('other', 'Other'), ...this.featureList].find((f) => f.id === id)?.title ?? id
+    const path = (id: string) => id.split('/').map((_, i, parts) => titleOf(parts.slice(0, i + 1).join('/'))).join(' > ')
+    return {
+      categories: [cat('live', 'Mimic live'), cat('feature', 'New content'), cat('other', 'Other')],
+      features: this.featureList.map((f) => ({ ...f, path: path(f.id) })),
+    }
+  }
+  async features() {
+    return this.featuresView()
+  }
+  async createFeature(parent: string, title: string, comment: string) {
+    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+    this.featureList.push({ id: `${parent}/${slug}`, title, path: '', category: parent.split('/')[0], comment, copied_from: null, author: 'mock', updated: now() })
+    return this.featuresView()
+  }
+  async copyFeature(from: string, parent: string, title: string) {
+    const v = await this.createFeature(parent, title, '')
+    const id = v.features[v.features.length - 1].id
+    this.featureList[this.featureList.length - 1].copied_from = from
+    let records = 0
+    for (const o of [...this.objectsById.values()].filter((o) => o.feature === from)) {
+      const c = { ...structuredClone(o), id: newId('p'), feature: id, author: 'mock', updated: now() }
+      this.objectsById.set(c.id, c)
+      records++
+    }
+    this.bump()
+    return { id, records, features: this.featuresView() }
+  }
+  async markLooks() {
+    return ['achievement aura 1', 'achievement aura 2', 'nature icon', 'magic icon']
+  }
+  async setMarks(_a: number, marks: Mark[]) {
+    this.player.marks = marks
+    return this.snapshot()
+  }
+  async placeTrigger(_a: number, wall: WallSettings, feature: string) {
     const o: SurveyObject = {
       id: newId('t'),
       kind: 'trigger',
@@ -184,6 +226,7 @@ export class MockBackend implements SurveyBackend {
       color: wall.color,
       action: wall.action,
       once: wall.once,
+      feature,
       author: 'mock',
       updated: now(),
     }
@@ -213,7 +256,7 @@ export class MockBackend implements SurveyBackend {
     }
   }
   async wallLooks() {
-    return ['red', 'green', 'shield', 'low shield', 'forcefield']
+    return ['green', 'shield', 'low shield', 'forcefield']
   }
   async select(_a: number, id: string | null) {
     this.player.selected = id

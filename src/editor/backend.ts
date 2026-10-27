@@ -1,6 +1,8 @@
 import { ApiError } from '../api'
 import type {
   Bundle,
+  FeaturesView,
+  Mark,
   MergeOptions,
   MergeReport,
   Note,
@@ -32,10 +34,20 @@ export interface SurveyBackend {
   deleteScript(playfield: number, id: string): Promise<void>
   /** Wear a look (null: back to your own). */
   wear(account: number, what: Placeable | null): Promise<PlayerState>
-  /** Place it where the surveyor stands, facing their way; it becomes the selection. */
-  place(account: number, what: Placeable, wave: WaveRef | null): Promise<SurveyObject>
+  /** Place it where the surveyor stands, facing their way, in a feature; it becomes the selection. */
+  place(account: number, what: Placeable, wave: WaveRef | null, feature: string): Promise<SurveyObject>
   /** A trigger wall where the surveyor stands, across their way; it becomes the selection. */
-  placeTrigger(account: number, wall: WallSettings): Promise<SurveyObject>
+  placeTrigger(account: number, wall: WallSettings, feature: string): Promise<SurveyObject>
+  /** What records can belong to (categories and nested features). */
+  features(): Promise<FeaturesView>
+  /** A feature nested under `parent` (a category or a feature). */
+  createFeature(parent: string, title: string, comment: string): Promise<FeaturesView>
+  /** A copy of feature `from` with all its records, nested under `parent`. */
+  copyFeature(from: string, parent: string, title: string): Promise<{ id: string; records: number; features: FeaturesView }>
+  /** The looks marks can have. */
+  markLooks(): Promise<string[]>
+  /** The editor's marks on groups of objects (replacing theirs). */
+  setMarks(account: number, marks: Mark[]): Promise<PlayerState>
   /** The looks a trigger wall can have. */
   wallLooks(): Promise<string[]>
   /** The locations, achievements and dialogues a trigger wall can discover or open. */
@@ -129,11 +141,26 @@ export class HttpBackend implements SurveyBackend {
   wear(account: number, what: Placeable | null) {
     return this.call<PlayerState>('POST', `/players/${account}/wear`, { what })
   }
-  place(account: number, what: Placeable, wave: WaveRef | null) {
-    return this.call<SurveyObject>('POST', `/players/${account}/place`, { what, wave })
+  place(account: number, what: Placeable, wave: WaveRef | null, feature: string) {
+    return this.call<SurveyObject>('POST', `/players/${account}/place`, { what, wave, feature })
   }
-  placeTrigger(account: number, wall: WallSettings) {
-    return this.call<SurveyObject>('POST', `/players/${account}/place-trigger`, wall)
+  placeTrigger(account: number, wall: WallSettings, feature: string) {
+    return this.call<SurveyObject>('POST', `/players/${account}/place-trigger`, { ...wall, feature })
+  }
+  features() {
+    return this.call<FeaturesView>('GET', '/features')
+  }
+  createFeature(parent: string, title: string, comment: string) {
+    return this.call<FeaturesView>('POST', '/features', { parent, title, comment })
+  }
+  copyFeature(from: string, parent: string, title: string) {
+    return this.call<{ id: string; records: number; features: FeaturesView }>('POST', '/features/copy', { from, parent, title })
+  }
+  async markLooks() {
+    return (await this.call<{ look: string }[]>('GET', '/mark-looks')).map((l) => l.look)
+  }
+  setMarks(account: number, marks: Mark[]) {
+    return this.call<PlayerState>('PUT', `/players/${account}/marks`, marks)
   }
   async wallLooks() {
     return (await this.call<{ color: string }[]>('GET', '/wall-looks')).map((l) => l.color)

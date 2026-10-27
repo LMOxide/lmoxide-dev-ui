@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
+import { featureLabel, FeatureSelect } from './Features'
 import { distance, inHiddenWave } from './geometry'
+import { Marks } from './Marks'
 import type { Ctx } from './WorldEditor'
 import { CATEGORIES, type Category, type WaveRef } from './types'
 import { WavesNearby } from './Waves'
@@ -14,6 +16,10 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
   const [query, setQuery] = useState('')
   const [radius, setRadius] = useState<number | null>(null)
   const [hiddenOnly, setHiddenOnly] = useState(false)
+  /** only one author's (or one feature's) changes: '' all */
+  const [author, setAuthor] = useState('')
+  const [feature, setFeature] = useState('')
+  const authors = useMemo(() => [...new Set(objects.map((o) => o.author).filter((a): a is string => !!a))].sort(), [objects])
   const hidden = useMemo(() => new Set(state.hidden), [state.hidden])
 
   const rows = useMemo(() => {
@@ -29,10 +35,12 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
           (!q || o.name.toLowerCase().includes(q) || o.id.includes(q)) &&
           (radius === null || d <= radius) &&
           (!hiddenOnly || h) &&
+          (!author || o.author === author) &&
+          (!feature || (o.feature ?? 'live') === feature || (o.feature ?? 'live').startsWith(`${feature}/`)) &&
           (waveFilter === null || (waveFilter === 'static' ? !o.wave : o.wave?.script === waveFilter.script && o.wave.wave === waveFilter.wave)),
       )
       .sort((a, b) => a.d - b.d)
-  }, [objects, state.pos, state.shown_waves, notes.scripts, hidden, cats, query, radius, hiddenOnly, waveFilter])
+  }, [objects, state.pos, state.shown_waves, notes.scripts, hidden, cats, query, radius, hiddenOnly, waveFilter, author, feature])
 
   const counts = useMemo(() => {
     const c = new Map<Category, number>()
@@ -101,6 +109,31 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
         </label>
       </div>
       <div className="sv-row">
+        <select value={author} onChange={(e) => setAuthor(e.target.value)} title="Only what this editor changed last">
+          <option value="">every author</option>
+          {authors.map((a) => (
+            <option key={a} value={a}>
+              by {a}
+            </option>
+          ))}
+        </select>
+        <FeatureSelect features={ctx.features} value={feature} onChange={setFeature} any="every feature" title="Only this feature (and what is nested under it)" />
+      </div>
+      {(author || feature) && (
+        <div className="sv-row">
+          <button
+            onClick={() => {
+              const shown = new Set(rows.map((r) => r.o.id))
+              const others = objects.filter((o) => !shown.has(o.id) && !hidden.has(o.id)).map((o) => o.id)
+              ctx.run(() => backend.hide(account, others, true))
+            }}
+            title="Preview: hide everything else in game (only for you; Unhide all brings it back)"
+          >
+            Show only these in game
+          </button>
+        </div>
+      )}
+      <div className="sv-row">
         <button onClick={() => ctx.run(() => backend.selectNearest(account)).then(onSelect)}>Select nearest</button>
         <button disabled={!shownIds.length} onClick={() => ctx.run(() => backend.hide(account, shownIds, true))} title="Hide everything this list shows">
           Hide listed
@@ -109,6 +142,7 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
           Unhide all{hiddenCount ? ` (${hiddenCount})` : ''}
         </button>
       </div>
+      <Marks ctx={ctx} authors={authors} />
       <ul className="sv-list">
         {rows.slice(0, LIMIT).map(({ o, d, w, h }) => (
           <li
@@ -133,6 +167,16 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
             {o.wave && <span className="badge wave">{waveLabel(notes.scripts, o.wave)}</span>}
             {o.kind === 'trigger' && <span className="badge trigger">trigger</span>}
             {o.kind === 'buildie' && <span className="badge trigger">buildie</span>}
+            {o.feature && o.feature !== 'live' && (
+              <span className="badge feature" title={featureLabel(ctx.features, o.feature)}>
+                {o.feature.split('/').pop()}
+              </span>
+            )}
+            {o.author && (
+              <span className="muted small sv-author" title={`changed last by ${o.author}`}>
+                {o.author}
+              </span>
+            )}
             <span className={`badge ${o.category}`}>{o.category}</span>
             <span className="sv-dist">{d < 1000 ? `${d.toFixed(0)} m` : 'far'}</span>
           </li>

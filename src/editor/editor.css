@@ -258,3 +258,26 @@
 .suggest-list li:hover {
   background: var(--selected);
 }
+.sv-feature select {
+  max-width: 220px;
+}
+.sv-features {
+  max-height: 30vh;
+  overflow: auto;
+}
+.badge.feature {
+  background: var(--tag-bg);
+  color: var(--tag);
+}
+.sv-marks {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin: 6px 0;
+}
+.sv-author {
+  white-space: nowrap;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -4,7 +4,7 @@ import type { Script, TriggerTargets, Vec3, WallAction, WallSettings } from './t
 /** "Achievement_PirateTown" / "BA_Explore_Docks" -> "PirateTown" / "Docks" (the raw name stays the value). */
 const prettyArea = (n: string) => n.replace(/^(Achievement_|BA_Explore_|Explore_)/, '').replace(/_/g, ' ')
 
-export const NEW_WALL: WallSettings = { name: '', size: [6, 3, 1], color: 'red', action: 'other', once: false }
+export const NEW_WALL: WallSettings = { name: '', size: [6, 3, 1], color: 'green', action: 'other', once: false }
 
 type ActionType = 'script' | 'discover' | 'dialog' | 'portal' | 'message' | 'other'
 

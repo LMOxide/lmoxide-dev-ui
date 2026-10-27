@@ -72,9 +72,38 @@ export interface SurveyObject {
   /** the guess it replaces (Reset brings it back) */
   replaces?: { id: string; kind: Kind; monster_data?: number | null; template?: number | null; pos: Vec3 } | null
   comment?: string
+  /** what it is for: live (mimic live), feature/..., other/... (lmoxide docs/WORLD-CONTENT.md) */
+  feature?: string
   author?: string
   /** unix seconds */
   updated?: number
+}
+
+/** A feature records belong to (GET /v1/survey/features). */
+export interface Feature {
+  id: string
+  title: string
+  /** "New content > Christmas Event > 2026" */
+  path: string
+  category: string
+  comment: string
+  copied_from: string | null
+  author: string
+  updated: number
+}
+
+export interface FeaturesView {
+  /** live (Mimic live), feature (New content), other */
+  categories: Feature[]
+  features: Feature[]
+}
+
+/** An editor's own marker on a group of objects in game (never saved). */
+export interface Mark {
+  by: 'author' | 'feature'
+  value: string
+  /** one of GET /v1/survey/mark-looks */
+  look: string
 }
 
 /** Something that can be placed (GET /v1/survey/catalog). */
@@ -102,6 +131,8 @@ export interface PlayerState {
   /** script id → the wave shown, or "all"; a script that isn't here shows its first wave */
   shown_waves: Record<string, string>
   wearing: Placeable | null
+  /** their markers on groups of objects */
+  marks?: Mark[]
   /** goes up when any object of their playfield changes */
   revision: number
 }
@@ -212,4 +243,6 @@ export interface ObjectChanges {
   name?: string
   comment?: string
   wave?: WaveRef | null
+  /** moves it to another feature */
+  feature?: string
 }

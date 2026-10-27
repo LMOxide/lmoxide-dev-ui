@@ -12,9 +12,12 @@ import type { MockBackend } from './mock'
 import { NotesPanel } from './NotesPanel'
 import { Objects } from './Objects'
 import { ScriptsPanel } from './ScriptsPanel'
-import type { Placeable, PlayerState, PlayfieldNotes, SurveyObject, Surveyor, TriggerTargets, WaveRef } from './types'
+import { FeaturePicker } from './Features'
+import type { FeaturesView, Placeable, PlayerState, PlayfieldNotes, SurveyObject, Surveyor, TriggerTargets, WaveRef } from './types'
 
 const ACCOUNT_KEY = 'lmofx.survey.account'
+/** the feature new things go into */
+const FEATURE_KEY = 'lmofx.editor.feature'
 const POLL_MS = 1000
 
 type RightTab = 'selection' | 'scripts' | 'notes'
@@ -31,6 +34,14 @@ export interface Ctx {
   looks: string[]
   /** what trigger walls can discover or open (null: not loaded) */
   targets: TriggerTargets | null
+  /** what records can belong to */
+  features: FeaturesView
+  /** the feature new placements and walls go into */
+  feature: string
+  setFeature: (id: string) => void
+  setFeatures: (f: FeaturesView) => void
+  /** the looks marks can have */
+  markLooks: string[]
   /** undo and redo */
   history: History
   /** Runs a call, shows its error, refreshes what it may have changed. */
@@ -47,8 +58,15 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
   const [objects, setObjects] = useState<SurveyObject[]>([])
   const [notes, setNotes] = useState<PlayfieldNotes>({ notes: [], scripts: [] })
   const [catalog, setCatalog] = useState<Placeable[]>([])
-  const [looks, setLooks] = useState<string[]>(['red', 'green'])
+  const [looks, setLooks] = useState<string[]>(['green'])
   const [targets, setTargets] = useState<TriggerTargets | null>(null)
+  const [features, setFeatures] = useState<FeaturesView>({ categories: [], features: [] })
+  const [feature, setFeatureState] = useState<string>(() => loadJson(FEATURE_KEY, 'live'))
+  const setFeature = useCallback((id: string) => {
+    setFeatureState(id)
+    saveJson(FEATURE_KEY, id)
+  }, [])
+  const [markLooks, setMarkLooks] = useState<string[]>([])
   const history = useHistory(backend)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<RightTab>('selection')
@@ -92,6 +110,8 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
     backend.catalog().then(setCatalog).catch(failed)
     backend.wallLooks().then(setLooks).catch(() => {})
     backend.triggerTargets().then(setTargets).catch(() => {})
+    backend.features().then(setFeatures).catch(() => {})
+    backend.markLooks().then(setMarkLooks).catch(() => {})
   }, [backend, failed])
 
   // pick the only surveyor online if none is chosen
@@ -135,8 +155,11 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
   }, [])
 
   const ctx: Ctx | null = useMemo(
-    () => (state && account !== null ? { backend, account, state, objects, notes, catalog, looks, targets, history, run, setState, upsert } : null),
-    [backend, account, state, objects, notes, catalog, looks, targets, history, run, upsert],
+    () =>
+      state && account !== null
+        ? { backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, setFeatures, markLooks, history, run, setState, upsert }
+        : null,
+    [backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, markLooks, history, run, upsert],
   )
   const selected = ctx && state?.selected ? (objects.find((o) => o.id === state.selected) ?? null) : null
 
@@ -207,6 +230,7 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
             </span>
           )}
         </div>
+        {ctx && <FeaturePicker ctx={ctx} />}
         <div className="who">
           <button disabled={!history.undoStack.length || account === null} onClick={() => undoRedo(true)} title={history.undoStack.length ? `Undo: ${describe(history.undoStack[history.undoStack.length - 1])} (Ctrl+Z)` : 'Nothing to undo'}>
             ↶ Undo
