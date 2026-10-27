@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../api'
 import { ToolSwitch } from '../ToolSwitch'
+import { findOn, sendAcross } from '../elsewhere'
+import { session } from '../tools'
+import type { Player } from '../types'
 import { describe, useHistory, type History } from './history'
 import { loadJson, saveJson } from '../storage'
 import type { SurveyBackend } from './backend'
@@ -56,6 +59,9 @@ export interface Ctx {
 
 export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBackend; onLogout?: () => void; onExpire?: () => void }) {
   const [surveyors, setSurveyors] = useState<Surveyor[]>([])
+  /** the signed-in login on the play server instead (it can come here with `!server editor`) */
+  const [onPlay, setOnPlay] = useState<Player | null>(null)
+  const [moving, setMoving] = useState('')
   const [account, setAccount] = useState<number | null>(() => loadJson<number | null>(ACCOUNT_KEY, null))
   const [state, setState] = useState<PlayerState | null>(null)
   const [objects, setObjects] = useState<SurveyObject[]>([])
@@ -111,8 +117,36 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
     [account, backend, loadPlayfield],
   )
 
+  // who is online here, again every few seconds (a client logging in or arriving from the play
+  // server shows up without ↻)
   useEffect(() => {
-    backend.surveyors().then(setSurveyors).catch(failed)
+    const load = () => backend.surveyors().then(setSurveyors).catch(failed)
+    load()
+    const t = setInterval(() => document.visibilityState === 'visible' && load(), 5_000)
+    return () => clearInterval(t)
+  }, [backend, failed])
+
+  // the signed-in login edits as its own character when nobody (or someone gone) is chosen
+  const me = session('editor')?.label?.toLowerCase() ?? null
+  const mine = surveyors.find((s) => s.username.toLowerCase() === me)
+  useEffect(() => {
+    if (mine && !surveyors.some((s) => s.account_id === account)) setAccount(mine.account_id)
+  }, [mine, surveyors, account])
+
+  // not here: maybe on the play server
+  useEffect(() => {
+    if (!me || mine) {
+      setOnPlay(null)
+      return
+    }
+    let gone = false
+    findOn('play', me).then((p) => !gone && setOnPlay(p))
+    return () => {
+      gone = true
+    }
+  }, [me, mine, surveyors])
+
+  useEffect(() => {
     backend.catalog().then(setCatalog).catch(failed)
     backend.wallLooks().then(setLooks).catch(() => {})
     backend.triggerTargets().then(setTargets).catch(() => {})
@@ -232,6 +266,15 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
           <button className="ghost" onClick={() => backend.surveyors().then(setSurveyors).catch(failed)} title="Refresh the characters online on the survey server">
             ↻
           </button>
+          {mine && (
+            <button
+              className="ghost"
+              onClick={() => sendAcross('survey', mine.account_id).then(setMoving)}
+              title="Go to the play server in game (!server play): same login, your play character"
+            >
+              → play server
+            </button>
+          )}
           {state && (
             <span className="where small">
               <b>{state.playfield_name ?? `Playfield ${state.playfield}`}</b>
@@ -277,7 +320,18 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
       </header>
       <div className="banners">
         {error && <p className="banner warn">{error}</p>}
-        {account === null && <p className="banner warn">Choose who you edit as: a character online on the survey server (its position places things).</p>}
+        {account === null && !onPlay && <p className="banner warn">Choose who you edit as: a character online on the survey server (its position places things).</p>}
+        {onPlay && (
+          <p className="banner">
+            You're on the play server ({onPlay.character_name}).{' '}
+            <button onClick={() => sendAcross('play', onPlay.account_id).then(setMoving)}>Go to the world editor server</button>
+          </p>
+        )}
+        {moving && (
+          <p className="banner" onClick={() => setMoving('')}>
+            {moving}
+          </p>
+        )}
       </div>
       {ctx && (
         <main className="sv-cols">

@@ -11,6 +11,7 @@ import { Console, type LogEntry } from './Console'
 import { Debug, type Section } from './Debug'
 import { Palette } from './Palette'
 import { playfieldName, searchSuggestions, vocabulary, type GameData } from './suggest'
+import { findOn, GAME_NAME, otherServer, sendAcross, serverLabel } from './elsewhere'
 import { apiBase as toolApiBase, expired, SERVER, serverBase, SERVERS, sessionFor, session as toolSession, setDebuggerServer, setServerBase, signOut, toolServer, toSignIn, type Server } from './tools'
 import { ToolSwitch } from './ToolSwitch'
 import type { AnimationCatalog, BccStates, Effect, EffectCatalog, Minifigure, MonsterData, Player, Playfield, Session, TestCatalog } from './types'
@@ -67,6 +68,9 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
   const [catalogSource, setCatalogSource] = useState('')
   const [catalogError, setCatalogError] = useState('')
   const [players, setPlayers] = useState<Player[] | null>(null)
+  /** the chosen player, offline here, online on the other server */
+  const [elsewhere, setElsewhere] = useState<Player | null>(null)
+  const [moving, setMoving] = useState('')
   const [playersError, setPlayersError] = useState('')
   const [chosen, setChosen] = useStored<Chosen | null>(KEYS.player, null)
   const [filters, setFilters] = useStored<Filters>(KEYS.filters, NO_FILTERS)
@@ -157,7 +161,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
   const tracking = view === 'debug' && section === 'teleport'
   useEffect(() => {
     loadPlayers()
-    const t = setInterval(() => document.visibilityState === 'visible' && loadPlayers(), tracking ? 1_000 : 20_000)
+    const t = setInterval(() => document.visibilityState === 'visible' && loadPlayers(), tracking ? 1_000 : 5_000)
     return () => clearInterval(t)
   }, [loadPlayers, tracking])
 
@@ -219,7 +223,25 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
     if (selected === null && filtered.length) setSelected(filtered[0].id)
   }, [filtered, selected])
 
-  const online = players?.find((p) => p.account_id === chosen?.account_id)
+  // by account id, else by username (another server can give the same login another id)
+  const online =
+    players?.find((p) => p.account_id === chosen?.account_id) ??
+    players?.find((p) => !!chosen && p.username.toLowerCase() === chosen.username.toLowerCase())
+  const here = toolServer('debugger')
+  const there = otherServer(here)
+
+  // offline here: maybe they went to the other server (`!server`)
+  useEffect(() => {
+    if (!chosen || !players || online) {
+      setElsewhere(null)
+      return
+    }
+    let gone = false
+    findOn(there, chosen.username).then((p) => !gone && setElsewhere(p))
+    return () => {
+      gone = true
+    }
+  }, [chosen, players, online, there])
   const admin = session.scope === 'admin'
   const canSend = admin && !!chosen
 
@@ -230,7 +252,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
       setLog((l) => [{ id, at: Date.now(), command, player: chosen.character_name || chosen.username, status: 'pending' as const }, ...l].slice(0, 200))
       const update = (patch: Partial<LogEntry>) => setLog((l) => l.map((x) => (x.id === id ? { ...x, ...patch } : x)))
       try {
-        const r = await api.command(chosen.account_id, command)
+        const r = await api.command(online?.account_id ?? chosen.account_id, command)
         if (r.affected > 0) {
           update({ status: 'ok', replies: r.replies })
           const fx = /^!fx\s+(\d+)/.exec(command)
@@ -241,7 +263,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
         update({ status: 'error', message: failed(e) })
       }
     },
-    [api, chosen, failed],
+    [api, chosen, online, failed],
   )
 
   const setNote = useCallback(
@@ -366,6 +388,16 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
             ↻
           </button>
           {online?.playfield != null && <span className="muted small">in {playfieldName(gameData, online.playfield)}</span>}
+          {online && (
+            <button
+              className="ghost"
+              disabled={!canSend}
+              onClick={() => send(`!server ${GAME_NAME[there]}`)}
+              title={`Take ${online.character_name} to the ${serverLabel(there)} in game (!server ${GAME_NAME[there]}): same login, that server's character`}
+            >
+              → {serverLabel(there)}
+            </button>
+          )}
           <label className="check" title="Play each entry as you step with j/k or the arrow keys">
             <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} /> play on step
           </label>
@@ -407,13 +439,37 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
         </div>
       </header>
 
-      {(!admin || playersError || (chosen && players && !online) || (online && online.gm_level < 1)) && (
+      {(!admin || playersError || (chosen && players && !online) || (online && online.gm_level < 1) || moving) && (
         <div className="banners">
           {!admin && <p className="banner warn">This login has the “{session.scope ?? 'none'}” scope: you can browse, but sending commands needs admin.</p>}
           {playersError && <p className="banner warn">Players: {playersError}</p>}
-          {chosen && players && !online && (
+          {chosen && players && !online && !elsewhere && (
             <p className="banner warn">
               {chosen.character_name} ({chosen.username}) isn't online; log in with the game client, then ↻.
+            </p>
+          )}
+          {chosen && !online && elsewhere && (
+            <p className="banner">
+              {elsewhere.character_name} ({elsewhere.username}) is on the {serverLabel(there)}.{' '}
+              <button className="ghost" onClick={() => switchServer(there)}>
+                Debug there
+              </button>{' '}
+              <button
+                className="ghost"
+                onClick={() =>
+                  sendAcross(there, elsewhere.account_id).then((m) => {
+                    setMoving(m)
+                    setTimeout(loadPlayers, 3000)
+                  })
+                }
+              >
+                Bring them to the {serverLabel(here)}
+              </button>
+            </p>
+          )}
+          {moving && (
+            <p className="banner" onClick={() => setMoving('')}>
+              {moving}
             </p>
           )}
           {online && online.gm_level < 1 && (
