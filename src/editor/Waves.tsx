@@ -1,5 +1,5 @@
 import { scriptDistance, shownWave } from './geometry'
-import type { Ctx } from './Survey'
+import type { Ctx } from './WorldEditor'
 import type { Script } from './types'
 
 /** ◀ wave 2 of 4 ▶ for one script: which of its waves this surveyor sees. */

@@ -1,23 +1,27 @@
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-// In development /api goes to lmoxide-api (tools/web-dev-backend.sh in the lmoxide repo), so no
-// CORS setup is needed. LMOXIDE_API points it elsewhere.
+// In development /api goes to the play server's lmoxide-api (tools/web-dev-backend.sh or
+// tools/lan-server.sh in the lmoxide repo) and /editor-api to a survey server's (tools/survey-server.sh),
+// so no CORS setup is needed. LMOXIDE_API and LMOXIDE_EDITOR_API point them elsewhere.
 const apiTarget = process.env.LMOXIDE_API ?? 'http://127.0.0.1:8090'
-// The survey page (survey.html) talks to the survey server's API (lmoxide tools/survey-server.sh)
-// through /survey-api, so it works from this dev server and the survey server's alike.
-const surveyApiTarget = process.env.LMOXIDE_SURVEY_API ?? 'http://127.0.0.1:8091'
+const editorApiTarget = process.env.LMOXIDE_EDITOR_API ?? process.env.LMOXIDE_SURVEY_API ?? 'http://127.0.0.1:8091'
 
 export default defineConfig({
   // relative asset paths: dist/ works from any directory or path on a static host
   base: './',
   plugins: [react()],
-  // two pages: the debug browser and the survey page (survey.html)
-  build: { rollupOptions: { input: { main: 'index.html', survey: 'survey.html' } } },
+  // the sign-in page (/), the debugger (/debugger/), the world editor (/editor/), and
+  // survey.html, the editor's old address (forwards to /editor/)
+  build: {
+    rollupOptions: {
+      input: { main: 'index.html', debugger: 'debugger/index.html', editor: 'editor/index.html', survey: 'survey.html' },
+    },
+  },
   server: {
     proxy: {
       '^/api/': { target: apiTarget, rewrite: (p) => p.replace(/^\/api/, '') },
-      '^/survey-api/': { target: surveyApiTarget, rewrite: (p) => p.replace(/^\/survey-api/, '') },
+      '^/editor-api/': { target: editorApiTarget, rewrite: (p) => p.replace(/^\/editor-api/, '') },
     },
   },
 })

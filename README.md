@@ -1,12 +1,22 @@
-# LMOxide debug browser
+# LMOxide dev UI
 
-A static single-page app for testing an LMOxide server from the browser, through its REST API
-(`lmoxide-api`): browse the game client's effect packages and play them on a character in the
-running game, and drive every in-game test command (teleport, test scenarios, go to bosses and
-other targets, spawn enemies, loot, looks, achievements, ...) with search and completion
-instead of typing them in the game chat. Background: LMOxide's `docs/EFFECT-BROWSER.md`.
+Static web pages for working on an LMOxide server from the browser, through its REST API
+(`lmoxide-api`). Two tools:
 
-## Views
+- **Debugger** (`/debugger/`): browse the game client's effect packages and play them on a
+  character in the running game, and drive every in-game test command (teleport, test
+  scenarios, go to bosses and other targets, spawn enemies, loot, looks, achievements, ...)
+  with search and completion instead of typing them in the game chat. Background: LMOxide's
+  `docs/EFFECT-BROWSER.md`.
+- **World editor** (`/editor/`): place and fix the enemies, NPCs, smashables and trigger walls
+  of each world on a survey server, and mark scripts and areas for review (LMOxide's
+  `docs/SURVEY.md`).
+
+The front page (`/`) signs in to both tools' servers at once (they share accounts) and opens the
+one you choose; the switch at the top left of each tool goes to the other, greyed out when you
+aren't signed in to its server (not running, or the account can't use it). Log out ends both.
+
+## Debugger
 
 **Effects** (the effect browser)
 
@@ -50,11 +60,12 @@ or shows the effect, Shift+Enter puts the command in the console to edit (or pla
 
 API gaps found along the way are in [`docs/API-PROPOSALS.md`](docs/API-PROPOSALS.md).
 
-**Survey** (`survey.html`, a page of its own; LMOxide's `docs/SURVEY.md`)
+## World editor
 
-For a survey server (`--mode survey`): place enemies, NPCs, smashables, buildies and
-interactables where they stood on live, confirm, edit or delete the guessed content, and mark
-areas, scripts and waves for review.
+For a survey server (`--mode survey`, LMOxide's `tools/survey-server.sh`): place enemies, NPCs
+and smashables where they stood on live, confirm, edit or delete the guessed content, place
+trigger walls, and mark areas, scripts and waves for review. You edit as a character online on
+the survey server (*Editing as*): its position and facing place things.
 
 - **Place**: pick something, *Wear it* (or *Show ghost* for buildies and interactables), walk to
   where it stood facing its way, *Place here*, optionally into a script's wave.
@@ -79,9 +90,8 @@ areas, scripts and waves for review.
 - **Import / export**: one file per set or playfield; importing previews duplicates,
   near-duplicates (within a distance and angle you set, each can be taken anyway) and conflicts.
 
-`survey.html?mock` runs the page against an in-memory server, without logging in. Otherwise it
-logs in to the survey server's API (port 8091; the dev server forwards `/survey-api` there,
-`LMOXIDE_SURVEY_API` picks another), separately from the debug browser's login.
+`/editor/?mock` runs it against an in-memory server, without signing in. `survey.html` (its old
+address) forwards to `/editor/`.
 
 ## Requirements
 
@@ -98,11 +108,13 @@ logs in to the survey server's API (port 8091; the dev server forwards `/survey-
 
 ```sh
 pnpm install
-pnpm dev            # http://localhost:5173, /api proxied to http://127.0.0.1:8090
+pnpm dev            # http://localhost:5173: /api to http://127.0.0.1:8090, /editor-api to :8091
 ```
 
-In development the default API base is `/api`, which Vite forwards to `LMOXIDE_API`
-(default `http://127.0.0.1:8090`), so no CORS setup is needed. For a backend with demo accounts
+In development the debugger's API base is `/api`, which Vite forwards to `LMOXIDE_API`
+(default `http://127.0.0.1:8090`, the play server's API), and the world editor's is
+`/editor-api`, forwarded to `LMOXIDE_EDITOR_API` (default `http://127.0.0.1:8091`, a survey
+server's), so no CORS setup is needed. For a backend with demo accounts
 run `tools/web-dev-backend.sh` in the LMOxide repo (`admin` / `admin-password`); nobody is
 online there unless a game client connects, so for commands use a real server such as
 `tools/lan-server.sh`.
@@ -117,9 +129,9 @@ LMOXIDE_API=http://192.168.1.20:8090 pnpm dev
 pnpm build          # static files in dist/
 ```
 
-`dist/` uses relative paths, so it can be served from any directory. The API base URL is set on
-the login screen and kept in localStorage; without one it defaults to port 8090 of the page's
-host. The API has to allow the app's origin (`LMOXIDE_API_CORS_ORIGINS=https://...`) unless both
+`dist/` uses relative paths, so it can be served from any directory. The API base URLs are set on
+the sign-in page (*Servers…*) and kept in localStorage; without them the debugger uses port 8090
+of the page's host and the world editor port 8091. The API has to allow the app's origin (`LMOXIDE_API_CORS_ORIGINS=https://...`) unless both
 are served from one origin behind a reverse proxy (then set the base URL to e.g. `/api`).
 
 If the API is not reachable, the effect catalog can also be opened from a file
@@ -145,14 +157,15 @@ If the API is not reachable, the effect catalog can also be opened from a file
 
 | Where | Key | What |
 |---|---|---|
-| sessionStorage | `lmofx.session` | the session token or API key (this tab only, as LMOxide's `docs/WEB-UI.md` asks) |
+| sessionStorage | `lmofx.session` | the debugger's session token or API key (this tab only, as LMOxide's `docs/WEB-UI.md` asks) |
 | localStorage | `lmofx.apiBase` | API base URL |
 | localStorage | `lmofx.player` | the player chosen to run commands as |
 | localStorage | `lmofx.view`, `lmofx.debugSection`, `lmofx.filters`, `lmofx.autoplay` | where you were, the last filters, "play on step" |
 | localStorage | `lmofx.history` | the command box history |
 | localStorage | `lmofx.fxAt` | where effects play (on me, `@near`, `@ground`) |
 | localStorage | `lmofx.notes`, `lmofx.tags` | notes by effect id; tags you added |
-| localStorage | `lmofx.survey.account` | the surveyor the survey page acts as |
-| localStorage, sessionStorage | `lmofx.survey.apiBase`, `lmofx.survey.session` | the survey page's API base and session |
+| localStorage | `lmofx.survey.account` | the character the world editor edits as |
+| localStorage, sessionStorage | `lmofx.editor.apiBase`, `lmofx.editor.session` | the world editor's API base and session |
+| localStorage | `lmofx.tool` | the tool opened last |
 
 Notes live only in this browser: export them before clearing site data.

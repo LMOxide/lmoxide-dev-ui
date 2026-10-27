@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { distance, inHiddenWave } from './geometry'
-import type { Ctx } from './Survey'
+import type { Ctx } from './WorldEditor'
 import { CATEGORIES, type Category, type WaveRef } from './types'
 import { WavesNearby } from './Waves'
 import { waveLabel } from './WaveSelect'

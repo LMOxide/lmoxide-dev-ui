@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AreaEditor, useDraft } from './AreaEditor'
 import { areaCenter, distance } from './geometry'
-import type { Ctx } from './Survey'
+import type { Ctx } from './WorldEditor'
 import { NOTE_KINDS, type Note, type NoteKind, type Review } from './types'
 
 export const KIND_LABELS: Record<NoteKind, string> = {

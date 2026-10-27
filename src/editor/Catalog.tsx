@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { Ctx } from './Survey'
+import type { Ctx } from './WorldEditor'
 import type { Kind, Placeable, WallSettings, WaveRef } from './types'
 import { NEW_WALL, WallFields } from './Walls'
 import { WaveSelect } from './WaveSelect'

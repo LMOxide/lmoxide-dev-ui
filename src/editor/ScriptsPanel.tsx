@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AreaEditor, useDraft } from './AreaEditor'
 import { areaCenter, scriptDistance, shownWave } from './geometry'
 import { newId, StatusSelect } from './NotesPanel'
-import type { Ctx } from './Survey'
+import type { Ctx } from './WorldEditor'
 import type { Script, Trigger, Wave, WaveRef } from './types'
 import { WaveStepper } from './Waves'
 

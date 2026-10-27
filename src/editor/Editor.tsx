@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { distance, fmtPos, isHidden, toDegrees, toRadians } from './geometry'
 import { SpawnPicker } from './SpawnPicker'
 import { WallFields } from './Walls'
-import type { Ctx } from './Survey'
+import type { Ctx } from './WorldEditor'
 import { editable, type Kind, type ObjectChanges, type Placeable, type SurveyObject, type Vec3, type WallSettings, type WaveRef } from './types'
 import { WaveSelect } from './WaveSelect'
 

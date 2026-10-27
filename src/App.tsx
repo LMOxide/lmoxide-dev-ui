@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Api, ApiError, defaultApiBase, normalizeCatalog } from './api'
+import { Api, ApiError, normalizeCatalog } from './api'
 import { NO_FILTERS, facts as factsOf, matches, textMatcher, type Filters } from './catalog'
 import { Detail, type FxAt } from './Detail'
 import { EffectList } from './EffectList'
 import { FilterPanel } from './Filters'
-import { Login } from './Login'
 import { DEFAULT_TAGS, isEmpty, type Note, type Notes } from './notes'
 import { NotesPanel } from './NotesPanel'
 import { KEYS, loadJson, saveJson } from './storage'
@@ -12,6 +11,8 @@ import { Console, type LogEntry } from './Console'
 import { Debug, type Section } from './Debug'
 import { Palette } from './Palette'
 import { playfieldName, searchSuggestions, vocabulary, type GameData } from './suggest'
+import { apiBase as toolApiBase, session as toolSession, setApiBase as setToolApiBase, signOut, toSignIn } from './tools'
+import { ToolSwitch } from './ToolSwitch'
 import type { AnimationCatalog, BccStates, Effect, EffectCatalog, Minifigure, MonsterData, Player, Playfield, Session, TestCatalog } from './types'
 
 /** The player chosen to preview on, remembered across visits (they may be offline now). */
@@ -38,18 +39,23 @@ function useStored<T>(key: string, fallback: T, inSession = false): [T, (v: T | 
   return [value, set]
 }
 
+/** The debugger (/debugger/): the debugger's session (sign-in page), else to the sign-in page. */
 export default function App() {
-  const [apiBase, setApiBase] = useStored(KEYS.apiBase, defaultApiBase())
-  const [session, setSession] = useStored<Session | null>(KEYS.session, null, true)
-  const api = useMemo(() => new Api(apiBase, session?.token ?? null), [apiBase, session])
-
-  const expired = session?.expires_at !== undefined && session.expires_at * 1000 < Date.now()
-  useEffect(() => {
-    if (expired) setSession(null)
-  }, [expired, setSession])
-
-  if (!session || expired) return <Login apiBase={apiBase} onApiBase={setApiBase} onSession={setSession} />
-  return <Browser api={api} session={session} setApiBase={setApiBase} logout={() => setSession(null)} />
+  const [base, setBase] = useState(() => toolApiBase('debugger'))
+  const s = toolSession('debugger')
+  const api = useMemo(() => new Api(base, s?.token ?? null), [base, s?.token])
+  if (!s) {
+    toSignIn('debugger')
+    return null
+  }
+  return (
+    <Browser
+      api={api}
+      session={s}
+      setApiBase={(b) => (setToolApiBase('debugger', b), setBase(b))}
+      logout={() => signOut('debugger')}
+    />
+  )
 }
 
 function Browser({ api, session, setApiBase, logout }: { api: Api; session: Session; setApiBase: (b: string) => void; logout: () => void }) {
@@ -313,9 +319,7 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
   return (
     <div className="app">
       <header className="top">
-        <h1>
-          LMOxide <span className="muted">debug browser</span>
-        </h1>
+        <ToolSwitch current="debugger" />
         <nav className="views" aria-label="Views">
           <button className={view === 'effects' ? 'on' : ''} onClick={() => setView('effects')}>
             Effects
@@ -326,9 +330,6 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
           <button className="ghost search-all" onClick={() => setPalette(true)} title="Search everything (Ctrl+K)">
             ⌕ Search all <kbd>Ctrl K</kbd>
           </button>
-          <a className="small" href="./survey.html" title="Survey servers: place and mark content (survey.html)">
-            Survey
-          </a>
         </nav>
         <div className="player">
           <label>

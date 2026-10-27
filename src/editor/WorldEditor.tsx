@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../api'
+import { ToolSwitch } from '../ToolSwitch'
 import { loadJson, saveJson } from '../storage'
 import type { SurveyBackend } from './backend'
 import { Catalog } from './Catalog'
@@ -34,7 +35,7 @@ export interface Ctx {
   upsert: (o: SurveyObject, replaced?: string) => void
 }
 
-export function Survey({ backend, onLogout }: { backend: SurveyBackend; onLogout?: () => void }) {
+export function WorldEditor({ backend, onLogout }: { backend: SurveyBackend; onLogout?: () => void }) {
   const [surveyors, setSurveyors] = useState<Surveyor[]>([])
   const [account, setAccount] = useState<number | null>(() => loadJson<number | null>(ACCOUNT_KEY, null))
   const [state, setState] = useState<PlayerState | null>(null)
@@ -51,7 +52,7 @@ export function Survey({ backend, onLogout }: { backend: SurveyBackend; onLogout
   const failed = useCallback(
     (e: unknown) => {
       if (e instanceof ApiError && e.status === 401) onLogout?.()
-      setError(e instanceof ApiError && e.code === 'not_found' && e.message.includes('survey') ? `the API at ${backend.label} doesn't reach a survey server: log out and use the survey server's API (/survey-api here, or port 8091; tools/survey-server.sh)` : e instanceof Error ? e.message : String(e))
+      setError(e instanceof ApiError && e.code === 'not_found' && e.message.includes('survey') ? `the API at ${backend.label} doesn't reach a survey server: log out and sign in with the world editor's API (/editor-api on the dev server, or port 8091; lmoxide tools/survey-server.sh)` : e instanceof Error ? e.message : String(e))
     },
     [onLogout, backend],
   )
@@ -141,12 +142,10 @@ export function Survey({ backend, onLogout }: { backend: SurveyBackend; onLogout
   return (
     <div className="sv">
       <header className="top sv-top">
-        <h1>
-          LMOxide <span className="muted">survey</span>
-        </h1>
+        <ToolSwitch current="editor" />
         <div className="player">
           <label>
-            Surveyor
+            Editing as
             <select value={account ?? ''} onChange={(e) => setAccount(e.target.value ? Number(e.target.value) : null)}>
               <option value="">—</option>
               {surveyors.map((s) => (
@@ -156,7 +155,7 @@ export function Survey({ backend, onLogout }: { backend: SurveyBackend; onLogout
               ))}
             </select>
           </label>
-          <button className="ghost" onClick={() => backend.surveyors().then(setSurveyors).catch(failed)} title="Refresh the surveyors online">
+          <button className="ghost" onClick={() => backend.surveyors().then(setSurveyors).catch(failed)} title="Refresh the characters online on the survey server">
             ↻
           </button>
           {state && (
@@ -178,9 +177,6 @@ export function Survey({ backend, onLogout }: { backend: SurveyBackend; onLogout
         </div>
         <div className="who">
           <button onClick={() => setTransfer(true)}>Import / export</button>
-          <a className="small" href="./index.html">
-            Debug browser
-          </a>
           <span className="muted small">{backend.label}</span>
           {onLogout && (
             <button className="ghost" onClick={onLogout}>
@@ -191,7 +187,7 @@ export function Survey({ backend, onLogout }: { backend: SurveyBackend; onLogout
       </header>
       <div className="banners">
         {error && <p className="banner warn">{error}</p>}
-        {account === null && <p className="banner warn">Choose the surveyor (a character online on the survey server) whose position places things.</p>}
+        {account === null && <p className="banner warn">Choose who you edit as: a character online on the survey server (its position places things).</p>}
       </div>
       {ctx && (
         <main className="sv-cols">
