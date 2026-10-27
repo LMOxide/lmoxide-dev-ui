@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { CheckIcon, ChevronsUpDownIcon, XIcon } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
 export interface ComboOption {
@@ -29,6 +28,40 @@ function useOpenAtFirst(on: boolean, setOpen: (o: boolean) => void) {
     const t = setTimeout(() => setOpen(true), 80)
     return () => clearTimeout(t)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+/**
+ * The box a combo box shows: looks like an outline button, holds the trigger (which opens the
+ * list) and buttons of its own beside it (× to clear or remove one). Those can't be inside the
+ * trigger: a button in a button is invalid, and shadcn's Button gives its icons
+ * `pointer-events: none`, so a click on an × inside it opened the list instead.
+ */
+function Box({ className, title, disabled, onOpen, children }: { className?: string; title?: string; disabled?: boolean; onOpen: () => void; children: ReactNode }) {
+  return (
+    <PopoverAnchor asChild>
+      <div
+        title={title}
+        data-disabled={disabled || undefined}
+        className={cn(
+          'flex min-h-8 min-w-0 cursor-pointer items-center gap-1 rounded-md border bg-background px-2 py-0.5 text-sm shadow-xs transition-all hover:bg-accent focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 data-disabled:pointer-events-none data-disabled:opacity-50 dark:border-input dark:bg-input/30 dark:hover:bg-input/50',
+          className,
+        )}
+        // a click on the box around the trigger (a chip's name, the padding) opens it too
+        onClick={(e) => !(e.target as Element).closest('button') && onOpen()}
+      >
+        {children}
+      </div>
+    </PopoverAnchor>
+  )
+}
+
+/** An × beside a combo box's trigger. */
+function Remove({ label, onClick, className }: { label: string; onClick: () => void; className?: string }) {
+  return (
+    <button type="button" aria-label={label} title={label} className={cn('inline-flex shrink-0 cursor-pointer items-center rounded-sm opacity-60 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-1', className)} onClick={onClick}>
+      <XIcon className="size-3.5" />
+    </button>
+  )
 }
 
 /** How many options a list shows at once (type to narrow it). */
@@ -153,24 +186,16 @@ export function Combobox({
   const picked = options.find((o) => o.value === value)
   return (
     <Popover open={open} onOpenChange={(o) => (setOpen(o), o || setQuery(''))}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} disabled={disabled} title={title} className={cn('h-8 min-w-0 justify-between gap-1 px-2 font-normal', className)}>
-          <span className={cn('flex min-w-0 items-baseline gap-2', !value && 'text-muted-foreground')}>
-            <span className="truncate">{picked?.label ?? value ?? placeholder}</span>
+      <Box className={className} title={title} disabled={disabled} onOpen={() => setOpen(true)}>
+        <PopoverTrigger asChild>
+          <button type="button" role="combobox" aria-expanded={open} disabled={disabled} className="flex min-w-0 flex-1 cursor-pointer items-baseline gap-2 text-left outline-none">
+            <span className={cn('truncate', !value && 'text-muted-foreground')}>{picked?.label ?? value ?? placeholder}</span>
             {picked?.detail && <span className="truncate text-xs text-muted-foreground">{picked.detail}</span>}
-          </span>
-          <span className="flex shrink-0 items-center">
-            {clearable && value && (
-              <XIcon
-                className="size-3.5 opacity-60 hover:opacity-100"
-                onPointerDown={(e) => (e.preventDefault(), e.stopPropagation(), onChange(null))}
-                aria-label="Clear"
-              />
-            )}
-            <ChevronsUpDownIcon className="size-3.5 opacity-50" />
-          </span>
-        </Button>
-      </PopoverTrigger>
+          </button>
+        </PopoverTrigger>
+        {clearable && value && <Remove label="Clear" onClick={() => onChange(null)} />}
+        <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-50" />
+      </Box>
       <PopoverContent className="w-[min(28rem,calc(100vw-2rem))] p-0" align="start">
         <List
           options={options}
@@ -231,26 +256,22 @@ export function MultiCombobox({
   const everything = !!all && options.length > 0 && options.every((o) => picked.has(o.value))
   return (
     <Popover open={open} onOpenChange={(o) => (setOpen(o), o || setQuery(''))}>
-      <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} title={title} className={cn('h-auto min-h-8 min-w-0 justify-between gap-1 px-2 py-1 font-normal', className)}>
-          <span className="flex min-w-0 flex-wrap items-center gap-1">
-            {label && <span className="text-muted-foreground">{label}:</span>}
-            {everything ? (
-              <span>{all}</span>
-            ) : value.length === 0 ? (
-              <span className="text-muted-foreground">{placeholder}</span>
-            ) : (
-              value.map((v) => (
-                <span key={v} className="inline-flex max-w-full items-center gap-0.5 rounded-sm bg-secondary px-1.5 text-xs">
-                  <span className="truncate">{chip ? chip(optionOf(v)) : optionOf(v).label}</span>
-                  <XIcon className="size-3 shrink-0 opacity-60 hover:opacity-100" aria-label={`Remove ${v}`} onPointerDown={(e) => (e.preventDefault(), e.stopPropagation(), toggle(v))} />
-                </span>
-              ))
-            )}
-          </span>
-          <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
+      <Box className={cn('flex-wrap', className)} title={title} onOpen={() => setOpen(true)}>
+        {label && <span className="text-muted-foreground">{label}:</span>}
+        {!everything &&
+          value.map((v) => (
+            <span key={v} className="inline-flex max-w-full items-center gap-0.5 rounded-sm bg-secondary px-1.5 text-xs">
+              <span className="truncate">{chip ? chip(optionOf(v)) : optionOf(v).label}</span>
+              <Remove label={`Remove ${optionOf(v).label}`} className="[&_svg]:size-3" onClick={() => toggle(v)} />
+            </span>
+          ))}
+        <PopoverTrigger asChild>
+          <button type="button" role="combobox" aria-expanded={open} aria-label={label ? `${label}: choose` : 'Choose'} className="flex min-w-4 flex-1 cursor-pointer items-center justify-between gap-1 self-stretch text-left outline-none">
+            {everything ? <span>{all}</span> : value.length === 0 ? <span className="text-muted-foreground">{placeholder}</span> : <span />}
+            <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-50" />
+          </button>
+        </PopoverTrigger>
+      </Box>
       <PopoverContent className="w-[min(24rem,calc(100vw-2rem))] p-0" align="start">
         <List
           options={options}
