@@ -40,7 +40,7 @@ export interface Ctx {
   upsert: (o: SurveyObject, replaced?: string) => void
 }
 
-export function WorldEditor({ backend, onLogout }: { backend: SurveyBackend; onLogout?: () => void }) {
+export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBackend; onLogout?: () => void; onExpire?: () => void }) {
   const [surveyors, setSurveyors] = useState<Surveyor[]>([])
   const [account, setAccount] = useState<number | null>(() => loadJson<number | null>(ACCOUNT_KEY, null))
   const [state, setState] = useState<PlayerState | null>(null)
@@ -58,10 +58,10 @@ export function WorldEditor({ backend, onLogout }: { backend: SurveyBackend; onL
 
   const failed = useCallback(
     (e: unknown) => {
-      if (e instanceof ApiError && e.status === 401) onLogout?.()
+      if (e instanceof ApiError && e.status === 401) (onExpire ?? onLogout)?.()
       setError(e instanceof ApiError && e.code === 'not_found' && e.message.includes('survey') ? `the API at ${backend.label} doesn't reach a survey server: log out and sign in with the world editor's API (/editor-api on the dev server, or port 8091; lmoxide tools/survey-server.sh)` : e instanceof Error ? e.message : String(e))
     },
-    [onLogout, backend],
+    [onExpire, onLogout, backend],
   )
 
   const loadPlayfield = useCallback(

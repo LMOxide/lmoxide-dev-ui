@@ -12,9 +12,19 @@ Static web pages for working on an LMOxide server from the browser, through its 
   of each world on a survey server, and mark scripts and areas for review (LMOxide's
   `docs/SURVEY.md`).
 
-The front page (`/`) signs in to both tools' servers at once (they share accounts) and opens the
-one you choose; the switch at the top left of each tool goes to the other, greyed out when you
-aren't signed in to its server (not running, or the account can't use it). Log out ends both.
+The front page (`/`) signs in to both servers' APIs at once (the play server's and the survey
+server's; they share accounts) and opens the tool you choose. Every `lmoxide-api` serves the same
+routes, a survey server's also the world editor's `/v1/survey`: so the debugger works on either
+server (the *Play server / Survey server* switch in its header, no new sign-in), and the world
+editor needs the survey server. Sessions belong to a server's API address, not to a tool. The
+switch at the top left of each tool goes to the other, greyed out when you aren't signed in to
+its server (not running, or the account can't use it).
+
+*Stay signed in* (on by default) keeps the session token, never the password, in localStorage:
+a "remember" login (`POST /v1/auth/login` with `remember`, the API's `--remember-days`, 30 by
+default) that the pages renew (`POST /v1/auth/renew`) once it is past half its life, so it
+lasts while you use the dev UI. Untick it for a tab-only session. Log out ends every session on
+its server; so do a password change and a ban.
 
 ## Debugger
 
@@ -161,15 +171,16 @@ If the API is not reachable, the effect catalog can also be opened from a file
 
 | Where | Key | What |
 |---|---|---|
-| sessionStorage | `lmofx.session` | the debugger's session token or API key (this tab only, as LMOxide's `docs/WEB-UI.md` asks) |
-| localStorage | `lmofx.apiBase` | API base URL |
+| localStorage, sessionStorage | `lmofx.sessions` | session tokens (or API keys) by API address: remembered ones in localStorage, the others in this tab only |
+| localStorage | `lmofx.remember` | *Stay signed in* ticked |
+| localStorage | `lmofx.apiBase`, `lmofx.editor.apiBase` | the play server's and the survey server's API base URL |
+| localStorage | `lmofx.debugger.server` | the server the debugger works on (`play`, `survey`) |
 | localStorage | `lmofx.player` | the player chosen to run commands as |
 | localStorage | `lmofx.view`, `lmofx.debugSection`, `lmofx.filters`, `lmofx.autoplay` | where you were, the last filters, "play on step" |
 | localStorage | `lmofx.history` | the command box history |
 | localStorage | `lmofx.fxAt` | where effects play (on me, `@near`, `@ground`) |
 | localStorage | `lmofx.notes`, `lmofx.tags` | notes by effect id; tags you added |
 | localStorage | `lmofx.survey.account` | the character the world editor edits as |
-| localStorage, sessionStorage | `lmofx.editor.apiBase`, `lmofx.editor.session` | the world editor's API base and session |
 | localStorage | `lmofx.tool` | the tool opened last |
 
 Notes live only in this browser: export them before clearing site data.

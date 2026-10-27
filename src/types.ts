@@ -11,6 +11,10 @@ export interface Session {
   scope: Scope | null
   /** who is logged in, for the header */
   label: string
+  /** kept across browser restarts (localStorage), renewed while used */
+  remember?: boolean
+  /** unix seconds, for renewing remembered sessions */
+  issued_at?: number
 }
 
 export interface Player {

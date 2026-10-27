@@ -11,7 +11,7 @@ import { Console, type LogEntry } from './Console'
 import { Debug, type Section } from './Debug'
 import { Palette } from './Palette'
 import { playfieldName, searchSuggestions, vocabulary, type GameData } from './suggest'
-import { apiBase as toolApiBase, session as toolSession, setApiBase as setToolApiBase, signOut, toSignIn } from './tools'
+import { apiBase as toolApiBase, expired, SERVER, serverBase, SERVERS, sessionFor, session as toolSession, setDebuggerServer, setServerBase, signOut, toolServer, toSignIn, type Server } from './tools'
 import { ToolSwitch } from './ToolSwitch'
 import type { AnimationCatalog, BccStates, Effect, EffectCatalog, Minifigure, MonsterData, Player, Playfield, Session, TestCatalog } from './types'
 
@@ -39,26 +39,30 @@ function useStored<T>(key: string, fallback: T, inSession = false): [T, (v: T | 
   return [value, set]
 }
 
-/** The debugger (/debugger/): the debugger's session (sign-in page), else to the sign-in page. */
+/** The debugger (/debugger/): its server's session, else to the sign-in page. */
 export default function App() {
-  const [base, setBase] = useState(() => toolApiBase('debugger'))
+  const base = toolApiBase('debugger')
   const s = toolSession('debugger')
   const api = useMemo(() => new Api(base, s?.token ?? null), [base, s?.token])
   if (!s) {
     toSignIn('debugger')
     return null
   }
-  return (
-    <Browser
-      api={api}
-      session={s}
-      setApiBase={(b) => (setToolApiBase('debugger', b), setBase(b))}
-      logout={() => signOut('debugger')}
-    />
-  )
+  return <Browser api={api} session={s} logout={() => signOut('debugger')} expire={() => expired('debugger')} />
 }
 
-function Browser({ api, session, setApiBase, logout }: { api: Api; session: Session; setApiBase: (b: string) => void; logout: () => void }) {
+/**
+ * Debug the play server or the survey server (the session of each comes from the sign-in page;
+ * without one, sign in again). A changed address keeps a session that address already has.
+ */
+function switchServer(to: Server, base?: string) {
+  if (base !== undefined) setServerBase(to, base)
+  setDebuggerServer(to)
+  if (sessionFor(serverBase(to))) window.location.reload()
+  else toSignIn('debugger')
+}
+
+function Browser({ api, session, logout, expire }: { api: Api; session: Session; logout: () => void; expire: () => void }) {
   const [catalog, setCatalog] = useState<Effect[] | null>(null)
   const [catalogSource, setCatalogSource] = useState('')
   const [catalogError, setCatalogError] = useState('')
@@ -93,7 +97,7 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
   /** 401 anywhere means the session is gone: back to the login. */
   const failed = useCallback(
     (e: unknown): string => {
-      if (e instanceof ApiError && e.status === 401) logout()
+      if (e instanceof ApiError && e.status === 401) expire()
       if (e instanceof ApiError) {
         if (e.code === 'game_server_unavailable') return 'the game server is down'
         if (e.code === 'no_control') return 'the API runs without a game server connection'
@@ -102,7 +106,7 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
       }
       return String(e)
     },
-    [logout],
+    [expire],
   )
 
   const loadCatalog = useCallback(() => {
@@ -369,26 +373,31 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
           <span className="muted small" title={api.base}>
             {session.label} · {session.scope ?? 'no scope'}
           </span>
+          <select
+            className="server"
+            value={toolServer('debugger')}
+            onChange={(e) => switchServer(e.target.value as Server)}
+            title={`The server whose characters you debug (API ${api.base}); the play server or the survey server`}
+          >
+            {SERVERS.map((sv) => (
+              <option key={sv} value={sv}>
+                {SERVER[sv].label}
+                {sessionFor(serverBase(sv)) ? '' : ' (sign in)'}
+              </option>
+            ))}
+          </select>
           <button
             className="ghost"
             onClick={() => {
-              const b = window.prompt('API base URL', api.base)
-              if (b && b.trim() && b.trim() !== api.base) {
-                setApiBase(b.trim())
-                logout()
-              }
+              const now = toolServer('debugger')
+              const b = window.prompt(`${SERVER[now].label} API base URL`, api.base)
+              if (b && b.trim() && b.trim() !== api.base) switchServer(now, b.trim())
             }}
             title={`API: ${api.base}`}
           >
             ⚙
           </button>
-          <button
-            className="ghost"
-            onClick={() => {
-              if (session.expires_at !== undefined) api.logout().catch(() => {})
-              logout()
-            }}
-          >
+          <button className="ghost" onClick={logout}>
             Log out
           </button>
         </div>

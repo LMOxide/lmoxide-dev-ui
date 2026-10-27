@@ -1,6 +1,6 @@
 import { StrictMode, useMemo } from 'react'
 import { createRoot } from 'react-dom/client'
-import { apiBase, session, signOut, toSignIn } from '../tools'
+import { apiBase, expired, renewSessions, session, signOut, toSignIn } from '../tools'
 import { HttpBackend } from './backend'
 import { MockBackend } from './mock'
 import { WorldEditor } from './WorldEditor'
@@ -17,11 +17,14 @@ function EditorApp() {
     toSignIn('editor')
     return null
   }
-  return <WorldEditor backend={backend} onLogout={() => signOut('editor')} />
+  return <WorldEditor backend={backend} onLogout={() => signOut('editor')} onExpire={() => expired('editor')} />
 }
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <EditorApp />
-  </StrictMode>,
+// a remembered session past half its life is renewed before anything uses its token
+renewSessions().finally(() =>
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <EditorApp />
+    </StrictMode>,
+  ),
 )

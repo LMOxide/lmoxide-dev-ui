@@ -11,13 +11,6 @@ export class ApiError extends Error {
   }
 }
 
-/** Where the API is when nothing is configured: the dev proxy, else port 8090 of this host. */
-export function defaultApiBase(): string {
-  if (import.meta.env.DEV) return '/api'
-  const host = window.location.hostname || '127.0.0.1'
-  return `${window.location.protocol === 'https:' ? 'https:' : 'http:'}//${host}:8090`
-}
-
 export class Api {
   readonly base: string
   readonly token: string | null
@@ -55,12 +48,18 @@ export class Api {
     return json as T
   }
 
-  login(username: string, password: string) {
+  /** remember: a long session ("stay signed in", the API's --remember-days). */
+  login(username: string, password: string, remember = false) {
     return this.call<{ token: string; expires_at: number; scope: Scope | null; account: { username: string } }>(
       'POST',
       '/v1/auth/login',
-      { username, password },
+      { username, password, remember },
     )
+  }
+
+  /** A fresh session for this one (new token and expiry; this token stops working). */
+  renew(remember: boolean) {
+    return this.call<{ token: string; expires_at: number; scope: Scope | null }>('POST', '/v1/auth/renew', { remember })
   }
 
   logout() {
