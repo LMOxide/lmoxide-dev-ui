@@ -90,6 +90,7 @@ export function Debug({
       <div className="section-body">
         {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && <Missing />}
         {section === 'quick' && <Quick send={send} canSend={canSend} />}
+        {section === 'teleport' && <MovePanel send={send} canSend={canSend} />}
         {section === 'teleport' && (
           <PickList
             query={query}
@@ -632,5 +633,52 @@ function Progress({ data, send, canSend }: { data: GameData; send: (c: string) =
         ))}
       </ul>
     </>
+  )
+}
+
+/** !moveto / !move: a position in this playfield, or a step from where the player is (y is up). */
+function MovePanel({ send, canSend }: { send: (cmd: string) => void; canSend: boolean }) {
+  const [xyz, setXyz] = useState(['', '', ''])
+  const nums = xyz.map((v) => Number(v.trim() || '0'))
+  const valid = nums.every((n) => Number.isFinite(n))
+  const args = nums.join(' ')
+  return (
+    <div className="move-panel">
+      <div className="move-row">
+        {['x', 'y (up)', 'z'].map((label, i) => (
+          <label key={label}>
+            {label}
+            <input
+              className="mono"
+              inputMode="decimal"
+              placeholder="0"
+              value={xyz[i]}
+              onChange={(e) => setXyz(xyz.map((v, j) => (j === i ? e.target.value : v)))}
+              onKeyDown={(e) => e.key === 'Enter' && valid && canSend && send(`!move ${args}`)}
+            />
+          </label>
+        ))}
+        <button disabled={!canSend || !valid || xyz.every((v) => !v.trim())} onClick={() => send(`!moveto ${args}`)} title={`!moveto ${args}: this position in this playfield`}>
+          Go to
+        </button>
+        <button disabled={!canSend || !valid} onClick={() => send(`!move ${args}`)} title={`!move ${args}: this far from where you are`}>
+          Move by
+        </button>
+      </div>
+      <div className="move-row">
+        <span className="muted small">Fell under the map?</span>
+        {[10, 100, 1000].map((d) => (
+          <button key={d} className="chip" disabled={!canSend} onClick={() => send(`!move 0 ${d} 0`)} title={`!move 0 ${d} 0`}>
+            ↑ {d} m
+          </button>
+        ))}
+        <button className="chip" disabled={!canSend} onClick={() => send('!move 0 -10 0')} title="!move 0 -10 0">
+          ↓ 10 m
+        </button>
+        <button className="chip" disabled={!canSend} onClick={() => send('!where')}>
+          !where
+        </button>
+      </div>
+    </div>
   )
 }

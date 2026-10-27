@@ -38,7 +38,7 @@ aren't signed in to its server (not running, or the account can't use it). Log o
 | Section | Sends |
 |---|---|
 | Quick | `!where`, `!revive`, `!smashme`, `!smash`, `!xp`, `!stars`, `!ach`, puzzles (`!mirrors`, `!plates`) |
-| Teleport | `!tp <playfield>` (marks where the player is) |
+| Teleport | `!tp <playfield>` (marks where the player is); *Move*: `!moveto x y z`, `!move dx dy dz` (y is up; ↑ 10 / 100 / 1000 m for getting out from under a map) |
 | Test scenarios | `!test <n>` (what each sets up: place, team, spawns) |
 | Go to | `!goto <kind> <n>`: bosses, champions, enemies, NPCs, smashables, pads, collectibles, arenas, ... by name or playfield, or only where you are |
 | Spawn & loot | `!spawn <count> <name>` (enemies and smashables, 15 minutes), `!despawn [all]`, `!loot <kind>` |
