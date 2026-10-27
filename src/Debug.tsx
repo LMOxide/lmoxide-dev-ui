@@ -53,6 +53,7 @@ export function Debug({
   data,
   testsError,
   online,
+  players,
   canSend,
   send,
   section,
@@ -63,6 +64,8 @@ export function Debug({
   data: GameData
   testsError: string
   online: Player | undefined
+  /** everyone online (teleport to a player) */
+  players: Player[]
   canSend: boolean
   send: (cmd: string) => void
   section: Section
@@ -91,25 +94,7 @@ export function Debug({
         {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && <Missing />}
         {section === 'quick' && <Quick send={send} canSend={canSend} />}
         {section === 'teleport' && <MovePanel send={send} canSend={canSend} />}
-        {section === 'teleport' && (
-          <PickList
-            query={query}
-            setQuery={setQuery}
-            placeholder="Filter playfields…"
-            items={data.playfields.filter((p) => p.teleport !== false)}
-            fields={(p) => [p.name, String(p.id)]}
-            itemKey={(p) => p.id}
-            render={(p) => (
-              <>
-                <span className="title">{p.name}</span> <span className="muted mono">{p.id}</span>
-                {p.id === here && <span className="badge play">you are here</span>}
-              </>
-            )}
-            actions={(p) => [[`!tp ${p.id}`, 'Go']]}
-            send={send}
-            canSend={canSend}
-          />
-        )}
+        {section === 'teleport' && <TeleportTo data={data} players={players} online={online} query={query} setQuery={setQuery} send={send} canSend={canSend} />}
         {section === 'scenarios' && (
           <PickList
             query={query}
@@ -322,6 +307,108 @@ function Quick({ send, canSend }: { send: (cmd: string) => void; canSend: boolea
       </div>
       <p className="muted small">The server's answer to each command appears in the console.</p>
     </div>
+  )
+}
+
+interface Destination {
+  key: string
+  /** 'playfield', 'player' or a target kind */
+  type: string
+  label: string
+  playfield: number | null
+  pos: [number, number, number] | null
+  cmd: string
+}
+
+/**
+ * Teleport anywhere: a playfield (`!tp`), any spawn or other target (`!goto <kind> <n>`), or a
+ * player online (`!goto player <name>`), filtered by type.
+ */
+function TeleportTo({
+  data,
+  players,
+  online,
+  query,
+  setQuery,
+  send,
+  canSend,
+}: {
+  data: GameData
+  players: Player[]
+  online: Player | undefined
+  query: string
+  setQuery: (v: string) => void
+  send: (c: string) => void
+  canSend: boolean
+}) {
+  const [type, setType] = useState('playfield')
+  const [onlyHere, setOnlyHere] = useState(false)
+  const here = online?.playfield ?? null
+  const pf = (id: number) => playfieldName(data, id)
+  const kinds = data.tests?.kinds ?? []
+  const types: [string, number, string][] = [
+    ['playfield', data.playfields.filter((p) => p.teleport !== false).length, 'playfields (their arrival point)'],
+    ['player', players.filter((p) => p.account_id !== online?.account_id).length, 'players online'],
+    ['all', kinds.reduce((n, k) => n + k.targets.length, 0), 'every spawn and other target below'],
+    ...kinds.map((k): [string, number, string] => [k.kind, k.targets.length, k.about]),
+  ]
+  const items = useMemo((): Destination[] => {
+    let list: Destination[]
+    if (type === 'playfield') {
+      list = data.playfields
+        .filter((p) => p.teleport !== false)
+        .map((p) => ({ key: `pf:${p.id}`, type, label: p.name, playfield: p.id, pos: null, cmd: `!tp ${p.id}` }))
+    } else if (type === 'player') {
+      list = players
+        .filter((p) => p.account_id !== online?.account_id)
+        .map((p) => ({ key: `player:${p.account_id}`, type, label: `${p.character_name} (${p.username})`, playfield: p.playfield ?? null, pos: null, cmd: `!goto player ${p.character_name}` }))
+    } else {
+      list = kinds
+        .filter((k) => type === 'all' || k.kind === type)
+        .flatMap((k) => k.targets.map((t) => ({ key: `${k.kind}:${t.n}`, type: k.kind, label: t.label, playfield: t.playfield, pos: t.pos, cmd: `!goto ${k.kind} ${t.n}` })))
+    }
+    return list.filter((d) => !onlyHere || d.playfield === here)
+  }, [type, data.playfields, players, online?.account_id, kinds, onlyHere, here])
+  return (
+    <>
+      <div className="chips row-gap">
+        {types.map(([t, n, about]) => (
+          <button key={t} className={`chip${t === type ? ' on' : ''}`} onClick={() => setType(t)} title={about} disabled={!n}>
+            {t} <span className="muted">{n}</span>
+          </button>
+        ))}
+      </div>
+      <p className="muted small">
+        <label className="check inline-check">
+          <input type="checkbox" checked={onlyHere} onChange={(e) => setOnlyHere(e.target.checked)} disabled={here === null} /> only where you are
+        </label>
+      </p>
+      <PickList
+        query={query}
+        setQuery={setQuery}
+        placeholder={`Filter ${type === 'all' ? 'targets' : `${type}s`} by name or playfield…`}
+        items={items}
+        fields={(d) => [d.label, d.type, d.playfield === null ? '' : pf(d.playfield), d.playfield === null ? '' : String(d.playfield)]}
+        itemKey={(d) => d.key}
+        render={(d) => (
+          <>
+            {d.type !== type && <span className="badge">{d.type}</span>} <span className="title">{d.label}</span>
+            {d.type === 'playfield' && d.playfield !== null && <span className="muted mono"> {d.playfield}</span>}
+            {d.type !== 'playfield' && d.playfield !== null && (
+              <div className="desc">
+                {pf(d.playfield)}
+                {d.playfield === here && <span className="badge play">here</span>}{' '}
+                {d.pos && <span className="mono small">({d.pos.map((v) => v.toFixed(0)).join(', ')})</span>}
+              </div>
+            )}
+            {d.type === 'playfield' && d.playfield === here && <span className="badge play">you are here</span>}
+          </>
+        )}
+        actions={(d) => [[d.cmd, 'Go']]}
+        send={send}
+        canSend={canSend}
+      />
+    </>
   )
 }
 

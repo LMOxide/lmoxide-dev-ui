@@ -206,6 +206,10 @@ export class MockBackend implements SurveyBackend {
         { id: '741', npc: 'Video Game Guy', playfield: 1300, playfield_name: 'Tutorial', line: 'Hey! Over here!' },
         { id: '79', npc: 'Tavern Pirate', playfield: 1200, playfield_name: 'Pirate World', line: 'Arr, welcome to the tavern.' },
       ],
+      portals: [
+        { window: 74, to: 4600, to_name: 'Pirate World', plain: true, playfields: [1200] },
+        { window: 31, to: 4200, to_name: 'Isle of Yarr', plain: false, playfields: [1200, 4600] },
+      ],
     }
   }
   async wallLooks() {

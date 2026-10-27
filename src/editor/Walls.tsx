@@ -6,12 +6,13 @@ const prettyArea = (n: string) => n.replace(/^(Achievement_|BA_Explore_|Explore_
 
 export const NEW_WALL: WallSettings = { name: '', size: [6, 3, 1], color: 'red', action: 'other', once: false }
 
-type ActionType = 'script' | 'discover' | 'dialog' | 'message' | 'other'
+type ActionType = 'script' | 'discover' | 'dialog' | 'portal' | 'message' | 'other'
 
 const ACTIONS: [ActionType, string][] = [
   ['script', 'starts a script'],
   ['discover', 'discovers a location'],
   ['dialog', 'opens a dialogue'],
+  ['portal', 'opens a portal'],
   ['message', 'shows a message'],
   ['other', 'something else (comment)'],
 ]
@@ -22,6 +23,7 @@ function fresh(t: ActionType, scripts: Script[]): WallAction {
   if (t === 'script') return { script: { script: scripts[0]?.id ?? null, wave: null } }
   if (t === 'discover') return { discover: { name: null, achievement: null } }
   if (t === 'dialog') return { dialog: { dialog: null } }
+  if (t === 'portal') return { portal: { window: null, to: null } }
   if (t === 'message') return { message: { text: '' } }
   return 'other'
 }
@@ -120,6 +122,26 @@ export function WallFields({
               near: d.playfield === playfield,
             }))}
             onChange={(v) => onChange({ action: { dialog: { dialog: v } } })}
+          />
+        </div>
+      )}
+      {typeof a === 'object' && 'portal' in a && (
+        <div className="sv-field">
+          <span>portal</span>
+          <SuggestInput
+            value={a.portal.window === null ? null : String(a.portal.window)}
+            placeholder="where it leads (its teleport window)"
+            suggestions={(targets?.portals ?? []).map((p) => ({
+              value: String(p.window),
+              label: `${p.to_name ?? p.to}${p.plain ? ' (asks Yes/No)' : ''}`,
+              detail: `window ${p.window}`,
+              near: p.playfields.includes(playfield),
+            }))}
+            onChange={(v) => {
+              const p = targets?.portals?.find((x) => String(x.window) === v)
+              const n = v === null ? NaN : Number(v)
+              onChange({ action: { portal: { window: Number.isFinite(n) ? n : null, to: p?.to ?? null } } })
+            }}
           />
         </div>
       )}

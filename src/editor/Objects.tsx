@@ -132,6 +132,7 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
             </span>
             {o.wave && <span className="badge wave">{waveLabel(notes.scripts, o.wave)}</span>}
             {o.kind === 'trigger' && <span className="badge trigger">trigger</span>}
+            {o.kind === 'buildie' && <span className="badge trigger">buildie</span>}
             <span className={`badge ${o.category}`}>{o.category}</span>
             <span className="sv-dist">{d < 1000 ? `${d.toFixed(0)} m` : 'far'}</span>
           </li>

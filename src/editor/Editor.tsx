@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { distance, fmtPos, isHidden, toDegrees, toRadians } from './geometry'
+import { awayFrom, distance, fmtPos, isHidden, toDegrees, toRadians } from './geometry'
 import { valuesOf, type Entry } from './history'
 import { SpawnPicker } from './SpawnPicker'
 import { WallFields } from './Walls'
@@ -188,8 +188,21 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
             <button onClick={() => change({ pos: [...state.pos] })} title={fmtPos(state.pos)}>
               Move to me
             </button>
-            <button onClick={() => change({ heading: toDegrees(state.heading) })}>Face my way</button>
+            <button onClick={() => change({ heading: toDegrees(state.heading) })} title="Face the way you face">
+              Face my way
+            </button>
             <button onClick={() => change({ pos: [...state.pos], heading: toDegrees(state.heading) })}>Both</button>
+          </div>
+          <div className="sv-row">
+            <button onClick={() => change({ heading: toDegrees(state.heading + Math.PI / 2) })} title="Square to the way you face (a wall along your way instead of across it)">
+              Perpendicular to me
+            </button>
+            <button onClick={() => change({ heading: toDegrees(awayFrom(state.pos, draft.pos, state.heading)) })} title="Its back to you (an enemy that hasn't seen you yet)">
+              Face away from me
+            </button>
+            <button onClick={() => change({ heading: toDegrees(awayFrom(state.pos, draft.pos, state.heading) + Math.PI) })} title="Looking at you">
+              Face me
+            </button>
           </div>
           {draft.kind === 'enemy' && (
             <label className="sv-field">

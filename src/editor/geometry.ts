@@ -16,6 +16,16 @@ export function toDegrees(rad: number) {
   return Math.round(((((rad * 180) / Math.PI) % 360) + 360) % 360)
 }
 
+/**
+ * The heading (radians, as the server's: atan2(x, z)) from `me` toward `it`, so that it faces
+ * away from me; `fallback` (my heading) when it stands where I do.
+ */
+export function awayFrom(me: Vec3, it: Vec3, fallback: number) {
+  const dx = it[0] - me[0]
+  const dz = it[2] - me[2]
+  return Math.hypot(dx, dz) < 0.2 ? fallback : Math.atan2(dx, dz)
+}
+
 export function toRadians(deg: number) {
   return (deg * Math.PI) / 180
 }

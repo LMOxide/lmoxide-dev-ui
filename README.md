@@ -48,7 +48,7 @@ its server; so do a password change and a ban.
 | Section | Sends |
 |---|---|
 | Quick | `!where`, `!revive`, `!smashme`, `!smash`, `!xp`, `!stars`, `!ach`, puzzles (`!mirrors`, `!plates`) |
-| Teleport | `!tp <playfield>` (marks where the player is); *Move*: `!moveto x y z`, `!move dx dy dz` (y is up; ↑ 10 / 100 / 1000 m for getting out from under a map) |
+| Teleport | by type: a playfield (`!tp <playfield>`, marks where the player is), a player online (`!goto player <name>`), any spawn or other target (`!goto <kind> <n>`: *all*, or one kind); *Move*: `!moveto x y z`, `!move dx dy dz` (y is up; ↑ 10 / 100 / 1000 m for getting out from under a map) |
 | Test scenarios | `!test <n>` (what each sets up: place, team, spawns) |
 | Go to | `!goto <kind> <n>`: bosses, champions, enemies, NPCs, smashables, pads, collectibles, arenas, ... by name or playfield, or only where you are |
 | Spawn & loot | `!spawn <count> <name>` (enemies and smashables, 15 minutes), `!despawn [all]`, `!loot <kind>` |
@@ -81,8 +81,12 @@ the survey server (*Editing as*): its position and facing place things.
   where it stood facing its way, *Place here*, optionally into a script's wave.
 - **In this playfield**: everything spawned, nearest first, by category (guessed, surveyed,
   live, demo, client), distance and wave; hide (only for you, never saved), *Hide listed*,
-  *Unhide all*, *Select nearest*. Attacking something in game selects it too.
-- **Selection**: x/y/z and heading with nudges, *Move to me*, *Face my way*; changes show in game
+  *Unhide all*, *Select nearest*. Attacking something in game selects it too, and so does
+  interacting with a buildie (buildies are listed, can be selected and hidden, not changed yet).
+- **Trigger walls** can also open a portal (a teleport window, suggested by destination).
+- **Selection**: x/y/z and heading with nudges, *Move to me*, *Face my way*, *Perpendicular to
+  me* (a wall along your way), *Face away from me* (an enemy with its back to you), *Face me*;
+  changes show in game
   as you type. *Change into…* makes it any other spawn. Enemies and NPCs can get a patrol route
   (optional): walk it and *Add a point here* at each turn; it loops. Guesses: *Confirm*, edit
   (both make them surveyed) or *Delete*; live, demo and client objects can only be hidden.

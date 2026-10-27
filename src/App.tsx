@@ -427,6 +427,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
               data={gameData}
               testsError={testsError}
               online={online}
+              players={players ?? []}
               canSend={canSend}
               send={send}
               section={section}

@@ -9,6 +9,7 @@ export type WallAction =
   | { script: { script: string | null; wave: string | null } }
   | { discover: { name: string | null; achievement?: string | null } }
   | { dialog: { dialog: string | null } }
+  | { portal: { window: number | null; to: number | null } }
   | { message: { text: string } }
   | 'other'
 
@@ -19,6 +20,8 @@ export interface TriggerTargets {
   achievements: { id: number; name: string; category: string; locations: { name: string; playfield: number }[] }[]
   /** id: the dialogue's first text (what a wall stores) */
   dialogs: { id: string; npc: string; playfield: number; playfield_name: string | null; line: string }[]
+  /** the teleport windows portals open; plain: asks Yes/No instead (its window would be empty) */
+  portals?: { window: number; to: number; to_name: string | null; plain: boolean; playfields: number[] }[]
 }
 
 /** A trigger wall's settings (place-trigger, and the editor). */
