@@ -13,6 +13,7 @@ import type {
   SurveyObject,
   Surveyor,
   Vec3,
+  TriggerTargets,
   WallSettings,
   WaveRef,
 } from './types'
@@ -37,6 +38,8 @@ export interface SurveyBackend {
   placeTrigger(account: number, wall: WallSettings): Promise<SurveyObject>
   /** The looks a trigger wall can have. */
   wallLooks(): Promise<string[]>
+  /** The locations, achievements and dialogues a trigger wall can discover or open. */
+  triggerTargets(): Promise<TriggerTargets>
   select(account: number, id: string | null): Promise<PlayerState>
   selectNearest(account: number): Promise<PlayerState>
   hide(account: number, ids: string[], hidden: boolean): Promise<PlayerState>
@@ -129,6 +132,9 @@ export class HttpBackend implements SurveyBackend {
   }
   async wallLooks() {
     return (await this.call<{ color: string }[]>('GET', '/wall-looks')).map((l) => l.color)
+  }
+  triggerTargets() {
+    return this.call<TriggerTargets>('GET', '/trigger-targets')
   }
   select(account: number, id: string | null) {
     return this.call<PlayerState>('POST', `/players/${account}/select`, { id })

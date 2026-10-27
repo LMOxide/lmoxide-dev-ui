@@ -15,6 +15,7 @@ import type {
   SetInfo,
   SurveyObject,
   Vec3,
+  TriggerTargets,
   WallSettings,
   WaveRef,
 } from './types'
@@ -186,6 +187,22 @@ export class MockBackend implements SurveyBackend {
     this.player.selected = o.id
     this.bump()
     return structuredClone(o)
+  }
+  async triggerTargets(): Promise<TriggerTargets> {
+    const loc = (name: string, playfield: number, achievements: number[]) => ({ name, playfield, playfield_name: playfield === 1200 ? 'Pirate World' : 'Isle of Yarr', pos: null, achievements })
+    return {
+      locations: [loc('Achievement_PirateTown', 4200, [724]), loc('Achievement_Mermaid', 4200, [264, 900]), loc('Achievement_Ship', 4200, [748, 900]), loc('BA_Explore_Docks', 1200, [])],
+      achievements: [
+        { id: 724, name: 'Find the Hidden Pirate Town', category: 'Pirate Exploration', locations: [{ name: 'Achievement_PirateTown', playfield: 4200 }] },
+        { id: 264, name: 'The Sirens', category: 'Pirate Exploration', locations: [{ name: 'Achievement_Mermaid', playfield: 4200 }] },
+        { id: 748, name: "Find Blackbird's Ship", category: 'Pirate Exploration', locations: [{ name: 'Achievement_Ship', playfield: 4200 }] },
+        { id: 900, name: 'Explore the Isle', category: 'Pirate Exploration', locations: [{ name: 'Achievement_Mermaid', playfield: 4200 }, { name: 'Achievement_Ship', playfield: 4200 }] },
+      ],
+      dialogs: [
+        { id: '741', npc: 'Video Game Guy', playfield: 1300, playfield_name: 'Tutorial', line: 'Hey! Over here!' },
+        { id: '79', npc: 'Tavern Pirate', playfield: 1200, playfield_name: 'Pirate World', line: 'Arr, welcome to the tavern.' },
+      ],
+    }
   }
   async wallLooks() {
     return ['red', 'green', 'shield', 'low shield', 'forcefield']

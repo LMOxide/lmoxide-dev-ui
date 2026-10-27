@@ -222,3 +222,39 @@
   background: var(--selected);
   border-color: var(--accent);
 }
+
+.suggest {
+  position: relative;
+  min-width: 0;
+}
+.suggest input {
+  width: 100%;
+}
+.suggest-list {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  top: calc(100% + 2px);
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.15);
+  max-height: 280px;
+  overflow: auto;
+}
+.suggest-list li {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.suggest-list li.on,
+.suggest-list li:hover {
+  background: var(--selected);
+}

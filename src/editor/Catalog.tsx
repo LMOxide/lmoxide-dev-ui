@@ -60,7 +60,7 @@ export function Catalog({ ctx, catalog }: { ctx: Ctx; catalog: Placeable[] }) {
             <span>name</span>
             <input placeholder="optional" value={wall.name} onChange={(e) => setWall({ ...wall, name: e.target.value })} />
           </label>
-          <WallFields value={wall} scripts={ctx.notes.scripts} looks={ctx.looks} onChange={(w) => setWall({ ...wall, ...w })} />
+          <WallFields value={wall} scripts={ctx.notes.scripts} looks={ctx.looks} targets={ctx.targets} playfield={ctx.state.playfield} onChange={(w) => setWall({ ...wall, ...w })} />
           <div className="sv-row">
             <button className="primary" onClick={() => ctx.run(() => backend.placeTrigger(account, wall), 'all')} title="Standing in its middle, facing the way players walk through it">
               Place here

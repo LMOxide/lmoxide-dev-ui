@@ -7,10 +7,19 @@ export type Kind = 'enemy' | 'npc' | 'smashable' | 'buildie' | 'interactable'
 /** What crossing a trigger wall does. */
 export type WallAction =
   | { script: { script: string | null; wave: string | null } }
-  | { discover: { name: string | null } }
+  | { discover: { name: string | null; achievement?: string | null } }
   | { dialog: { dialog: string | null } }
   | { message: { text: string } }
   | 'other'
+
+/** What trigger walls can discover or open (GET /v1/survey/trigger-targets). */
+export interface TriggerTargets {
+  locations: { name: string; playfield: number; playfield_name: string | null; pos: Vec3 | null; achievements: number[] }[]
+  /** exploration achievements, with every location each needs */
+  achievements: { id: number; name: string; category: string; locations: { name: string; playfield: number }[] }[]
+  /** id: the dialogue's first text (what a wall stores) */
+  dialogs: { id: string; npc: string; playfield: number; playfield_name: string | null; line: string }[]
+}
 
 /** A trigger wall's settings (place-trigger, and the editor). */
 export interface WallSettings {

@@ -11,7 +11,7 @@ import type { MockBackend } from './mock'
 import { NotesPanel } from './NotesPanel'
 import { Objects } from './Objects'
 import { ScriptsPanel } from './ScriptsPanel'
-import type { Placeable, PlayerState, PlayfieldNotes, SurveyObject, Surveyor, WaveRef } from './types'
+import type { Placeable, PlayerState, PlayfieldNotes, SurveyObject, Surveyor, TriggerTargets, WaveRef } from './types'
 
 const ACCOUNT_KEY = 'lmofx.survey.account'
 const POLL_MS = 1000
@@ -28,6 +28,8 @@ export interface Ctx {
   catalog: Placeable[]
   /** the looks trigger walls can have */
   looks: string[]
+  /** what trigger walls can discover or open (null: not loaded) */
+  targets: TriggerTargets | null
   /** Runs a call, shows its error, refreshes what it may have changed. */
   run: <T>(f: () => Promise<T>, refresh?: 'state' | 'all') => Promise<T | undefined>
   setState: (s: PlayerState) => void
@@ -43,6 +45,7 @@ export function WorldEditor({ backend, onLogout }: { backend: SurveyBackend; onL
   const [notes, setNotes] = useState<PlayfieldNotes>({ notes: [], scripts: [] })
   const [catalog, setCatalog] = useState<Placeable[]>([])
   const [looks, setLooks] = useState<string[]>(['red', 'green'])
+  const [targets, setTargets] = useState<TriggerTargets | null>(null)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<RightTab>('selection')
   const [transfer, setTransfer] = useState(false)
@@ -82,6 +85,7 @@ export function WorldEditor({ backend, onLogout }: { backend: SurveyBackend; onL
     backend.surveyors().then(setSurveyors).catch(failed)
     backend.catalog().then(setCatalog).catch(failed)
     backend.wallLooks().then(setLooks).catch(() => {})
+    backend.triggerTargets().then(setTargets).catch(() => {})
   }, [backend, failed])
 
   // pick the only surveyor online if none is chosen
@@ -125,8 +129,8 @@ export function WorldEditor({ backend, onLogout }: { backend: SurveyBackend; onL
   }, [])
 
   const ctx: Ctx | null = useMemo(
-    () => (state && account !== null ? { backend, account, state, objects, notes, catalog, looks, run, setState, upsert } : null),
-    [backend, account, state, objects, notes, catalog, looks, run, upsert],
+    () => (state && account !== null ? { backend, account, state, objects, notes, catalog, looks, targets, run, setState, upsert } : null),
+    [backend, account, state, objects, notes, catalog, looks, targets, run, upsert],
   )
   const selected = ctx && state?.selected ? (objects.find((o) => o.id === state.selected) ?? null) : null
 

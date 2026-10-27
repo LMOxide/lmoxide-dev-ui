@@ -177,7 +177,7 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
             <input value={draft.name} onChange={(e) => change({ name: e.target.value })} />
           </label>
           {draft.wall ? (
-            <WallFields value={draft.wall} scripts={ctx.notes.scripts} looks={ctx.looks} onChange={(w) => change({ wall: { ...draft.wall!, ...w } })} />
+            <WallFields value={draft.wall} scripts={ctx.notes.scripts} looks={ctx.looks} targets={ctx.targets} playfield={ctx.state.playfield} onChange={(w) => change({ wall: { ...draft.wall!, ...w } })} />
           ) : (
             <label className="sv-field">
               <span>spawned</span>
