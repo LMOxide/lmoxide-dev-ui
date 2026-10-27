@@ -1,6 +1,6 @@
 // What the right side shows for the row selected in the tree.
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { MapPinIcon, PlusIcon } from 'lucide-react'
 import { Combobox, MultiCombobox, type ComboOption } from '@/components/combobox'
 import { Button } from '@/components/ui/button'
@@ -15,9 +15,9 @@ import type { Sel } from './Tree'
 import { NEW_WALL, WallFields } from './Walls'
 import { WaveStepper } from './Waves'
 import type { Ctx } from './WorldEditor'
-import { worldName } from './nodes'
-import type { WorldData, Worlds } from './worlds'
-import { findKey, type Kind, type Note, type Placeable, type Script, type SmashAchievement, type WallAction, type WallSettings, type WaveRef } from './types'
+import { implied, worldName, type Intent } from './nodes'
+import type { Worlds } from './worlds'
+import { categoryKey, dropKey, findKey, type EnemyName, type Kind, type Note, type RuleBody, type SurveyObject, type Placeable, type Script, type SmashAchievement, type WallAction, type WallSettings, type WaveRef } from './types'
 import { useDraft } from './AreaEditor'
 
 /** The editor as one world sees it: its objects and scripts; changes load it again. */
@@ -73,7 +73,9 @@ function Elsewhere({ ctx, worlds, pf, what }: { ctx: Ctx; worlds: Worlds; pf: nu
   )
 }
 
-const KIND_GROUP: Record<Kind, string> = { enemy: 'Enemies', npc: 'NPCs', smashable: 'Smashables', buildie: 'Buildies', interactable: 'Interactables' }
+const KIND_GROUP: Record<Kind, string> = { enemy: 'Enemies', npc: 'NPCs', smashable: 'Smashables', buildie: 'Buildables', bouncer: 'Bouncers', interactable: 'Interactables' }
+const KIND_ONE: Record<Kind, string> = { enemy: 'enemy', npc: 'NPC', smashable: 'smashable', buildie: 'buildable', bouncer: 'bouncer', interactable: 'interactable' }
+const an = (noun: string) => `${/^[aeiou]/i.test(noun) ? 'an' : 'a'} ${noun}`
 const placeableKey = (p: Placeable) => `${p.kind}:${p.name}:${p.monster_data ?? ''}:${p.template ?? ''}`
 
 /** The spawns that can be placed, for a combo box. */
@@ -91,43 +93,70 @@ export function spawnOptions(catalog: Placeable[]): ComboOption[] {
 const wearable = (p: Placeable) => p.kind === 'enemy' || p.kind === 'npc' || p.kind === 'smashable'
 const same = (a: Placeable | null, b: Placeable | null) => !!a && !!b && placeableKey(a) === placeableKey(b)
 
+/** The picker's trigger entries (beside the spawns). */
+const TRIGGER_OPTIONS: ComboOption[] = [
+  { value: 'trigger:wall', label: 'Trigger wall', detail: 'crossing it does something', keywords: 'trigger wall', group: 'Triggers' },
+  { value: 'trigger:radius', label: 'Trigger radius', detail: 'walking into the circle does something', keywords: 'trigger radius circle', group: 'Triggers' },
+]
+
 /**
- * Place a spawn (picked from the catalog) or a trigger wall where you stand. `wave`: spawns go
- * into it; `wall`: what a new wall does (starts this script, discovers this location).
+ * Place a spawn (picked from the catalog) or a trigger, both from one picker, where you stand.
+ * `wave`: spawns go into it; `wall`: what a new trigger does (starts this script, discovers
+ * this location, gives this collectible); `only`: one kind (or only triggers); `autoOpen`: the
+ * picker (or the trigger form) opens at once ("New …" in the tree).
  */
-export function PlacePanel({ ctx, wave, wall: wallAction, spawns = true, walls = true }: { ctx: Ctx; wave?: WaveRef | null; wall?: WallAction; spawns?: boolean; walls?: boolean }) {
+export function PlacePanel({
+  ctx,
+  wave,
+  wall: wallAction,
+  spawns = true,
+  walls = true,
+  only,
+  autoOpen = false,
+}: {
+  ctx: Ctx
+  wave?: WaveRef | null
+  wall?: WallAction
+  spawns?: boolean
+  walls?: boolean
+  only?: Kind | 'trigger'
+  autoOpen?: boolean
+}) {
   const { backend, account, state } = ctx
+  const triggersOnly = only === 'trigger' || !spawns
+  const newWall = (radius: boolean): WallSettings => ({ ...NEW_WALL, action: wallAction ?? NEW_WALL.action, radius: radius ? 3 : null, color: radius ? (ctx.looks.find((l) => l.shape === 'radius')?.color ?? 'green') : NEW_WALL.color })
   const [key, setKey] = useState<string | null>(null)
   const [level, setLevel] = useState<number | null>(null)
-  const [wall, setWall] = useState<WallSettings | null>(null)
+  const [wall, setWall] = useState<WallSettings | null>(() => (autoOpen && triggersOnly ? newWall(false) : null))
   const chosen = ctx.catalog.find((p) => placeableKey(p) === key) ?? null
-  const options = useMemo(() => spawnOptions(ctx.catalog), [ctx.catalog])
+  const options = useMemo(
+    () => [...(triggersOnly ? [] : spawnOptions(ctx.catalog.filter((p) => !only || p.kind === only))), ...(walls && (!only || only === 'trigger') ? TRIGGER_OPTIONS : [])],
+    [ctx.catalog, only, triggersOnly, walls],
+  )
   const what = chosen && { ...chosen, level: chosen.kind === 'enemy' ? level : chosen.level }
   const wearing = same(state.wearing, chosen)
+  const noun = only && only !== 'trigger' ? KIND_ONE[only] : 'spawn'
   return (
     <div className="space-y-2 rounded-lg border bg-card p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {spawns && (
-          <Combobox
-            className="min-w-48 flex-1"
-            options={options}
-            value={key}
-            onChange={(v) => {
-              setKey(v)
-              setWall(null)
-              const p = ctx.catalog.find((x) => placeableKey(x) === v)
-              setLevel(p?.level ?? null)
-            }}
-            placeholder={wave ? 'Add a spawn to this wave…' : 'Place a spawn…'}
-            search="Search names, looks, templates…"
-          />
-        )}
-        {walls && (
-          <Button variant={wall ? 'default' : 'outline'} size="sm" onClick={() => (wall ? setWall(null) : (setWall({ ...NEW_WALL, action: wallAction ?? NEW_WALL.action }), setKey(null)))}>
-            <PlusIcon /> Trigger wall
-          </Button>
-        )}
-      </div>
+      <Combobox
+        className="w-full"
+        defaultOpen={autoOpen && !triggersOnly}
+        options={options}
+        value={wall ? (wall.radius !== null ? 'trigger:radius' : 'trigger:wall') : key}
+        onChange={(v) => {
+          if (v?.startsWith('trigger:')) {
+            setKey(null)
+            setWall(newWall(v === 'trigger:radius'))
+            return
+          }
+          setKey(v)
+          setWall(null)
+          const p = ctx.catalog.find((x) => placeableKey(x) === v)
+          setLevel(p?.level ?? null)
+        }}
+        placeholder={triggersOnly ? 'Place a trigger…' : wave ? 'Add a spawn to this wave…' : walls ? `Place ${an(noun)} or a trigger…` : `Place ${an(noun)}…`}
+        search="Search names, looks, templates, triggers…"
+      />
       {chosen && what && (
         <div className="space-y-2">
           {chosen.kind === 'enemy' && (
@@ -156,7 +185,9 @@ export function PlacePanel({ ctx, wave, wall: wallAction, spawns = true, walls =
               <MapPinIcon /> Place here
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">Walk to where it stood and face its way, then place it. It is selected after placing, to fine-tune.</p>
+          <p className="text-xs text-muted-foreground">
+            Walk to where it stood and face its way, then place it. It is selected after placing, to fine-tune{chosen.kind === 'bouncer' ? ' and to set where it throws you' : ''}.
+          </p>
         </div>
       )}
       {wall && (
@@ -165,7 +196,7 @@ export function PlacePanel({ ctx, wave, wall: wallAction, spawns = true, walls =
             <span>name</span>
             <input placeholder="optional" value={wall.name} onChange={(e) => setWall({ ...wall, name: e.target.value })} />
           </label>
-          <WallFields value={wall} scripts={ctx.notes.scripts} looks={ctx.looks} targets={ctx.targets} playfield={state.playfield} onChange={(w) => setWall({ ...wall, ...w })} />
+          <WallFields value={wall} scripts={ctx.notes.scripts} looks={ctx.looks} targets={ctx.targets} playfield={state.playfield} collects={ctx.collects} onChange={(w) => setWall({ ...wall, ...w })} />
           <Button
             size="sm"
             onClick={async () => {
@@ -182,7 +213,7 @@ export function PlacePanel({ ctx, wave, wall: wallAction, spawns = true, walls =
   )
 }
 
-function WorldDetail({ ctx, worlds, pf }: { ctx: Ctx; worlds: Worlds; pf: number }) {
+function WorldDetail({ ctx, worlds, pf, intent }: { ctx: Ctx; worlds: Worlds; pf: number; intent?: Intent | null }) {
   const info = worlds.playfields.find((p) => p.id === pf)
   const here = ctx.state.playfield === pf
   return (
@@ -193,7 +224,7 @@ function WorldDetail({ ctx, worlds, pf }: { ctx: Ctx; worlds: Worlds; pf: number
           {info.base} from live, the demo or client data · {info.placements} placed · {info.triggers} trigger walls · {info.scripts} scripts · {info.notes} notes
         </p>
       )}
-      {here ? <PlacePanel ctx={ctx} /> : <Elsewhere ctx={ctx} worlds={worlds} pf={pf} what="place things in it" />}
+      {here ? <PlacePanel key={(intent as { n?: number } | null)?.n} ctx={ctx} only={intent?.add === 'trigger' ? 'trigger' : undefined} autoOpen={!!intent} /> : <Elsewhere ctx={ctx} worlds={worlds} pf={pf} what="place things in it" />}
       {here && (
         <Button
           size="sm"
@@ -274,7 +305,7 @@ function ScriptDetail({ ctx, worlds, pf, script, onSelect }: { ctx: Ctx; worlds:
   )
 }
 
-function WaveDetail({ ctx, worlds, pf, script, waveId }: { ctx: Ctx; worlds: Worlds; pf: number; script: Script; waveId: string }) {
+function WaveDetail({ ctx, worlds, pf, script, waveId, autoOpen = false }: { ctx: Ctx; worlds: Worlds; pf: number; script: Script; waveId: string; autoOpen?: boolean }) {
   const { backend, account } = ctx
   const w = worlds.data[pf]
   const [draft, update] = useDraft(script, (s) => ctx.run(() => backend.saveScript(pf, s), 'all'))
@@ -322,85 +353,158 @@ function WaveDetail({ ctx, worlds, pf, script, waveId }: { ctx: Ctx; worlds: Wor
           Delete wave
         </Button>
       </div>
-      {here ? <PlacePanel ctx={ctx} wave={ref} walls={false} /> : <Elsewhere ctx={ctx} worlds={worlds} pf={pf} what="place spawns in this wave" />}
+      {here ? <PlacePanel ctx={ctx} wave={ref} walls={false} autoOpen={autoOpen} /> : <Elsewhere ctx={ctx} worlds={worlds} pf={pf} what="place spawns in this wave" />}
     </div>
   )
 }
 
-/** The enemies and smashables of the catalog, by name (what defeat events name), for picking. */
-function enemyOptions(catalog: Placeable[], data: Record<number, WorldData>, worlds: Worlds): ComboOption[] {
-  const where = new Map<string, Map<number, number>>()
-  for (const [pf, w] of Object.entries(data))
-    for (const o of w.objects) {
-      if (o.kind !== 'enemy' && o.kind !== 'smashable') continue
-      const m = where.get(o.name) ?? new Map()
-      m.set(Number(pf), (m.get(Number(pf)) ?? 0) + 1)
-      where.set(o.name, m)
-    }
-  const seen = new Map<string, ComboOption>()
-  for (const p of catalog) {
-    if ((p.kind !== 'enemy' && p.kind !== 'smashable') || seen.has(p.name)) continue
-    const w = where.get(p.name)
-    seen.set(p.name, {
-      value: p.name,
-      label: p.name,
-      detail: w ? [...w].map(([pf, n]) => `${worldName(worlds, pf)} ×${n}`).join(', ') : p.used,
-      group: KIND_GROUP[p.kind],
-      near: !!w,
-    })
-  }
-  return [...seen.values()]
+/** A rule's entry: a smash achievement or collectible, or a category or drop made from its rule. */
+export function entryOf(worlds: Worlds, key: string): SmashAchievement | null {
+  const a = worlds.smash.find((x) => x.key === key)
+  if (a) return a
+  const r = worlds.rules[key]
+  if (!r) return null
+  const drop = key.startsWith('drop:')
+  return { key, ids: [], title: key.slice(drop ? 5 : 9), text: '', group: null, kind: drop ? 'drop' : 'category', what: null, match: null, n: 0, minifigures: 0, rule: r }
 }
 
-function SmashDetail({ ctx, worlds, a }: { ctx: Ctx; worlds: Worlds; a: SmashAchievement }) {
+const NAME_GROUP: Record<EnemyName['kind'], string> = { champion: 'Champions and bosses', boss: 'Champions and bosses', enemy: 'Enemies', smashable: 'Smashables' }
+
+/** Every enemy name a defeat can carry (and, but in a category, the categories as `@name`). */
+function enemyOptions(ctx: Ctx, worlds: Worlds, categories: boolean): ComboOption[] {
+  const out = new Map<string, ComboOption>()
+  const where = (pfs: number[]) => pfs.slice(0, 3).map((pf) => worldName(worlds, pf)).join(', ') + (pfs.length > 3 ? ` +${pfs.length - 3}` : '')
+  for (const n of worlds.enemyNames)
+    out.set(n.name, { value: n.name, label: n.name, detail: [where(n.playfields), n.source === 'achievement' ? 'from achievements' : null].filter(Boolean).join(' · '), group: NAME_GROUP[n.kind], near: n.source !== 'achievement' })
+  // (older servers: the catalog and the bosses achievements name)
+  for (const p of ctx.catalog) if ((p.kind === 'enemy' || p.kind === 'smashable') && !out.has(p.name)) out.set(p.name, { value: p.name, label: p.name, detail: p.used, group: NAME_GROUP[p.kind], near: true })
+  for (const a of worlds.smash) if (a.kind === 'defeat' && a.match && !out.has(a.match)) out.set(a.match, { value: a.match, label: a.match, detail: a.title, group: NAME_GROUP.boss })
+  const cats: ComboOption[] = categories
+    ? Object.values(worlds.rules)
+        .filter((r) => r.id.startsWith('category:'))
+        .map((r) => ({ value: `@${r.id.slice(9)}`, label: `@${r.id.slice(9)}`, detail: `${r.enemies.length} enemies`, group: 'Your categories', near: true }))
+    : []
+  return [...cats, ...out.values()]
+}
+
+/** A smash achievement, collectible, drop or category: the enemies that count (or drop it). */
+function RuleDetail({ ctx, worlds, a, intent }: { ctx: Ctx; worlds: Worlds; a: SmashAchievement; intent: Intent | null }) {
   const rule = a.rule ?? worlds.rules[a.key] ?? null
-  const options = useMemo(() => enemyOptions(ctx.catalog, worlds.data, worlds), [ctx.catalog, worlds])
+  const category = a.kind === 'category'
+  const drop = a.kind === 'drop'
+  const options = useMemo(() => enemyOptions(ctx, worlds, !category), [ctx, worlds, category])
   const [comment, setComment] = useState(rule?.comment ?? '')
   useEffect(() => setComment(rule?.comment ?? ''), [rule?.comment])
-  const save = (r: Partial<{ enemies: string[]; comment: string; tags: string[] }>) =>
-    worlds.saveRule(a.key, { enemies: rule?.enemies ?? [], comment: rule?.comment ?? '', tags: rule?.tags ?? [], feature: rule?.feature ?? ctx.feature, ...r })
+  const save = (r: Partial<RuleBody>) => worlds.saveRule(a.key, { enemies: rule?.enemies ?? [], comment: rule?.comment ?? '', tags: rule?.tags ?? [], once: rule?.once, item: rule?.item, feature: rule?.feature ?? ctx.feature, ...r })
+  const fromData = rule?.enemies.length ? [] : implied(a, worlds.enemyNames, ctx.catalog)
+  const gives = (o: SurveyObject) => typeof o.action === 'object' && 'collect' in o.action && o.action.collect.drop === a.key
+  const walls = Object.values(worlds.data).flatMap((w) => w.objects.filter((o) => o.kind === 'trigger' && gives(o)))
+  const [reallyDelete, setReallyDelete] = useState(false)
+  const sub =
+    a.kind === 'category'
+      ? 'Your category of enemies: use it as @' + a.title + ' in achievements and drops'
+      : a.kind === 'drop'
+        ? 'A drop (mission item)'
+        : [a.group, a.kind === 'defeat' ? 'smash once' : a.kind === 'collect' ? `collect ${a.n}` : `smash ${a.n}`, a.minifigures ? `every minifigure has it (${a.minifigures})` : null].filter(Boolean).join(' · ')
   return (
     <div className="space-y-3">
-      <Head title={a.title} sub={[a.group, a.kind === 'defeat' ? 'smash once' : `smash ${a.n}`, a.minifigures ? `every minifigure has it (${a.minifigures})` : null].filter(Boolean).join(' · ')} />
-      <p className="text-sm">“{a.text}”</p>
-      {!rule?.enemies.length && <p className="rounded-md bg-warn-bg px-3 py-2 text-sm text-warn">No enemies chosen yet{a.match ? `: the game data counts anything named like “${a.match}”` : a.what ? ': every one counts' : ''}.</p>}
-      <Field label="counts" title="The enemies (or smashables) that count toward it">
-        <MultiCombobox options={options} value={rule?.enemies ?? []} onChange={(enemies) => save({ enemies })} placeholder="choose enemies…" search="Search enemies…" className="w-full" />
+      <Head title={a.title} sub={sub} />
+      {a.text && <p className="text-sm">“{a.text}”</p>}
+      {!rule?.enemies.length && fromData === 'all' && <p className="rounded-md bg-secondary px-3 py-2 text-sm">The game data counts every {a.what === 'smashes' ? 'smashable' : 'enemy'}; choose enemies only to narrow it.</p>}
+      {!rule?.enemies.length && Array.isArray(fromData) && fromData.length > 0 && (
+        <p className="rounded-md bg-secondary px-3 py-2 text-sm">
+          The game data counts {fromData.join(', ')}
+          {a.match && a.kind === 'counter' ? ` (anything named like “${a.match}”)` : ''}. Choose enemies to change it.
+        </p>
+      )}
+      {!rule?.enemies.length && Array.isArray(fromData) && !fromData.length && !walls.length && !category && (
+        <p className="rounded-md bg-warn-bg px-3 py-2 text-sm text-warn">Nothing {a.kind === 'collect' || drop ? 'gives it' : 'counts toward it'} yet{a.match ? `: the game data names “${a.match}”, which no known enemy matches` : ''}.</p>
+      )}
+      <Field label={category ? 'enemies' : a.kind === 'collect' || drop ? 'dropped by' : 'counts'} title={category ? 'The enemies in this category' : 'Enemies, smashables, or @categories'}>
+        <MultiCombobox
+          key={intent?.add === 'enemy' ? 'open' : 'closed'}
+          defaultOpen={intent?.add === 'enemy'}
+          options={options}
+          value={rule?.enemies ?? []}
+          onChange={(enemies) => save({ enemies })}
+          placeholder="choose enemies…"
+          search="Search enemies, champions…"
+          create="Use the name"
+          className="w-full"
+        />
       </Field>
+      {(a.kind === 'collect' || drop) && (
+        <Field label="each enemy">
+          <label className="flex items-center gap-2 pt-1.5 text-sm">
+            <input type="checkbox" checked={!!rule?.once} onChange={(e) => save({ once: e.target.checked })} /> drops only one (per player)
+          </label>
+        </Field>
+      )}
+      {drop && (
+        <Field label="item" title="The item's template, if you know it (play servers can only drop it with one)">
+          <Input className="h-8 w-40" type="number" placeholder="template" value={rule?.item ?? ''} onChange={(e) => save({ item: e.target.value ? Number(e.target.value) : null })} />
+        </Field>
+      )}
       <Field label="comment">
         <Textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} onBlur={() => comment !== (rule?.comment ?? '') && save({ comment })} />
       </Field>
       <Field label="tags">
         <TagSelect ctx={ctx} value={rule?.tags ?? []} onChange={(tags) => save({ tags })} />
       </Field>
+      {(a.kind === 'collect' || drop) && (
+        <>
+          <p className="text-sm text-muted-foreground">{walls.length ? `${walls.length} trigger ${walls.length === 1 ? 'wall gives' : 'walls give'} it.` : 'No trigger wall gives it.'} A place where it is found: stand there and place one.</p>
+          {ctx.state.playfield >= 0 ? (
+            <PlacePanel key={intent?.add === 'trigger' ? `t${(intent as { n?: number }).n}` : 'p'} ctx={ctx} spawns={false} autoOpen={intent?.add === 'trigger'} wall={{ collect: { drop: a.key } }} />
+          ) : (
+            <p className="rounded-md bg-warn-bg px-3 py-2 text-sm text-warn">Nobody in game: choose a character online on the survey server to place a trigger.</p>
+          )}
+        </>
+      )}
       <p className="text-xs text-muted-foreground">
-        ids {a.ids.join(', ')}
+        {a.ids.length > 0 && `ids ${a.ids.join(', ')}`}
         {rule?.author && ` · by ${rule.author}`}
       </p>
+      {(category || drop) &&
+        (reallyDelete ? (
+          <Button size="sm" variant="destructive" onClick={() => worlds.deleteRule(a.key)}>
+            Really delete
+          </Button>
+        ) : (
+          <Button size="sm" variant="outline" className="text-destructive" onClick={() => setReallyDelete(true)}>
+            Delete {category ? 'category' : 'drop'}
+          </Button>
+        ))}
     </div>
   )
 }
 
 function EnemyDetail({ ctx, worlds, a, name }: { ctx: Ctx; worlds: Worlds; a: SmashAchievement; name: string }) {
   const rule = a.rule ?? worlds.rules[a.key] ?? null
+  const cat = name.startsWith('@') ? worlds.rules[categoryKey(name.slice(1))] : null
   const where: [number, number][] = []
   for (const [pf, w] of Object.entries(worlds.data)) {
     const n = w.objects.filter((o) => o.name === name).length
     if (n) where.push([Number(pf), n])
   }
-  const kinds = [...new Set(ctx.catalog.filter((p) => p.name === name).map((p) => p.kind))]
+  const known = worlds.enemyNames.find((n) => n.name === name)
   return (
     <div className="space-y-3">
-      <Head title={name} sub={`${kinds.join(', ') || 'not in the catalog'} · counts toward ${a.title}`} />
-      <p className="text-sm text-muted-foreground">{where.length ? `Spawns in ${where.map(([pf, n]) => `${worldName(worlds, pf)} ×${n}`).join(', ')}.` : 'It spawns nowhere loaded yet.'}</p>
+      <Head title={name} sub={`${cat ? `your category of ${cat.enemies.length}` : (known?.kind ?? ctx.catalog.find((p) => p.name === name)?.kind ?? 'not in the game data')} · in ${a.title}`} />
+      {cat && <p className="text-sm">{cat.enemies.join(', ') || 'No enemies in it yet.'}</p>}
+      {!cat && (
+        <p className="text-sm text-muted-foreground">
+          {where.length ? `Spawns in ${where.map(([pf, n]) => `${worldName(worlds, pf)} ×${n}`).join(', ')}.` : known?.playfields.length ? `In ${known.playfields.map((pf) => worldName(worlds, pf)).join(', ')}.` : 'It spawns nowhere loaded yet.'}
+        </p>
+      )}
       <Button size="sm" variant="outline" className="text-destructive" onClick={() => rule && worlds.saveRule(a.key, { ...rule, enemies: rule.enemies.filter((e) => e !== name) })}>
-        Remove from this achievement
+        Remove from {a.title}
       </Button>
     </div>
   )
 }
 
-function LocationDetail({ ctx, worlds, pf, name }: { ctx: Ctx; worlds: Worlds; pf: number; name: string }) {
+function LocationDetail({ ctx, worlds, pf, name, intent }: { ctx: Ctx; worlds: Worlds; pf: number; name: string; intent: Intent | null }) {
   const l = ctx.targets?.locations.find((x) => x.playfield === pf && x.name === name)
   const key = findKey(pf, name)
   const rule = worlds.rules[key]
@@ -409,19 +513,29 @@ function LocationDetail({ ctx, worlds, pf, name }: { ctx: Ctx; worlds: Worlds; p
   if (!l) return <p className="text-muted-foreground">Unknown location.</p>
   const achs = l.achievements.map((id) => ctx.targets!.achievements.find((a) => a.id === id)).filter((a) => !!a)
   const walls = (worlds.data[pf]?.objects ?? []).filter((o) => o.kind === 'trigger' && typeof o.action === 'object' && 'discover' in o.action && o.action.discover.name === name)
-  const save = (r: Partial<{ comment: string; tags: string[] }>) => worlds.saveRule(key, { enemies: [], comment: rule?.comment ?? '', tags: rule?.tags ?? [], feature: rule?.feature ?? ctx.feature, ...r })
+  const save = (r: Partial<RuleBody>) => worlds.saveRule(key, { enemies: [], comment: rule?.comment ?? '', tags: rule?.tags ?? [], feature: rule?.feature ?? ctx.feature, ...r })
   const here = ctx.state.playfield === pf
   return (
     <div className="space-y-3">
       <Head title={l.title || name} sub={`${l.playfield_name ?? worldName(worlds, pf)} · ${name}`} />
       {achs.map((a) => (
         <p key={a!.id} className="text-sm">
-          <b>{a!.group ? `${a!.group} › ` : ''}{a!.title || a!.name}</b> <span className="text-muted-foreground">[{a!.id}]</span>
+          <b>
+            {a!.group ? `${a!.group} › ` : ''}
+            {a!.title || a!.name}
+          </b>{' '}
+          <span className="text-muted-foreground">[{a!.id}]</span>
           {a!.text && <span className="text-muted-foreground"> — “{a!.text}”</span>}
           {a!.locations.length > 1 && <span className="text-muted-foreground"> (needs all {a!.locations.length} locations)</span>}
         </p>
       ))}
-      {!walls.length && <p className="rounded-md bg-warn-bg px-3 py-2 text-sm text-warn">No trigger wall discovers it yet.</p>}
+      {l.pos ? (
+        <p className="rounded-md bg-secondary px-3 py-2 text-sm">
+          The client has an exploration area for it (around {fmtPos(l.pos)}): walking in discovers it on play servers. A trigger wall is only needed to change where.
+        </p>
+      ) : (
+        !walls.length && <p className="rounded-md bg-warn-bg px-3 py-2 text-sm text-warn">Nothing discovers it yet: the client has no area for it, and no trigger wall does.</p>
+      )}
       <Field label="comment">
         <Textarea rows={2} value={comment} onChange={(e) => setComment(e.target.value)} onBlur={() => comment !== (rule?.comment ?? '') && save({ comment })} />
       </Field>
@@ -434,35 +548,74 @@ function LocationDetail({ ctx, worlds, pf, name }: { ctx: Ctx; worlds: Worlds; p
         </Button>
       )}
       {here ? (
-        <PlacePanel ctx={ctx} spawns={false} wall={{ discover: { name, achievement: l.achievements.length === 1 ? String(l.achievements[0]) : null } }} />
+        <PlacePanel key={intent ? `t${(intent as { n?: number }).n}` : 'p'} ctx={ctx} spawns={false} autoOpen={intent?.add === 'trigger'} wall={{ discover: { name, achievement: l.achievements.length === 1 ? String(l.achievements[0]) : null } }} />
       ) : (
-        <Elsewhere ctx={ctx} worlds={worlds} pf={pf} what="place a trigger wall for it" />
+        <Elsewhere ctx={ctx} worlds={worlds} pf={pf} what="place a trigger for it" />
       )}
     </div>
   )
 }
 
-function FolderDetail({ ctx, worlds, sel }: { ctx: Ctx; worlds: Worlds; sel: Extract<Sel, { t: 'folder' }> }) {
+/** A name for a new category or drop. */
+function NewNamed({ worlds, ctx, kind, autoFocus }: { worlds: Worlds; ctx: Ctx; kind: 'category' | 'drop'; autoFocus: boolean }) {
+  const [name, setName] = useState('')
+  const box = useRef<HTMLInputElement>(null)
+  // (after the tree's menu has closed)
+  useEffect(() => {
+    if (!autoFocus) return
+    const t = setTimeout(() => box.current?.focus(), 80)
+    return () => clearTimeout(t)
+  }, [autoFocus])
+  const key = kind === 'category' ? categoryKey(name.trim()) : dropKey(name.trim())
+  const taken = !!worlds.rules[key]
+  const create = () => name.trim() && !taken && worlds.saveRule(key, { enemies: [], feature: ctx.feature, tags: ctx.newTags }).then(() => setName(''))
+  return (
+    <div className="flex gap-2">
+      <Input ref={box} className="h-8" placeholder={kind === 'category' ? 'New category, e.g. Witches' : "New drop, e.g. Pirate's Hat"} value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && create()} />
+      <Button size="sm" disabled={!name.trim() || taken} title={taken ? 'There is one by that name' : undefined} onClick={create}>
+        <PlusIcon /> Create
+      </Button>
+    </div>
+  )
+}
+
+function FolderDetail({ ctx, worlds, sel, intent }: { ctx: Ctx; worlds: Worlds; sel: Extract<Sel, { t: 'folder' }>; intent: Intent | null }) {
   const pf = sel.pf ?? ctx.state.playfield
   const here = ctx.state.playfield === pf
   const w = worlds.data[pf]
   const script = sel.id ? w?.notes.scripts.find((s) => s.id === sel.id) : undefined
+  const n = (intent as { n?: number } | null)?.n
   switch (sel.kind) {
     case 'smash': {
-      const done = worlds.smash.filter((a) => (a.rule ?? worlds.rules[a.key])?.enemies.length).length
+      const list = worlds.smash.filter((a) => a.kind === 'counter' || a.kind === 'defeat')
+      const done = list.filter((a) => (a.rule ?? worlds.rules[a.key])?.enemies.length || (() => { const d = implied(a, worlds.enemyNames, ctx.catalog); return d === 'all' || d.length > 0 })()).length
       return (
         <div className="space-y-2">
-          <Head title="Smash achievements" sub={`${done} of ${worlds.smash.length} have their enemies chosen`} />
-          <p className="text-sm text-muted-foreground">Open one and choose the enemies (or smashables) that count toward it. Those marked amber have none yet.</p>
+          <Head title="Smash achievements" sub={`${done} of ${list.length} have enemies (chosen, or from the game data)`} />
+          <p className="text-sm text-muted-foreground">Open one and choose the enemies (or smashables, or one of your @categories) that count toward it. Those marked amber have none.</p>
         </div>
       )
     }
+    case 'collect':
+      return (
+        <div className="space-y-2">
+          <Head title="Collect" sub="Collectibles and mission items: the enemies that drop them and the places (trigger walls) that give them" />
+          <NewNamed key={n} worlds={worlds} ctx={ctx} kind="drop" autoFocus={intent?.add === 'name'} />
+        </div>
+      )
+    case 'categories':
+      return (
+        <div className="space-y-2">
+          <Head title="Enemy categories" sub="Your own groups of enemies from live, used as @name by achievements and drops" />
+          <NewNamed key={n} worlds={worlds} ctx={ctx} kind="category" autoFocus={intent?.add === 'name'} />
+        </div>
+      )
     case 'discover': {
       const n = ctx.targets?.locations.length ?? 0
       return (
         <div className="space-y-2">
           <Head title="Discover locations" sub={`${n} locations`} />
-          <p className="text-sm text-muted-foreground">Each location needs a trigger wall that discovers it. Those marked amber have none yet.</p>
+          <p className="text-sm text-muted-foreground">Each location is discovered by the client's exploration area or a trigger wall. Those marked amber have neither.</p>
         </div>
       )
     }
@@ -483,11 +636,11 @@ function FolderDetail({ ctx, worlds, sel }: { ctx: Ctx; worlds: Worlds; sel: Ext
       return script ? (
         <div className="space-y-3">
           <Head title={`${script.name || 'script'} › triggers`} sub="Optional: trigger walls that start it (the server may start it otherwise)" />
-          {here ? <PlacePanel ctx={ctx} spawns={false} wall={{ script: { script: script.id, wave: null } }} /> : <Elsewhere ctx={ctx} worlds={worlds} pf={pf} what="place a trigger wall for it" />}
+          {here ? <PlacePanel key={n} ctx={ctx} spawns={false} autoOpen={intent?.add === 'trigger'} wall={{ script: { script: script.id, wave: null } }} /> : <Elsewhere ctx={ctx} worlds={worlds} pf={pf} what="place a trigger for it" />}
         </div>
       ) : null
     case 'location-triggers':
-      return <LocationDetail ctx={ctx} worlds={worlds} pf={pf} name={sel.name!} />
+      return <LocationDetail ctx={ctx} worlds={worlds} pf={pf} name={sel.name!} intent={intent} />
     case 'world-scripts':
       return (
         <div className="space-y-2">
@@ -502,8 +655,24 @@ function FolderDetail({ ctx, worlds, sel }: { ctx: Ctx; worlds: Worlds; sel: Ext
           <p className="text-sm text-muted-foreground">Areas someone has to check and implement. Add one from the world's page with <i>New note here</i>.</p>
         </div>
       )
+    case 'world-triggers':
+      return (
+        <div className="space-y-3">
+          <Head title="Triggers" sub={`${worldName(worlds, pf)} · walls and radii that don't start a script, discover a location or give a collectible (those are listed there)`} />
+          {here ? <PlacePanel key={n} ctx={ctx} only="trigger" autoOpen={intent?.add === 'trigger'} /> : <Elsewhere ctx={ctx} worlds={worlds} pf={pf} what="place a trigger" />}
+        </div>
+      )
+    case 'world-kind': {
+      const kind = sel.id as Kind
+      return (
+        <div className="space-y-3">
+          <Head title={KIND_GROUP[kind]} sub={worldName(worlds, pf)} />
+          {here ? <PlacePanel key={n} ctx={ctx} only={kind} walls={false} autoOpen={intent?.add === 'spawn'} /> : <Elsewhere ctx={ctx} worlds={worlds} pf={pf} what={`place a ${KIND_ONE[kind]}`} />}
+        </div>
+      )
+    }
     default:
-      return <WorldDetail ctx={ctx} worlds={worlds} pf={pf} />
+      return <WorldDetail ctx={ctx} worlds={worlds} pf={pf} intent={intent} />
   }
 }
 
@@ -513,9 +682,10 @@ export function NewScript({ ctx, worlds, pf: initial }: { ctx: Ctx; worlds: Worl
   const options = worlds.playfields.map((p) => ({ value: String(p.id), label: p.name, detail: String(p.id), near: p.scripts + p.placements + p.base > 0 }))
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {initial === undefined && <Combobox className="min-w-48" options={options} value={String(pf)} onChange={(v) => v && setPf(Number(v))} search="Search worlds…" />}
+      {initial === undefined && <Combobox className="min-w-48" options={options} value={pf >= 0 ? String(pf) : null} onChange={(v) => v && setPf(Number(v))} placeholder="Which world…" search="Search worlds…" />}
       <Button
         size="sm"
+        disabled={pf < 0}
         onClick={async () => {
           const s: Script = { id: newId('s'), name: 'New script', area: null, reference: null, comment: '', waves: [newWave(1)], status: 'unreviewed', tags: ctx.newTags }
           await ctx.run(() => ctx.backend.saveScript(pf, s), 'all')
@@ -528,16 +698,16 @@ export function NewScript({ ctx, worlds, pf: initial }: { ctx: Ctx; worlds: Worl
   )
 }
 
-export function Details({ ctx, worlds, sel, onSelect }: { ctx: Ctx; worlds: Worlds; sel: Sel | null; onSelect: (s: Sel) => void }) {
+export function Details({ ctx, worlds, sel, intent, onSelect }: { ctx: Ctx; worlds: Worlds; sel: Sel | null; intent: Intent | null; onSelect: (s: Sel) => void }) {
   if (!sel)
     return (
       <p className="text-muted-foreground">
-        Pick something in the tree, use <i>Select nearest</i>, or attack it in game.
+        Pick something in the tree, use <i>Select nearest</i>, or attack it in game. Right click a folder to add to it.
       </p>
     )
   switch (sel.t) {
     case 'world':
-      return <WorldDetail ctx={ctx} worlds={worlds} pf={sel.pf} />
+      return <WorldDetail ctx={ctx} worlds={worlds} pf={sel.pf} intent={intent} />
     case 'object': {
       const o = worlds.data[sel.pf]?.objects.find((x) => x.id === sel.id)
       return o ? <Editor key={o.id} ctx={ctxFor(ctx, worlds, sel.pf)} object={o} /> : <p className="text-muted-foreground">It's gone (deleted, or replaced).</p>
@@ -552,19 +722,19 @@ export function Details({ ctx, worlds, sel, onSelect }: { ctx: Ctx; worlds: Worl
     }
     case 'wave': {
       const s = worlds.data[sel.pf]?.notes.scripts.find((x) => x.id === sel.script)
-      return s ? <WaveDetail key={`${s.id}/${sel.wave}`} ctx={ctx} worlds={worlds} pf={sel.pf} script={s} waveId={sel.wave} /> : null
+      return s ? <WaveDetail key={`${s.id}/${sel.wave}/${(intent as { n?: number } | null)?.n ?? ''}`} ctx={ctx} worlds={worlds} pf={sel.pf} script={s} waveId={sel.wave} autoOpen={intent?.add === 'spawn'} /> : null
     }
     case 'smash': {
-      const a = worlds.smash.find((x) => x.key === sel.key)
-      return a ? <SmashDetail key={a.key} ctx={ctx} worlds={worlds} a={a} /> : null
+      const a = entryOf(worlds, sel.key)
+      return a ? <RuleDetail key={`${a.key}/${(intent as { n?: number } | null)?.n ?? ''}`} ctx={ctx} worlds={worlds} a={a} intent={intent} /> : <p className="text-muted-foreground">It's gone.</p>
     }
     case 'enemy': {
-      const a = worlds.smash.find((x) => x.key === sel.key)
+      const a = entryOf(worlds, sel.key)
       return a ? <EnemyDetail ctx={ctx} worlds={worlds} a={a} name={sel.name} /> : null
     }
     case 'location':
-      return <LocationDetail key={`${sel.pf}:${sel.name}`} ctx={ctx} worlds={worlds} pf={sel.pf} name={sel.name} />
+      return <LocationDetail key={`${sel.pf}:${sel.name}/${(intent as { n?: number } | null)?.n ?? ''}`} ctx={ctx} worlds={worlds} pf={sel.pf} name={sel.name} intent={intent} />
     case 'folder':
-      return <FolderDetail ctx={ctx} worlds={worlds} sel={sel} />
+      return <FolderDetail ctx={ctx} worlds={worlds} sel={sel} intent={intent} />
   }
 }

@@ -82,15 +82,20 @@ showing things in game need the character.
 Everything is in one tree, grouped by what it is for; tabs above it pick the top folder:
 
 ```
-Spawns/        {world}/  scripts/ (links) · triggers/ · notes/ · what spawns at start
-                         (by kind: Enemies/, NPCs/, ... when there are many)
+Spawns/        {world}/  scripts/ (links) · triggers/ · notes/
+                         Enemies/ · NPCs/ · Smashables/ · Buildables/ · Bouncers/ (what spawns at start)
 Scripts/       {script}/ triggers/ (walls that start it; optional) · waves/ {wave}/ what it spawns
-Achievements/  Smash/    {achievement}/ {enemy}        every smash achievement
-               Discover/ {world}/ {location}/ triggers/ every exploration location
+Achievements/  Smash/      {achievement}/ {enemy}                 every smash achievement
+               Collect/    {collectible or drop}/ triggers/, {enemy}  collectibles and mission items
+               Discover/   {world}/ {location}/ triggers/          every exploration location
+               Categories/ {category}/ {enemy}                     your groups of enemies (@name)
 ```
 
-- Rows that need work are marked amber (a smash achievement without enemies, a location no
-  trigger discovers, a wave that spawns nothing, a guess), done ones green; folders count them
+- Rows that need work are marked amber (a smash achievement nothing counts toward, a location
+  neither the client's exploration area nor a trigger discovers, a collectible nothing gives, a
+  wave that spawns nothing, a guess), done ones green. What the game data already does counts:
+  a boss by name, every enemy named like a counter's part ("Witch"), the client's areas (shown
+  greyed, *game data* / *client*); folders count them
   (`3/12`). The ☰ button shows only what needs work; the search (`#tag` too), the tag filter and
   the ⏷ filters (category, author, feature, distance; *Show only these in game*, *Hide these*)
   narrow the tree.
@@ -101,11 +106,20 @@ Achievements/  Smash/    {achievement}/ {enemy}        every smash achievement
   another script, spawns into a wave or a world, walls onto a script (they start it) or a location
   (they discover it). Copies keep their spot (*Move to me* puts them where you stand) and are new
   records (each one an undo step).
-- **Place**: a world's (or a wave's) page has a spawn picker (search the catalog), *Wear it* (or
+- **New …** (right click a folder): a spawn of that kind, a trigger, a script, a wave, a
+  category, a drop, an enemy for an achievement; its picker opens at once.
+- **Place**: a world's (or a wave's) page has one picker for spawns and triggers (search the
+  catalog, or *Trigger wall* / *Trigger radius*), *Wear it* (or
   *Show ghost* for buildies and interactables), walk to where it stood facing its way, *Place
   here*; *Trigger wall* places a wall where you stand. A location's or a script's triggers place a
   wall that already discovers it or starts it. *Add world…* puts any world in the tree.
-- **Smash achievements**: choose the enemies (or smashables) that count toward each; the minifigure
+- **Bouncers** (jump pads): *throws to* is where players land: *Land here* where you stand, or
+  type it; guessed landing points are marked to check.
+- **Categories**: name a group of enemies (from live, champions and bosses too) and use it as
+  `@name` in achievements and drops. **Collect**: the collectibles (goblets, pies, collars, ...)
+  and drops you name: the enemies that drop them (*drops only one* per player) and trigger walls
+  that give them (a wall's *gives a collectible* action).
+- **Smash achievements**: choose the enemies (or smashables, or `@categories`) that count toward each; the minifigure
   copies of one ("Smash 50 Witches as ...") are one row. Play servers count only those enemies
   once the rule is published and approved.
 - Attacking something in game (or *Select nearest*, or placing) selects its row; selecting a row

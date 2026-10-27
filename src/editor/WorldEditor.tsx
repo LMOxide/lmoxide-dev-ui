@@ -11,6 +11,7 @@ import { fmtPos, toDegrees } from './geometry'
 import { ImportExport } from './ImportExport'
 import { Browser } from './Browser'
 import { useWorlds } from './worlds'
+import type { Suggestion } from './Suggest'
 import { Publish, recordCount } from './Publish'
 import type { MockBackend } from './mock'
 import { FeaturePicker } from './Features'
@@ -54,6 +55,8 @@ export interface Ctx {
   setNewTags: (tags: string[]) => void
   /** the looks marks can have */
   markLooks: string[]
+  /** what a trigger wall can give: collect achievements and drops (their rule keys) */
+  collects: Suggestion[]
   /** undo and redo */
   history: History
   /** Runs a call, shows its error, refreshes what it may have changed. */
@@ -227,13 +230,23 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
     [worldUpsert, playfield],
   )
 
+  const collects: Suggestion[] = useMemo(
+    () => [
+      ...worlds.smash.filter((a) => a.kind === 'collect').map((a) => ({ value: a.key, label: a.title, detail: a.text, group: 'Collectibles' })),
+      ...Object.keys(worlds.rules)
+        .filter((k) => k.startsWith('drop:'))
+        .map((k) => ({ value: k, label: k.slice(5), group: 'Drops' })),
+    ],
+    [worlds.smash, worlds.rules],
+  )
+
   const ctx: Ctx = useMemo(
     () =>
       // nobody chosen (or online): the tree can still be read and edited, without the game
       state && account !== null
-        ? { backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, setFeatures, tags, newTags, setNewTags, markLooks, history, run, setState, upsert }
-        : { backend, account: -1, state: OFFLINE, objects: [], notes: { notes: [], scripts: [] }, catalog, looks, targets, features, feature, setFeature, setFeatures, tags, newTags, setNewTags, markLooks, history, run, setState, upsert },
-    [backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, tags, newTags, setNewTags, markLooks, history, run, upsert],
+        ? { backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, setFeatures, tags, newTags, setNewTags, markLooks, collects, history, run, setState, upsert }
+        : { backend, account: -1, state: OFFLINE, objects: [], notes: { notes: [], scripts: [] }, catalog, looks, targets, features, feature, setFeature, setFeatures, tags, newTags, setNewTags, markLooks, collects, history, run, setState, upsert },
+    [backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, tags, newTags, setNewTags, markLooks, collects, history, run, upsert],
   )
   /** Undoes (or redoes) a step and selects what it leaves. */
   const undoRedo = useCallback(

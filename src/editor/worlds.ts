@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SurveyBackend } from './backend'
-import type { PlayfieldInfo, PlayfieldNotes, SmashAchievement, SmashRule, SurveyObject } from './types'
+import type { EnemyName, PlayfieldInfo, PlayfieldNotes, RuleBody, SmashAchievement, SmashRule, SurveyObject } from './types'
 
 export interface WorldData {
   objects: SurveyObject[]
@@ -27,7 +27,10 @@ export interface Worlds {
   smash: SmashAchievement[]
   /** every rule by key (smash achievements' and discover locations') */
   rules: Record<string, SmashRule>
-  saveRule: (key: string, r: { enemies: string[]; comment?: string; tags?: string[]; feature?: string }) => Promise<void>
+  saveRule: (key: string, r: RuleBody) => Promise<void>
+  deleteRule: (key: string) => Promise<void>
+  /** every enemy name a defeat can carry (empty from older servers) */
+  enemyNames: EnemyName[]
 }
 
 /** How often the playfield list is read (a world whose counts changed is loaded again). */
@@ -114,10 +117,10 @@ export function useWorlds(backend: SurveyBackend, failed: (e: unknown) => void):
   }, [loadRules])
 
   const saveRule = useCallback(
-    async (key: string, r: { enemies: string[]; comment?: string; tags?: string[]; feature?: string }) => {
+    async (key: string, r: RuleBody) => {
       try {
-        // nothing left to say: no rule
-        if (!r.enemies.length && !r.comment && !r.tags?.length) await backend.deleteRule(key)
+        // nothing left to say: no rule (a category or a drop stays until deleted: its name is the rule)
+        if (!r.enemies.length && !r.comment && !r.tags?.length && !key.startsWith('category:') && !key.startsWith('drop:')) await backend.deleteRule(key)
         else await backend.saveRule(key, r)
         await loadRules()
       } catch (e) {
@@ -127,6 +130,26 @@ export function useWorlds(backend: SurveyBackend, failed: (e: unknown) => void):
     [backend, loadRules, failed],
   )
 
+  const deleteRule = useCallback(
+    async (key: string) => {
+      try {
+        await backend.deleteRule(key)
+        await loadRules()
+      } catch (e) {
+        failed(e)
+      }
+    },
+    [backend, loadRules, failed],
+  )
+
+  const [enemyNames, setEnemyNames] = useState<EnemyName[]>([])
+  useEffect(() => {
+    backend
+      .enemyNames()
+      .then(setEnemyNames)
+      .catch(() => {}) // (an older server: the catalog's)
+  }, [backend])
+
   const upsert = useCallback((o: SurveyObject, pf: number, replaced?: string) => {
     setData((all) => {
       const w = all[pf]
@@ -135,5 +158,5 @@ export function useWorlds(backend: SurveyBackend, failed: (e: unknown) => void):
     })
   }, [])
 
-  return { playfields, data, ensure, reload, set, upsert, smash, rules, saveRule }
+  return { playfields, data, ensure, reload, set, upsert, smash, rules, saveRule, deleteRule, enemyNames }
 }

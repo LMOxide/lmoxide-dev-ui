@@ -13,7 +13,9 @@ import { Details, NewScript } from './Details'
 import { FeatureSelect } from './Features'
 import { distance } from './geometry'
 import { Marks } from './Marks'
-import { buildTab, filterTree, worldName, type Env, type Tab } from './nodes'
+import { buildTab, filterTree, worldName, type Env, type Intent, type Tab } from './nodes'
+import { newWave } from './WaveTrigger'
+import { newId } from './NotesPanel'
 import { Tree, type Sel, type TNode } from './Tree'
 import type { Ctx } from './WorldEditor'
 import type { Worlds } from './worlds'
@@ -88,10 +90,9 @@ export function Browser({ ctx, worlds }: { ctx: Ctx; worlds: Worlds }) {
 
   const doPaste = useCallback(
     async (c: Clip, to: Target) => {
-      if (to.t === 'smash') {
-        if (c.t !== 'enemies') return
+      if (to.t === 'rule' && c.t === 'enemies') {
         const rule = worlds.rules[to.key] ?? worlds.smash.find((a) => a.key === to.key)?.rule
-        await worlds.saveRule(to.key, { enemies: [...new Set([...to.enemies, ...c.names])], comment: rule?.comment, tags: rule?.tags, feature: rule?.feature ?? ctx.feature })
+        await worlds.saveRule(to.key, { ...(rule ?? {}), enemies: [...new Set([...to.enemies, ...c.names])], feature: rule?.feature ?? ctx.feature })
         setNote(`Pasted ${clipLabel(c)}`)
         return
       }
@@ -116,7 +117,40 @@ export function Browser({ ctx, worlds }: { ctx: Ctx; worlds: Worlds }) {
     setSelKey(key)
   }, [])
 
-  const env: Env = { ctx, worlds, targets: ctx.targets, clip, copy, paste: doPaste, pinned, keep, reveal, remove }
+  /** what "New …" started (shown by the details; `n` tells repeats apart) */
+  const [intent, setIntent] = useState<(Intent & { n: number; key: string }) | null>(null)
+  const add = useCallback(
+    async (key: string, s: Sel, i: Intent) => {
+      setSelKey(key)
+      setSel(s)
+      setPane('details')
+      setOpen(key, true)
+      // scripts and waves are made at once (rename them on their page)
+      if (i.add === 'name' && s.t === 'folder' && s.pf !== undefined && (s.kind === 'world-scripts' || s.kind === 'waves')) {
+        const pf = s.pf
+        const script = s.kind === 'waves' ? worlds.data[pf]?.notes.scripts.find((x) => x.id === s.id) : null
+        if (s.kind === 'waves' && !script) return
+        const saved = await ctx.run(
+          () =>
+            script
+              ? backend.saveScript(pf, { ...script, waves: [...script.waves, newWave(script.waves.length + 1)] })
+              : backend.saveScript(pf, { id: newId('s'), name: 'New script', area: null, reference: null, comment: '', waves: [newWave(1)], status: 'unreviewed', tags: ctx.newTags }),
+          'all',
+        )
+        await worlds.reload(pf)
+        if (!saved) return
+        if (script) {
+          const w = saved.waves[saved.waves.length - 1]
+          reveal(`s:${pf}:${saved.id}/waves/${w.id}`, 'scripts')
+        } else reveal(`s:${pf}:${saved.id}`, 'scripts')
+        return
+      }
+      setIntent((x) => ({ ...i, key, n: (x?.n ?? 0) + 1 }))
+    },
+    [backend, ctx, worlds, reveal, setOpen],
+  )
+
+  const env: Env = { ctx, worlds, targets: ctx.targets, clip, copy, paste: doPaste, pinned, keep, reveal, remove, add }
   const full = buildTab(env, tab)
 
   // the search, the tags and "needs work" keep only what matches (and open the way to it)
@@ -336,6 +370,7 @@ export function Browser({ ctx, worlds }: { ctx: Ctx; worlds: Worlds }) {
             ctx={ctx}
             worlds={worlds}
             sel={sel}
+            intent={intent && intent.key === selKey ? intent : null}
             onSelect={(s) => {
               const path = pathTo(full, (n) => sameSel(n.sel, s))
               if (path) select(path[path.length - 1])

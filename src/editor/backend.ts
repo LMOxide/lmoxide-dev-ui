@@ -12,6 +12,8 @@ import type {
   PlayfieldInfo,
   SmashAchievement,
   SmashRule,
+  RuleBody,
+  EnemyName,
   PlayfieldNotes,
   Script,
   SetInfo,
@@ -97,7 +99,9 @@ export interface SurveyBackend {
   smashAchievements(): Promise<SmashAchievement[]>
   /** Every rule: smash achievements' enemies, discover locations' tags. */
   achievementRules(): Promise<SmashRule[]>
-  saveRule(key: string, rule: { enemies: string[]; comment?: string; tags?: string[]; feature?: string }): Promise<SmashAchievement | null>
+  saveRule(key: string, rule: RuleBody): Promise<SmashAchievement | null>
+  /** Every enemy and smashable name a defeat can carry (catalog, base content, champions, bosses). */
+  enemyNames(): Promise<EnemyName[]>
   deleteRule(key: string): Promise<void>
 }
 
@@ -269,7 +273,10 @@ export class HttpBackend implements SurveyBackend {
   achievementRules() {
     return this.call<SmashRule[]>('GET', '/achievement-rules')
   }
-  saveRule(key: string, rule: { enemies: string[]; comment?: string; tags?: string[]; feature?: string }) {
+  enemyNames() {
+    return this.call<EnemyName[]>('GET', '/enemy-names')
+  }
+  saveRule(key: string, rule: RuleBody) {
     return this.call<SmashAchievement | null>('PUT', `/smash-achievements/${encodeURIComponent(key)}`, rule)
   }
   async deleteRule(key: string) {

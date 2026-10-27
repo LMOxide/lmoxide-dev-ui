@@ -28,8 +28,9 @@ export type Target =
   | { t: 'script-triggers'; pf: number; script: Script }
   /** a discover location: copied walls discover it */
   | { t: 'location'; pf: number; name: string; achievement: string | null }
-  /** a smash achievement: copied enemies count toward it */
-  | { t: 'smash'; key: string; enemies: string[] }
+  /** a rule (smash achievement, collectible, drop, category): copied enemies join it; walls give
+   * a collectible (`collect`) */
+  | { t: 'rule'; key: string; enemies: string[]; collect?: boolean }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 
@@ -72,8 +73,9 @@ export function pasteLabel(c: Clip | null, to: Target): string | null {
     case 'script-triggers':
     case 'location':
       return c.t === 'objects' && walls(c.items).length ? `Paste ${plural(walls(c.items).length, 'trigger wall')} here` : null
-    case 'smash':
-      return c.t === 'enemies' ? `Paste ${what}` : null
+    case 'rule':
+      if (c.t === 'enemies') return `Paste ${what}`
+      return to.collect && c.t === 'objects' && walls(c.items).length ? `Paste ${plural(walls(c.items).length, 'trigger wall')} (they give it)` : null
   }
 }
 
@@ -136,7 +138,12 @@ const fresh = (name: string, taken: string[]) => (taken.includes(name) ? `${name
 /** Pastes `c` at `to`; the worlds that changed (to load again). */
 export async function paste(c: Clip, to: Target, d: Deps): Promise<number[]> {
   const { backend } = d
-  if (to.t === 'smash') return [] // (the caller saves the rule: enemies aren't records)
+  if (to.t === 'rule') {
+    // (the caller saves enemies: they aren't records) walls give the collectible, in their world
+    if (c.t !== 'objects' || !to.collect) return []
+    await createAll(d, c.from, walls(c.items).map((o) => snapshot(o, { action: { collect: { drop: to.key } } })))
+    return [c.from]
+  }
   if (c.t === 'enemies') return []
   const pf = to.pf
   switch (to.t) {

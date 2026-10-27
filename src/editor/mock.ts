@@ -17,6 +17,8 @@ import type {
   PlayfieldNotes,
   SmashAchievement,
   SmashRule,
+  RuleBody,
+  EnemyName,
   Script,
   SetInfo,
   SurveyObject,
@@ -43,6 +45,7 @@ const CATALOG: Placeable[] = [
   { kind: 'smashable', name: 'Barrel', monster_data: 152420, template: 153174, used: 'everywhere' },
   { kind: 'buildie', name: 'XX_boss kraken buildie', template: 194851 },
   { kind: 'interactable', name: 'Lever', template: 200110, used: 'Space Colony ×5' },
+  { kind: 'bouncer', name: 'Mortar', template: 86651, used: 'Pirate World ×3' },
 ]
 
 let counter = 0
@@ -85,6 +88,7 @@ export class MockBackend implements SurveyBackend {
       base('g-0a13', scout, [334, 48.75, 96], 'guessed', 3.1),
       base('g-0a14', crate, [317, 48.75, 105], 'guessed'),
       base('g-0a15', barrel, [319, 48.75, 106], 'guessed'),
+      { id: 'g-0a19', kind: 'bouncer', name: 'Mortar', template: 86651, pos: [300, 48.75, 120], heading: 0, category: 'guessed', target: [280, 50, 160] } as SurveyObject,
       base('g-0b01', villager, [335.46, 48.37, 62.82], 'live', -0.777),
       base('g-0b02', tavern, [325.84, 48.25, 53.94], 'live'),
       base('g-0c01', crate, [300, 48.75, 140], 'demo'),
@@ -480,13 +484,23 @@ export class MockBackend implements SurveyBackend {
       a('723', 'Ghostbuster', 'Vanquish the menace of the Pirate World.', 'Pirate World', 'defeat', 'kills', 'Captain Dreadleg', 1),
       a('minifigure:kills_or_smashes:witch:50', 'Witch Hunter', 'Smash 50 Witches.', 'Minifigures', 'counter', 'kills_or_smashes', 'Witch', 50, 17),
       a('minifigure:kills_or_smashes:skeleton:50', 'Bone Breaker', 'Smash 50 Skeletons.', 'Minifigures', 'counter', 'kills_or_smashes', 'Skeleton', 50, 17),
+      a('772', 'Gatesmasher!', 'Defeat Uggluk Gatekeeper in the Medieval World.', null, 'defeat', null, 'Uggluk Gatekeeper', 1),
+      a('2421', 'A Nose for Gold', 'Sniff out all the buried treasure in the Pirate World.', null, 'collect', null, null, 3),
     ]
   }
   async achievementRules() {
     return structuredClone([...this.rules.values()])
   }
-  async saveRule(key: string, r: { enemies: string[]; comment?: string; tags?: string[]; feature?: string }) {
-    this.rules.set(key, { id: key, enemies: r.enemies, comment: r.comment ?? '', tags: r.tags ?? [], feature: r.feature ?? 'live', author: 'mock', updated: now() })
+  async enemyNames(): Promise<EnemyName[]> {
+    return [
+      ...CATALOG.filter((p) => p.kind === 'enemy' || p.kind === 'smashable').map((p) => ({ name: p.name, kind: p.kind as EnemyName['kind'], playfields: [PLAYFIELD], source: 'live' as const })),
+      { name: 'Uggluk Gatekeeper', kind: 'champion', playfields: [5210], source: 'achievement' },
+      { name: 'Witch', kind: 'enemy', playfields: [5210], source: 'live' },
+      { name: 'Swamp Witch', kind: 'enemy', playfields: [5210], source: 'live' },
+    ]
+  }
+  async saveRule(key: string, r: RuleBody) {
+    this.rules.set(key, { id: key, enemies: r.enemies, comment: r.comment ?? '', once: r.once, item: r.item, tags: r.tags ?? [], feature: r.feature ?? 'live', author: 'mock', updated: now() })
     return (await this.smashAchievements()).find((x) => x.key === key) ?? null
   }
   async deleteRule(key: string) {

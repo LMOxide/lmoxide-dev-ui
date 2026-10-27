@@ -15,7 +15,7 @@ const achievementLabel = (a: Achievement) => `${a.group ? `${a.group} > ` : ''}$
 
 export const NEW_WALL: WallSettings = { name: '', size: [6, 3, 1], radius: null, color: 'green', action: 'other', once: false }
 
-type ActionType = 'script' | 'discover' | 'dialog' | 'portal' | 'message' | 'other'
+type ActionType = 'script' | 'discover' | 'dialog' | 'portal' | 'message' | 'collect' | 'other'
 
 const ACTIONS: [ActionType, string][] = [
   ['script', 'starts a script'],
@@ -23,6 +23,7 @@ const ACTIONS: [ActionType, string][] = [
   ['dialog', 'opens a dialogue'],
   ['portal', 'opens a portal'],
   ['message', 'shows a message'],
+  ['collect', 'gives a collectible'],
   ['other', 'something else (comment)'],
 ]
 
@@ -34,6 +35,7 @@ function fresh(t: ActionType, scripts: Script[]): WallAction {
   if (t === 'dialog') return { dialog: { dialog: null } }
   if (t === 'portal') return { portal: { window: null, to: null } }
   if (t === 'message') return { message: { text: '' } }
+  if (t === 'collect') return { collect: { drop: null } }
   return 'other'
 }
 
@@ -47,6 +49,7 @@ export function WallFields({
   looks,
   targets,
   playfield,
+  collects = [],
 }: {
   value: WallSettings
   onChange: (w: Partial<WallSettings>) => void
@@ -54,6 +57,8 @@ export function WallFields({
   looks: WallLook[]
   targets: TriggerTargets | null
   playfield: number
+  /** what a wall can give (collect achievements and drops) */
+  collects?: Suggestion[]
 }) {
   const a = value.action
   const t = typeOf(a)
@@ -184,6 +189,12 @@ export function WallFields({
               onChange({ action: { portal: { window: Number.isFinite(n) ? n : null, to: p?.to ?? null } } })
             }}
           />
+        </div>
+      )}
+      {typeof a === 'object' && 'collect' in a && (
+        <div className="sv-field">
+          <span>collectible</span>
+          <SuggestInput value={a.collect.drop} placeholder="what crossing it gives (a collectible, a drop)" suggestions={collects} onChange={(v) => onChange({ action: { collect: { drop: v } } })} />
         </div>
       )}
       {typeof a === 'object' && 'message' in a && (

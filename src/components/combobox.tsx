@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { CheckIcon, ChevronsUpDownIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
@@ -17,6 +17,18 @@ export interface ComboOption {
   group?: string
   /** listed first */
   near?: boolean
+}
+
+/**
+ * Opens a list just after it is shown: a menu that was closing (the tree's right click menu)
+ * gives the focus back first, which would close a list opened at once.
+ */
+function useOpenAtFirst(on: boolean, setOpen: (o: boolean) => void) {
+  useEffect(() => {
+    if (!on) return
+    const t = setTimeout(() => setOpen(true), 80)
+    return () => clearTimeout(t)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 /** How many options a list shows at once (type to narrow it). */
@@ -135,7 +147,8 @@ export function Combobox({
   /** opens its list at once (shown on demand) */
   defaultOpen?: boolean
 }) {
-  const [open, setOpen] = useState(defaultOpen)
+  const [open, setOpen] = useState(false)
+  useOpenAtFirst(defaultOpen, setOpen)
   const [query, setQuery] = useState('')
   const picked = options.find((o) => o.value === value)
   return (
@@ -189,6 +202,7 @@ export function MultiCombobox({
   all,
   className,
   title,
+  defaultOpen = false,
 }: {
   options: ComboOption[]
   value: string[]
@@ -205,8 +219,11 @@ export function MultiCombobox({
   all?: string
   className?: string
   title?: string
+  /** opens its list at once (shown on demand) */
+  defaultOpen?: boolean
 }) {
   const [open, setOpen] = useState(false)
+  useOpenAtFirst(defaultOpen, setOpen)
   const [query, setQuery] = useState('')
   const picked = new Set(value)
   const optionOf = (v: string): ComboOption => options.find((o) => o.value === v) ?? { value: v, label: v }

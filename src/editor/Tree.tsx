@@ -21,10 +21,11 @@ export type Sel =
   | { t: 'note'; pf: number; id: string }
   | { t: 'script'; pf: number; id: string }
   | { t: 'wave'; pf: number; script: string; wave: string }
+  /** a rule's row: a smash achievement, a collectible or drop, a category (by rule key) */
   | { t: 'smash'; key: string }
   | { t: 'enemy'; key: string; name: string }
   | { t: 'location'; pf: number; name: string }
-  | { t: 'folder'; kind: 'smash' | 'discover' | 'world-scripts' | 'world-triggers' | 'world-notes' | 'world-kind' | 'script-triggers' | 'waves' | 'location-triggers'; pf?: number; id?: string; name?: string }
+  | { t: 'folder'; kind: 'smash' | 'collect' | 'categories' | 'discover' | 'world-scripts' | 'world-triggers' | 'world-notes' | 'world-kind' | 'script-triggers' | 'waves' | 'location-triggers'; pf?: number; id?: string; name?: string }
 
 /** One row of the tree: a folder (it has children) or a file. */
 export interface TNode {
@@ -221,7 +222,7 @@ const Row = memo(function Row({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{row}</ContextMenuTrigger>
-      <ContextMenuContent className="w-56">
+      <ContextMenuContent className="w-56" onCloseAutoFocus={(e) => e.preventDefault()}>
         <Menu items={n.menu} />
       </ContextMenuContent>
     </ContextMenu>

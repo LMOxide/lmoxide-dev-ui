@@ -53,6 +53,7 @@ export function valuesOf(o: SurveyObject, keys: (keyof ObjectChanges)[]): Object
     else if (k === 'action' && o.action) out.action = structuredClone(o.action)
     else if (k === 'once') out.once = !!o.once
     else if (k === 'tags') out.tags = [...(o.tags ?? [])]
+    else if (k === 'target') out.target = o.target ? [...o.target] : null
   }
   return out
 }

@@ -2,7 +2,7 @@
 
 export type Vec3 = [number, number, number]
 
-export type Kind = 'enemy' | 'npc' | 'smashable' | 'buildie' | 'interactable'
+export type Kind = 'enemy' | 'npc' | 'smashable' | 'buildie' | 'interactable' | 'bouncer'
 
 /** What crossing a trigger wall does. */
 export type WallAction =
@@ -11,6 +11,8 @@ export type WallAction =
   | { dialog: { dialog: string | null } }
   | { portal: { window: number | null; to: number | null } }
   | { message: { text: string } }
+  /** gives one of a collectible (a collect achievement's key, or `drop:<name>`) */
+  | { collect: { drop: string | null } }
   | 'other'
 
 /** What trigger walls can discover or open (GET /v1/survey/trigger-targets). */
@@ -88,6 +90,10 @@ export interface SurveyObject {
   size?: Vec3
   /** trigger radii: the radius (m) */
   radius?: number | null
+  /** bouncers: where it throws you (null: not set) */
+  target?: Vec3 | null
+  /** bouncers: further landing points of a chain */
+  chain?: Vec3[]
   color?: string
   action?: WallAction
   once?: boolean
@@ -295,6 +301,8 @@ export interface ObjectChanges {
   patrol?: Vec3[]
   /** trigger walls */
   size?: Vec3
+  /** bouncers: where it throws you */
+  target?: Vec3 | null
   /** a radius makes it a trigger radius; null a wall */
   radius?: number | null
   color?: string
@@ -335,11 +343,37 @@ export interface SmashRule {
   id: string
   enemies: string[]
   comment: string
+  /** drops: each enemy drops it only once (per player) */
+  once?: boolean
+  /** drops: the item's template, if known */
+  item?: number | null
   tags?: string[]
   feature?: string
   author?: string
   updated?: number
 }
+
+/** What a rule body can say (PUT /v1/survey/smash-achievements/{key}). */
+export interface RuleBody {
+  enemies: string[]
+  comment?: string
+  tags?: string[]
+  feature?: string
+  once?: boolean
+  item?: number | null
+}
+
+/** An enemy name a defeat can carry (`GET /v1/survey/enemy-names`). */
+export interface EnemyName {
+  name: string
+  kind: 'enemy' | 'smashable' | 'boss' | 'champion'
+  playfields: number[]
+  source: 'live' | 'demo' | 'client' | 'achievement'
+}
+
+/** Rule keys of enemy categories and drops (free names). */
+export const categoryKey = (name: string) => `category:${name}`
+export const dropKey = (name: string) => `drop:${name}`
 
 /** An achievement for smashing enemies (`GET /v1/survey/smash-achievements`). The copies of one
  * for every minifigure ("Smash 50 Witches as Judge", ...) are one. */
@@ -351,7 +385,8 @@ export interface SmashAchievement {
   text: string
   group: string | null
   /** counter: smash n of them; defeat: once */
-  kind: 'counter' | 'defeat' | 'find'
+  /** collect: a collectible counter (its rule: what drops it) */
+  kind: 'counter' | 'defeat' | 'find' | 'collect' | 'category' | 'drop'
   what: 'kills' | 'smashes' | 'kills_or_smashes' | null
   /** what the game data counts without a rule (a part of the name, or the boss) */
   match: string | null

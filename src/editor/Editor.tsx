@@ -28,6 +28,8 @@ interface Draft {
   name: string
   comment: string
   wave: WaveRef | null
+  /** bouncers: where it throws you */
+  target: Vec3 | null
 }
 
 const draftOf = (o: SurveyObject): Draft => ({
@@ -42,6 +44,7 @@ const draftOf = (o: SurveyObject): Draft => ({
   name: o.name,
   comment: o.comment ?? '',
   wave: o.wave ?? null,
+  target: o.target ? ([...o.target] as Vec3) : null,
 })
 
 /** The selected object: move, turn, confirm, delete, hide. */
@@ -114,6 +117,7 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
     if (d.wave !== undefined) c.wave = next.wave
     if (d.kind !== undefined) Object.assign(c, { kind: next.kind, monster_data: next.monster_data, template: next.template })
     if (d.patrol !== undefined) c.patrol = next.patrol
+    if (d.target !== undefined) c.target = next.target
     if (d.wall && next.wall) Object.assign(c, { size: next.wall.size, radius: next.wall.radius, color: next.wall.color, action: next.wall.action, once: next.wall.once })
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(flush, SEND_MS)
@@ -272,12 +276,53 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
             <input value={draft.name} onChange={(e) => change({ name: e.target.value })} />
           </label>
           {draft.wall ? (
-            <WallFields value={draft.wall} scripts={ctx.notes.scripts} looks={ctx.looks} targets={ctx.targets} playfield={object.playfield ?? ctx.state.playfield} onChange={(w) => change({ wall: { ...draft.wall!, ...w } })} />
+            <WallFields value={draft.wall} scripts={ctx.notes.scripts} looks={ctx.looks} targets={ctx.targets} playfield={object.playfield ?? ctx.state.playfield} collects={ctx.collects} onChange={(w) => change({ wall: { ...draft.wall!, ...w } })} />
           ) : (
             <label className="sv-field">
               <span>spawned</span>
               <WaveSelect scripts={ctx.notes.scripts} value={draft.wave} onChange={(w) => change({ wave: w })} />
             </label>
+          )}
+          {draft.kind === 'bouncer' && (
+            <div className="sv-field sv-top-label">
+              <span>throws to</span>
+              <div>
+                {draft.target ? (
+                  <div className="sv-row tight sv-nudge">
+                    {AXES.map((a, i) => (
+                      <input
+                        key={a}
+                        className="sv-num"
+                        type="number"
+                        step={0.5}
+                        title={a}
+                        value={draft.target![i]}
+                        onChange={(e) => e.target.value !== '' && change({ target: draft.target!.map((v, j) => (j === i ? Number(e.target.value) : v)) as Vec3 })}
+                      />
+                    ))}
+                    <span className="muted small">{distance(draft.pos, draft.target).toFixed(0)} m away</span>
+                  </div>
+                ) : (
+                  <div className="muted small">Not set: it throws nobody anywhere yet. Walk to where players land and set it.</div>
+                )}
+                {(object.chain?.length ?? 0) > 0 && <div className="muted small">then on through {object.chain!.length} more landing points</div>}
+                <div className="sv-row">
+                  <button className="primary" disabled={!here} title={here ? 'Players land where you stand' : 'Be in its world in game'} onClick={() => change({ target: [...state.pos] as Vec3 })}>
+                    Land here
+                  </button>
+                  {draft.target && (
+                    <button disabled={!here} onClick={() => ctx.run(() => backend.teleport(account, draft.target!))} title="Go to where it throws you">
+                      Go to landing
+                    </button>
+                  )}
+                  {draft.target && (
+                    <button className="ghost sv-danger" onClick={() => change({ target: null })}>
+                      Clear
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
           <label className="sv-field">
             <span>comment</span>
