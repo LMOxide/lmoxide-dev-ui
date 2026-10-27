@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { distance, fmtPos, isHidden, toDegrees, toRadians } from './geometry'
 import { SpawnPicker } from './SpawnPicker'
+import { WallFields } from './Walls'
 import type { Ctx } from './Survey'
-import { editable, type Kind, type ObjectChanges, type Placeable, type SurveyObject, type Vec3, type WaveRef } from './types'
+import { editable, type Kind, type ObjectChanges, type Placeable, type SurveyObject, type Vec3, type WallSettings, type WaveRef } from './types'
 import { WaveSelect } from './WaveSelect'
 
 /** How long typing waits before the change is sent (and shown in game). */
@@ -11,7 +12,9 @@ const SEND_MS = 150
 const AXES = ['x', 'y', 'z'] as const
 
 interface Draft {
-  kind: Kind
+  kind: Kind | 'trigger'
+  /** trigger walls */
+  wall: WallSettings | null
   monster_data: number | null
   template: number | null
   patrol: Vec3[]
@@ -25,6 +28,7 @@ interface Draft {
 
 const draftOf = (o: SurveyObject): Draft => ({
   kind: o.kind,
+  wall: o.kind === 'trigger' ? { name: o.name, size: [...(o.size ?? [6, 3, 1])] as Vec3, color: o.color ?? 'red', action: o.action ?? 'other', once: !!o.once } : null,
   monster_data: o.monster_data ?? null,
   template: o.template ?? null,
   patrol: (o.patrol ?? []).map((p) => [...p] as Vec3),
@@ -80,6 +84,7 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
     if (d.wave !== undefined) c.wave = next.wave
     if (d.kind !== undefined) Object.assign(c, { kind: next.kind, monster_data: next.monster_data, template: next.template })
     if (d.patrol !== undefined) c.patrol = next.patrol
+    if (d.wall && next.wall) Object.assign(c, { size: next.wall.size, color: next.wall.color, action: next.wall.action, once: next.wall.once })
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(flush, SEND_MS)
   }
@@ -106,7 +111,7 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
         <b className="sv-grow">{can ? draft.name : object.name}</b>
         <span className={`badge ${object.category}`}>{object.category}</span>
         <span className="badge">{can ? draft.kind : object.kind}</span>
-        {can && !picking && (
+        {can && !picking && draft.kind !== 'trigger' && (
           <button onClick={() => setPicking(true)} title="Make it another enemy, NPC, smashable, ...">
             Change into…
           </button>
@@ -171,10 +176,14 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
             <span>name</span>
             <input value={draft.name} onChange={(e) => change({ name: e.target.value })} />
           </label>
-          <label className="sv-field">
-            <span>spawned</span>
-            <WaveSelect scripts={ctx.notes.scripts} value={draft.wave} onChange={(w) => change({ wave: w })} />
-          </label>
+          {draft.wall ? (
+            <WallFields value={draft.wall} scripts={ctx.notes.scripts} looks={ctx.looks} onChange={(w) => change({ wall: { ...draft.wall!, ...w } })} />
+          ) : (
+            <label className="sv-field">
+              <span>spawned</span>
+              <WaveSelect scripts={ctx.notes.scripts} value={draft.wave} onChange={(w) => change({ wave: w })} />
+            </label>
+          )}
           <label className="sv-field">
             <span>comment</span>
             <textarea rows={2} value={draft.comment} onChange={(e) => change({ comment: e.target.value })} />

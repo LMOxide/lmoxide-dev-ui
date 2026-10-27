@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import type { Ctx } from './Survey'
-import type { Kind, Placeable, WaveRef } from './types'
+import type { Kind, Placeable, WallSettings, WaveRef } from './types'
+import { NEW_WALL, WallFields } from './Walls'
 import { WaveSelect } from './WaveSelect'
 
 const KINDS: [Kind | 'all', string][] = [
@@ -24,6 +25,8 @@ export function Catalog({ ctx, catalog }: { ctx: Ctx; catalog: Placeable[] }) {
   const [chosen, setChosen] = useState<Placeable | null>(null)
   const [level, setLevel] = useState<number | null>(null)
   const [wave, setWave] = useState<WaveRef | null>(null)
+  /** a trigger wall being set up (instead of a spawn) */
+  const [wall, setWall] = useState<WallSettings | null>(null)
   const { backend, account, state } = ctx
 
   const shown = useMemo(() => {
@@ -34,6 +37,7 @@ export function Catalog({ ctx, catalog }: { ctx: Ctx; catalog: Placeable[] }) {
   }, [catalog, kind, query])
 
   function choose(p: Placeable) {
+    setWall(null)
     setChosen(p)
     setLevel(p.level ?? null)
   }
@@ -44,6 +48,27 @@ export function Catalog({ ctx, catalog }: { ctx: Ctx; catalog: Placeable[] }) {
   return (
     <>
       <h2>Place</h2>
+      <div className="sv-row">
+        <button className={wall ? 'primary' : ''} onClick={() => (wall ? setWall(null) : (setWall(NEW_WALL), setChosen(null)))} title="A wall that does something when a player walks through it">
+          Trigger wall
+        </button>
+        <span className="muted small">or pick a spawn below</span>
+      </div>
+      {wall && (
+        <div className="sv-panel focus">
+          <label className="sv-field">
+            <span>name</span>
+            <input placeholder="optional" value={wall.name} onChange={(e) => setWall({ ...wall, name: e.target.value })} />
+          </label>
+          <WallFields value={wall} scripts={ctx.notes.scripts} looks={ctx.looks} onChange={(w) => setWall({ ...wall, ...w })} />
+          <div className="sv-row">
+            <button className="primary" onClick={() => ctx.run(() => backend.placeTrigger(account, wall), 'all')} title="Standing in its middle, facing the way players walk through it">
+              Place here
+            </button>
+          </div>
+          <p className="muted small">Stand where its middle goes, facing the way players walk through it. It is selected after placing: resize, recolour and move it there.</p>
+        </div>
+      )}
       {chosen && what && (
         <div className="sv-panel focus">
           <div className="sv-row">

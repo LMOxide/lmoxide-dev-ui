@@ -69,6 +69,11 @@ areas, scripts and waves for review.
   in, another wave defeated, or a comment), *Preview*. Of a script with several waves only one
   is shown at a time, wave 1 at first: step with ◀ ▶ (or *all*) in *Waves shown*, nearest
   scripts first (by their placements). Placing into a wave shows that wave.
+- **Trigger walls**: *Trigger wall* in Place: a wall (width, height, depth; red, green, shield
+  or forcefield look) placed across your way that does something when a player walks through
+  it: starts a script's wave, discovers a location, opens a dialogue, shows a message (or a
+  comment says what), optionally only once. Resize, recolour, move and turn it like the rest; it
+  changes in game as you edit.
 - **Notes**: mission areas, achievements, dialogues, scripts and comments, at a spot, in a
   circle or in an area walked out corner by corner; naming the thing is optional.
 - **Import / export**: one file per set or playfield; importing previews duplicates,

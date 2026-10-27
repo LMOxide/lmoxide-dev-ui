@@ -25,6 +25,8 @@ export interface Ctx {
   objects: SurveyObject[]
   notes: PlayfieldNotes
   catalog: Placeable[]
+  /** the looks trigger walls can have */
+  looks: string[]
   /** Runs a call, shows its error, refreshes what it may have changed. */
   run: <T>(f: () => Promise<T>, refresh?: 'state' | 'all') => Promise<T | undefined>
   setState: (s: PlayerState) => void
@@ -39,6 +41,7 @@ export function Survey({ backend, onLogout }: { backend: SurveyBackend; onLogout
   const [objects, setObjects] = useState<SurveyObject[]>([])
   const [notes, setNotes] = useState<PlayfieldNotes>({ notes: [], scripts: [] })
   const [catalog, setCatalog] = useState<Placeable[]>([])
+  const [looks, setLooks] = useState<string[]>(['red', 'green'])
   const [error, setError] = useState('')
   const [tab, setTab] = useState<RightTab>('selection')
   const [transfer, setTransfer] = useState(false)
@@ -77,6 +80,7 @@ export function Survey({ backend, onLogout }: { backend: SurveyBackend; onLogout
   useEffect(() => {
     backend.surveyors().then(setSurveyors).catch(failed)
     backend.catalog().then(setCatalog).catch(failed)
+    backend.wallLooks().then(setLooks).catch(() => {})
   }, [backend, failed])
 
   // pick the only surveyor online if none is chosen
@@ -120,8 +124,8 @@ export function Survey({ backend, onLogout }: { backend: SurveyBackend; onLogout
   }, [])
 
   const ctx: Ctx | null = useMemo(
-    () => (state && account !== null ? { backend, account, state, objects, notes, catalog, run, setState, upsert } : null),
-    [backend, account, state, objects, notes, catalog, run, upsert],
+    () => (state && account !== null ? { backend, account, state, objects, notes, catalog, looks, run, setState, upsert } : null),
+    [backend, account, state, objects, notes, catalog, looks, run, upsert],
   )
   const selected = ctx && state?.selected ? (objects.find((o) => o.id === state.selected) ?? null) : null
 

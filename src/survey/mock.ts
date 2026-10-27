@@ -15,6 +15,7 @@ import type {
   SetInfo,
   SurveyObject,
   Vec3,
+  WallSettings,
   WaveRef,
 } from './types'
 import { distance, headingDifference } from './geometry'
@@ -165,6 +166,29 @@ export class MockBackend implements SurveyBackend {
     if (wave) this.player.shown_waves[wave.script] = wave.wave
     this.bump()
     return structuredClone(o)
+  }
+  async placeTrigger(_a: number, wall: WallSettings) {
+    const o: SurveyObject = {
+      id: newId('t'),
+      kind: 'trigger',
+      name: wall.name || 'Trigger wall',
+      pos: [...this.player.pos],
+      heading: this.player.heading,
+      category: 'surveyed',
+      size: wall.size,
+      color: wall.color,
+      action: wall.action,
+      once: wall.once,
+      author: 'mock',
+      updated: now(),
+    }
+    this.objectsById.set(o.id, o)
+    this.player.selected = o.id
+    this.bump()
+    return structuredClone(o)
+  }
+  async wallLooks() {
+    return ['red', 'green', 'shield', 'low shield', 'forcefield']
   }
   async select(_a: number, id: string | null) {
     this.player.selected = id

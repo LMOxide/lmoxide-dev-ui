@@ -126,6 +126,10 @@
   background: var(--cat-surveyed-bg);
   color: var(--cat-surveyed);
 }
+.badge.trigger {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
 .badge.wave {
   background: var(--tag-bg);
   color: var(--tag);

@@ -4,6 +4,24 @@ export type Vec3 = [number, number, number]
 
 export type Kind = 'enemy' | 'npc' | 'smashable' | 'buildie' | 'interactable'
 
+/** What crossing a trigger wall does. */
+export type WallAction =
+  | { script: { script: string | null; wave: string | null } }
+  | { discover: { name: string | null } }
+  | { dialog: { dialog: string | null } }
+  | { message: { text: string } }
+  | 'other'
+
+/** A trigger wall's settings (place-trigger, and the editor). */
+export interface WallSettings {
+  name: string
+  /** width, height, depth (m) */
+  size: Vec3
+  color: string
+  action: WallAction
+  once: boolean
+}
+
 /** live/demo/client: hide only. guessed: confirm, edit, delete. surveyed: edit, delete. */
 export type Category = 'live' | 'demo' | 'client' | 'guessed' | 'surveyed'
 
@@ -21,7 +39,8 @@ export interface WaveRef {
 /** Something the server spawns in a playfield, whatever its category. */
 export interface SurveyObject {
   id: string
-  kind: Kind
+  /** "trigger": a trigger wall (size, color, action, once) */
+  kind: Kind | 'trigger'
   name: string
   monster_data?: number | null
   template?: number | null
@@ -33,6 +52,10 @@ export interface SurveyObject {
   wave?: WaveRef | null
   /** enemies and NPCs: the looping route it walks (2+ points; none: it stays put) */
   patrol?: Vec3[]
+  size?: Vec3
+  color?: string
+  action?: WallAction
+  once?: boolean
   comment?: string
   author?: string
   /** unix seconds */
@@ -163,6 +186,11 @@ export interface ObjectChanges {
   monster_data?: number | null
   template?: number | null
   patrol?: Vec3[]
+  /** trigger walls */
+  size?: Vec3
+  color?: string
+  action?: WallAction
+  once?: boolean
   pos?: Vec3
   heading?: number
   level?: number | null
