@@ -31,6 +31,8 @@ export interface SurveyObject {
   heading: number
   category: Category
   wave?: WaveRef | null
+  /** enemies and NPCs: the looping route it walks (2+ points; none: it stays put) */
+  patrol?: Vec3[]
   comment?: string
   author?: string
   /** unix seconds */
@@ -59,8 +61,8 @@ export interface PlayerState {
   selected: string | null
   /** what they hid (never saved) */
   hidden: string[]
-  /** "only this wave": every other wave of that script is hidden */
-  focus: WaveRef | null
+  /** script id → the wave shown, or "all"; a script that isn't here shows its first wave */
+  shown_waves: Record<string, string>
   wearing: Placeable | null
   /** goes up when any object of their playfield changes */
   revision: number
@@ -156,6 +158,11 @@ export interface MergeReport {
 
 /** Changes to an object; editing a guess makes it surveyed (it may get a new id). */
 export interface ObjectChanges {
+  /** with monster_data and template: change it into another spawn */
+  kind?: Kind
+  monster_data?: number | null
+  template?: number | null
+  patrol?: Vec3[]
   pos?: Vec3
   heading?: number
   level?: number | null

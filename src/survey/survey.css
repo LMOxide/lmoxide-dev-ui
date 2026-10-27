@@ -191,3 +191,30 @@
   padding-top: 6px;
   margin-top: 6px;
 }
+
+.sv-points {
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+}
+.sv-field.sv-top-label {
+  align-items: start;
+}
+.sv-field.sv-top-label > span {
+  padding-top: 6px;
+}
+.sv-points li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+.sv-wave-label {
+  min-width: 92px;
+  text-align: center;
+  white-space: nowrap;
+}
+.sv-nudge button.on {
+  background: var(--selected);
+  border-color: var(--accent);
+}

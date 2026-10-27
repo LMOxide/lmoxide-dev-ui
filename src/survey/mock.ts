@@ -57,7 +57,7 @@ export class MockBackend implements SurveyBackend {
     heading: 0,
     selected: null,
     hidden: [],
-    focus: null,
+    shown_waves: {},
     wearing: null,
     revision: 1,
   }
@@ -65,6 +65,7 @@ export class MockBackend implements SurveyBackend {
   constructor() {
     const [warrior, pirate, scout, , villager, tavern, crate, barrel, buildie] = CATALOG
     const objs = [
+      { ...base('g-0a10', scout, [328, 48.75, 140], 'live', 0.4), patrol: [[328, 48.75, 140], [340, 48.75, 140], [340, 48.75, 150]] as Vec3[] },
       base('g-0a11', warrior, [334, 48.75, 124], 'guessed', 1.2),
       base('g-0a12', pirate, [306, 48.75, 124], 'guessed'),
       base('g-0a13', scout, [334, 48.75, 96], 'guessed', 3.1),
@@ -161,6 +162,7 @@ export class MockBackend implements SurveyBackend {
     }
     this.objectsById.set(o.id, o)
     this.player.selected = o.id
+    if (wave) this.player.shown_waves[wave.script] = wave.wave
     this.bump()
     return structuredClone(o)
   }
@@ -188,11 +190,10 @@ export class MockBackend implements SurveyBackend {
   }
   async unhideAll() {
     this.player.hidden = []
-    this.player.focus = null
     return this.snapshot()
   }
-  async focusWave(_a: number, wave: WaveRef | null) {
-    this.player.focus = wave
+  async showWave(_a: number, script: string, wave: string) {
+    this.player.shown_waves[script] = wave
     return this.snapshot()
   }
   async previewWave() {}
@@ -203,6 +204,7 @@ export class MockBackend implements SurveyBackend {
   async edit(id: string, changes: ObjectChanges) {
     const o = this.surveyed(this.get(id))
     Object.assign(o, changes, { updated: now() })
+    if (o.kind !== 'enemy' && o.kind !== 'npc') delete o.patrol
     this.bump()
     return structuredClone(o)
   }

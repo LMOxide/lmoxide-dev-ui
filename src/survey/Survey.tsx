@@ -24,6 +24,7 @@ export interface Ctx {
   state: PlayerState
   objects: SurveyObject[]
   notes: PlayfieldNotes
+  catalog: Placeable[]
   /** Runs a call, shows its error, refreshes what it may have changed. */
   run: <T>(f: () => Promise<T>, refresh?: 'state' | 'all') => Promise<T | undefined>
   setState: (s: PlayerState) => void
@@ -119,8 +120,8 @@ export function Survey({ backend, onLogout }: { backend: SurveyBackend; onLogout
   }, [])
 
   const ctx: Ctx | null = useMemo(
-    () => (state && account !== null ? { backend, account, state, objects, notes, run, setState, upsert } : null),
-    [backend, account, state, objects, notes, run, upsert],
+    () => (state && account !== null ? { backend, account, state, objects, notes, catalog, run, setState, upsert } : null),
+    [backend, account, state, objects, notes, catalog, run, upsert],
   )
   const selected = ctx && state?.selected ? (objects.find((o) => o.id === state.selected) ?? null) : null
 
@@ -161,7 +162,6 @@ export function Survey({ backend, onLogout }: { backend: SurveyBackend; onLogout
                 {fmtPos(state.pos)} · {toDegrees(state.heading)}°
               </span>
               {state.wearing && <span className="badge wave">wearing {state.wearing.name}</span>}
-              {state.focus && <span className="badge wave">one wave shown</span>}
             </span>
           )}
           {mock && (

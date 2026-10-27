@@ -62,11 +62,13 @@ areas, scripts and waves for review.
   live, demo, client), distance and wave; hide (only for you, never saved), *Hide listed*,
   *Unhide all*, *Select nearest*. Attacking something in game selects it too.
 - **Selection**: x/y/z and heading with nudges, *Move to me*, *Face my way*; changes show in game
-  as you type. Guesses: *Confirm*, edit (both make them surveyed) or *Delete*; live, demo and
-  client objects can only be hidden.
+  as you type. *Change into…* makes it any other spawn. Enemies and NPCs can get a patrol route
+  (optional): walk it and *Add a point here* at each turn; it loops. Guesses: *Confirm*, edit
+  (both make them surveyed) or *Delete*; live, demo and client objects can only be hidden.
 - **Scripts**: waves with a name, what starts them (time, an enemy's health, a player walking
-  in, another wave defeated, or a comment), *Only this wave* (hides the script's other waves),
-  *Preview*.
+  in, another wave defeated, or a comment), *Preview*. Of a script with several waves only one
+  is shown at a time, wave 1 at first: step with ◀ ▶ (or *all*) in *Waves shown*, nearest
+  scripts first (by their placements). Placing into a wave shows that wave.
 - **Notes**: mission areas, achievements, dialogues, scripts and comments, at a spot, in a
   circle or in an area walked out corner by corner; naming the thing is optional.
 - **Import / export**: one file per set or playfield; importing previews duplicates,

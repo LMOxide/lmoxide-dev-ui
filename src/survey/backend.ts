@@ -36,8 +36,8 @@ export interface SurveyBackend {
   selectNearest(account: number): Promise<PlayerState>
   hide(account: number, ids: string[], hidden: boolean): Promise<PlayerState>
   unhideAll(account: number): Promise<PlayerState>
-  /** Hide every other wave of that script (null: show them again). */
-  focusWave(account: number, wave: WaveRef | null): Promise<PlayerState>
+  /** Which wave of a script is shown (a wave id or "all"). */
+  showWave(account: number, script: string, wave: string): Promise<PlayerState>
   /** Spawn one wave's placements for a while, to see them. */
   previewWave(account: number, wave: WaveRef): Promise<void>
   teleport(account: number, pos: Vec3): Promise<PlayerState>
@@ -131,8 +131,8 @@ export class HttpBackend implements SurveyBackend {
   unhideAll(account: number) {
     return this.call<PlayerState>('POST', `/players/${account}/unhide-all`)
   }
-  focusWave(account: number, wave: WaveRef | null) {
-    return this.call<PlayerState>('POST', `/players/${account}/focus`, { wave })
+  showWave(account: number, script: string, wave: string) {
+    return this.call<PlayerState>('POST', `/players/${account}/shown-wave`, { script, wave })
   }
   async previewWave(account: number, wave: WaveRef) {
     await this.call('POST', `/players/${account}/preview-wave`, { wave })

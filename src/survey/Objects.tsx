@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { distance, isHidden } from './geometry'
+import { distance, inHiddenWave } from './geometry'
 import type { Ctx } from './Survey'
 import { CATEGORIES, type Category, type WaveRef } from './types'
+import { WavesNearby } from './Waves'
 import { waveLabel } from './WaveSelect'
 
 const LIMIT = 300
@@ -18,7 +19,10 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
     return objects
-      .map((o) => ({ o, d: distance(o.pos, state.pos), h: isHidden(o, hidden, state.focus) }))
+      .map((o) => {
+        const w = inHiddenWave(o, state.shown_waves, notes.scripts)
+        return { o, d: distance(o.pos, state.pos), w, h: w || hidden.has(o.id) }
+      })
       .filter(
         ({ o, d, h }) =>
           cats.has(o.category) &&
@@ -28,7 +32,7 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
           (waveFilter === null || (waveFilter === 'static' ? !o.wave : o.wave?.script === waveFilter.script && o.wave.wave === waveFilter.wave)),
       )
       .sort((a, b) => a.d - b.d)
-  }, [objects, state.pos, state.focus, hidden, cats, query, radius, hiddenOnly, waveFilter])
+  }, [objects, state.pos, state.shown_waves, notes.scripts, hidden, cats, query, radius, hiddenOnly, waveFilter])
 
   const counts = useMemo(() => {
     const c = new Map<Category, number>()
@@ -51,6 +55,7 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
   return (
     <>
       <h2>In this playfield</h2>
+      <WavesNearby ctx={ctx} />
       <div className="sv-row tight">
         {CATEGORIES.map((c) => (
           <button key={c} className={`chip ${cats.has(c) ? 'on' : ''}`} onClick={() => toggleCat(c)}>
@@ -100,12 +105,12 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
         <button disabled={!shownIds.length} onClick={() => ctx.run(() => backend.hide(account, shownIds, true))} title="Hide everything this list shows">
           Hide listed
         </button>
-        <button disabled={!hiddenCount && !state.focus} onClick={() => ctx.run(() => backend.unhideAll(account))}>
+        <button disabled={!hiddenCount} onClick={() => ctx.run(() => backend.unhideAll(account))}>
           Unhide all{hiddenCount ? ` (${hiddenCount})` : ''}
         </button>
       </div>
       <ul className="sv-list">
-        {rows.slice(0, LIMIT).map(({ o, d, h }) => (
+        {rows.slice(0, LIMIT).map(({ o, d, w, h }) => (
           <li
             key={o.id}
             className={`${state.selected === o.id ? 'on' : ''} ${h ? 'hidden-obj' : ''}`}
@@ -113,10 +118,11 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
           >
             <button
               className="ghost eye"
-              title={h ? 'Show it' : 'Hide it (only for you, until you show it again)'}
+              title={w ? 'In a wave that isn’t shown: show that wave' : h ? 'Show it' : 'Hide it (only for you, until you show it again)'}
               onClick={(e) => {
                 e.stopPropagation()
-                ctx.run(() => backend.hide(account, [o.id], !hidden.has(o.id)))
+                if (w && o.wave) ctx.run(() => backend.showWave(account, o.wave!.script, o.wave!.wave))
+                else ctx.run(() => backend.hide(account, [o.id], !hidden.has(o.id)))
               }}
             >
               {h ? '◌' : '◉'}

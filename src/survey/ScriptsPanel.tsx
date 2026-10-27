@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { AreaEditor, useDraft } from './AreaEditor'
-import { areaCenter, distance } from './geometry'
+import { areaCenter, scriptDistance, shownWave } from './geometry'
 import { newId, StatusSelect } from './NotesPanel'
 import type { Ctx } from './Survey'
 import type { Script, Trigger, Wave, WaveRef } from './types'
+import { WaveStepper } from './Waves'
 
 type TriggerType = 'none' | 'after' | 'health_below' | 'enter_area' | 'wave_cleared' | 'other'
 
@@ -25,8 +26,9 @@ const newWave = (n: number): Wave => ({ id: newId('w'), name: `wave ${n}`, trigg
  * script with one wave is the simple case.
  */
 export function ScriptsPanel({ ctx, showWave }: { ctx: Ctx; showWave: (w: WaveRef) => void }) {
-  const { backend, state, notes } = ctx
+  const { backend, state, notes, objects } = ctx
   const [open, setOpen] = useState<string | null>(null)
+  const nearest = notes.scripts.map((s) => ({ s, d: scriptDistance(s, objects, state.pos) })).sort((a, b) => a.d - b.d)
 
   async function add() {
     const s: Script = { id: newId('s'), name: 'New script', area: null, reference: null, comment: '', waves: [newWave(1)], status: 'unreviewed' }
@@ -42,7 +44,7 @@ export function ScriptsPanel({ ctx, showWave }: { ctx: Ctx; showWave: (w: WaveRe
         </button>
         <span className="muted small">Give each wave a name, place its enemies with it chosen, and say what starts it.</span>
       </div>
-      {notes.scripts.map((s) =>
+      {nearest.map(({ s, d }) =>
         open === s.id ? (
           <ScriptEditor key={s.id} ctx={ctx} script={s} onClose={() => setOpen(null)} showWave={showWave} />
         ) : (
@@ -51,9 +53,11 @@ export function ScriptsPanel({ ctx, showWave }: { ctx: Ctx; showWave: (w: WaveRe
               <span className="sv-name">
                 <b>{s.name || 'script'}</b> <span className="muted small">{s.waves.length === 1 ? '1 wave' : `${s.waves.length} waves`}</span>
               </span>
-              {state.focus?.script === s.id && <span className="badge wave">one wave shown</span>}
+              <span onClick={(e) => e.stopPropagation()}>
+                <WaveStepper ctx={ctx} script={s} />
+              </span>
               <span className="badge">{s.status}</span>
-              {s.area && <span className="sv-dist">{distance(areaCenter(s.area), state.pos).toFixed(0)} m</span>}
+              <span className="sv-dist">{d === Infinity ? '–' : `${d.toFixed(0)} m`}</span>
             </div>
           </div>
         ),
@@ -96,7 +100,8 @@ function ScriptEditor({ ctx, script, onClose, showWave }: { ctx: Ctx; script: Sc
 
       {draft.waves.map((w, i) => {
         const ref = { script: script.id, wave: w.id }
-        const focused = state.focus?.script === script.id && state.focus.wave === w.id
+        const shown = shownWave(script, state.shown_waves)
+        const visible = shown === 'all' || shown === w.id
         const n = placed(w.id)
         return (
           <div key={w.id} className="sv-wave">
@@ -110,11 +115,11 @@ function ScriptEditor({ ctx, script, onClose, showWave }: { ctx: Ctx; script: Sc
             <textarea rows={2} placeholder="how it starts, in your words" value={w.comment} onChange={(e) => setWave(w.id, (x) => ({ ...x, comment: e.target.value }))} />
             <div className="sv-row">
               <button
-                className={focused ? 'primary' : ''}
-                onClick={() => ctx.run(() => backend.focusWave(account, focused ? null : ref))}
-                title="Hide the placements of this script's other waves while you work on this one"
+                disabled={shown === w.id || draft.waves.length < 2}
+                onClick={() => ctx.run(() => backend.showWave(account, script.id, w.id))}
+                title="Show this wave's placements, and hide the script's other waves"
               >
-                {focused ? 'Show all waves' : 'Only this wave'}
+                {visible ? 'Shown' : 'Show this wave'}
               </button>
               <button disabled={!n} onClick={() => ctx.run(() => backend.previewWave(account, ref))} title="Spawn this wave for a while, as its trigger would">
                 Preview
