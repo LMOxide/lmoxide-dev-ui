@@ -1,7 +1,7 @@
 // An in-memory survey server (survey.html?mock): the page works without lmoxide, to try it and
 // to build it before the server routes exist. The merge is a simplified version of the crate's.
 
-import type { SurveyBackend } from './backend'
+import { SUGGESTED_TAGS, type SurveyBackend } from './backend'
 import type {
   Bundle,
   Feature,
@@ -17,6 +17,7 @@ import type {
   Script,
   SetInfo,
   SurveyObject,
+  TagUse,
   Vec3,
   TriggerTargets,
   PublishRequest,
@@ -171,11 +172,12 @@ export class MockBackend implements SurveyBackend {
     this.player.wearing = what
     return this.snapshot()
   }
-  async place(_a: number, what: Placeable, wave: WaveRef | null, feature: string) {
+  async place(_a: number, what: Placeable, wave: WaveRef | null, feature: string, tags: string[]) {
     const o: SurveyObject = {
       ...base(newId('p'), what, [...this.player.pos], 'surveyed', this.player.heading),
       wave,
       feature,
+      tags,
       author: 'mock',
       updated: now(),
     }
@@ -223,7 +225,12 @@ export class MockBackend implements SurveyBackend {
     this.player.marks = marks
     return this.snapshot()
   }
-  async placeTrigger(_a: number, wall: WallSettings, feature: string) {
+  async tags(): Promise<TagUse[]> {
+    const counts = new Map<string, number>(SUGGESTED_TAGS.map((t) => [t, 0]))
+    for (const o of this.objectsById.values()) for (const t of o.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1)
+    return [...counts].map(([tag, count]) => ({ tag, count, suggested: SUGGESTED_TAGS.includes(tag) })).sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag))
+  }
+  async placeTrigger(_a: number, wall: WallSettings, feature: string, tags: string[]) {
     const o: SurveyObject = {
       id: newId('t'),
       kind: 'trigger',
@@ -237,6 +244,7 @@ export class MockBackend implements SurveyBackend {
       action: wall.action,
       once: wall.once,
       feature,
+      tags,
       author: 'mock',
       updated: now(),
     }
@@ -246,14 +254,22 @@ export class MockBackend implements SurveyBackend {
     return structuredClone(o)
   }
   async triggerTargets(): Promise<TriggerTargets> {
-    const loc = (name: string, playfield: number, achievements: number[]) => ({ name, playfield, playfield_name: playfield === 1200 ? 'Pirate World' : 'Isle of Yarr', pos: null, achievements })
+    const names: Record<number, string> = { 1200: 'Pirate World', 4200: 'Isle of Yarr', 6200: 'Dinosaur Rise' }
+    const loc = (name: string, title: string | null, playfield: number, achievements: number[]) => ({ name, title, playfield, playfield_name: names[playfield], pos: null, achievements })
     return {
-      locations: [loc('Achievement_PirateTown', 4200, [724]), loc('Achievement_Mermaid', 4200, [264, 900]), loc('Achievement_Ship', 4200, [748, 900]), loc('BA_Explore_Docks', 1200, [])],
+      locations: [
+        loc('Achievement_PirateTown', 'Hidden Pirate Town', 4200, [724]),
+        loc('Achievement_Mermaid', 'The Sirens', 4200, [264, 900]),
+        loc('Achievement_Ship', "Blackbeard's Ship", 4200, [748, 900]),
+        loc('BA_Explore_Docks', null, 1200, []),
+        loc('Achievement_Volcano', 'Volcano Summit', 6200, [1613]),
+      ],
       achievements: [
-        { id: 724, name: 'Find the Hidden Pirate Town', category: 'Pirate Exploration', locations: [{ name: 'Achievement_PirateTown', playfield: 4200 }] },
-        { id: 264, name: 'The Sirens', category: 'Pirate Exploration', locations: [{ name: 'Achievement_Mermaid', playfield: 4200 }] },
-        { id: 748, name: "Find Blackbird's Ship", category: 'Pirate Exploration', locations: [{ name: 'Achievement_Ship', playfield: 4200 }] },
-        { id: 900, name: 'Explore the Isle', category: 'Pirate Exploration', locations: [{ name: 'Achievement_Mermaid', playfield: 4200 }, { name: 'Achievement_Ship', playfield: 4200 }] },
+        { id: 724, name: 'Find the Hidden Pirate Town', category: 'Pirate Exploration', title: 'Ahoy, Landlubber!', text: 'Find the Hidden Pirate Town in the Pirate World.', group: 'Treasure Chaser', locations: [{ name: 'Achievement_PirateTown', playfield: 4200, title: 'Hidden Pirate Town' }] },
+        { id: 264, name: 'The Sirens', category: 'Pirate Exploration', title: 'Song of the Siren', text: 'Become mesmerized by the alluring song of the Sirens.', group: 'Treasure Chaser', locations: [{ name: 'Achievement_Mermaid', playfield: 4200, title: 'The Sirens' }] },
+        { id: 748, name: "Find Blackbird's Ship", category: 'Pirate Exploration', title: 'The Black Nest', text: "Find Blackbeard's Ship in the Pirate World.", group: 'Treasure Chaser', locations: [{ name: 'Achievement_Ship', playfield: 4200, title: "Blackbeard's Ship" }] },
+        { id: 900, name: 'Explore the Isle', category: 'Pirate Exploration', title: 'Treasure Chaser', text: 'Explore every part of the Pirate World.', locations: [{ name: 'Achievement_Mermaid', playfield: 4200, title: 'The Sirens' }, { name: 'Achievement_Ship', playfield: 4200, title: "Blackbeard's Ship" }] },
+        { id: 1613, name: 'Lava Pier', category: 'Dino Exploration', title: 'Fiery Explorer', text: 'Find the Volcano Summit in Dinosaur Rise.', group: 'Paleontologist', locations: [{ name: 'Achievement_Volcano', playfield: 6200, title: 'Volcano Summit' }] },
       ],
       dialogs: [
         { id: '741', npc: 'Video Game Guy', playfield: 1300, playfield_name: 'Tutorial', line: 'Hey! Over here!' },

@@ -292,3 +292,9 @@
 .sv-publish-items li {
   padding: 2px 0;
 }
+/* a record's tags (#approximate, #todo, ...): outlined, so they read apart from the feature */
+.badge.tag {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--tag);
+  color: var(--tag);
+}

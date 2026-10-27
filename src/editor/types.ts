@@ -15,9 +15,22 @@ export type WallAction =
 
 /** What trigger walls can discover or open (GET /v1/survey/trigger-targets). */
 export interface TriggerTargets {
-  locations: { name: string; playfield: number; playfield_name: string | null; pos: Vec3 | null; achievements: number[] }[]
-  /** exploration achievements, with every location each needs */
-  achievements: { id: number; name: string; category: string; locations: { name: string; playfield: number }[] }[]
+  /** name: the area's internal name (what a wall stores); title: what players call it ("Volcano Summit") */
+  locations: { name: string; title?: string | null; playfield: number; playfield_name: string | null; pos: Vec3 | null; achievements: number[] }[]
+  /**
+   * exploration achievements, with every location each needs. name/category: the client's
+   * internal ones ("Lava Pier", "Dino Exploration"); title, text, group: as the game shows them
+   * ("Fiery Explorer", "Find the Volcano Summit in Dinosaur Rise.", "Paleontologist")
+   */
+  achievements: {
+    id: number
+    name: string
+    category: string
+    title?: string | null
+    text?: string | null
+    group?: string | null
+    locations: { name: string; playfield: number; title?: string | null }[]
+  }[]
   /** id: the dialogue's first text (what a wall stores) */
   dialogs: { id: string; npc: string; playfield: number; playfield_name: string | null; line: string }[]
   /** the teleport windows portals open; plain: asks Yes/No instead (its window would be empty) */
@@ -84,6 +97,8 @@ export interface SurveyObject {
   comment?: string
   /** what it is for: live (mimic live), feature/..., other/... (lmoxide docs/WORLD-CONTENT.md) */
   feature?: string
+  /** labels for sorting work out: approximate, todo, review, ... (lower case, no #) */
+  tags?: string[]
   author?: string
   /** unix seconds */
   updated?: number
@@ -108,9 +123,16 @@ export interface FeaturesView {
   features: Feature[]
 }
 
+/** A tag in use (GET /v1/survey/tags): how many records carry it; suggested: offered to everyone. */
+export interface TagUse {
+  tag: string
+  count: number
+  suggested: boolean
+}
+
 /** An editor's own marker on a group of objects in game (never saved). */
 export interface Mark {
-  by: 'author' | 'feature'
+  by: 'author' | 'feature' | 'tag'
   value: string
   /** one of GET /v1/survey/mark-looks */
   look: string
@@ -168,6 +190,8 @@ export interface Note {
   reference: string | null
   comment: string
   status: Review
+  feature?: string
+  tags?: string[]
   author?: string
   updated?: number
 }
@@ -194,6 +218,8 @@ export interface Script {
   comment: string
   waves: Wave[]
   status: Review
+  feature?: string
+  tags?: string[]
   author?: string
   updated?: number
 }
@@ -215,7 +241,7 @@ export interface Unpublished {
   mine: boolean
   /** "2 added, 1 changed" */
   summary: string
-  items: { kind: 'placement' | 'trigger' | 'note' | 'script'; id: string; name: string; op: 'added' | 'changed' | 'removed'; details?: string[]; updated: number }[]
+  items: { kind: 'placement' | 'trigger' | 'note' | 'script'; id: string; name: string; op: 'added' | 'changed' | 'removed'; details?: string[]; updated: number; tags?: string[] }[]
 }
 
 /** `POST /v1/survey/publish`: only the given playfield, feature, author (default: the caller;
@@ -281,4 +307,6 @@ export interface ObjectChanges {
   wave?: WaveRef | null
   /** moves it to another feature */
   feature?: string
+  /** replaces its tags */
+  tags?: string[]
 }

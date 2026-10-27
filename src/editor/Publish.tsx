@@ -62,6 +62,7 @@ export function Publish({
             <li key={i.kind + i.id} className="small">
               <span className={`badge${i.op === 'removed' ? ' warn' : ''}`}>{i.op}</span> {i.name} <span className="muted">{i.kind}</span>
               {i.details?.length ? <span className="muted"> · {i.details.join(', ')}</span> : null}
+              {i.tags?.length ? <span className="muted"> · {i.tags.map((t) => `#${t}`).join(' ')}</span> : null}
             </li>
           ))}
         </ul>

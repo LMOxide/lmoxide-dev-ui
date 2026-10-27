@@ -6,6 +6,8 @@ export interface Suggestion {
   label: string
   /** shown beside it, and searched too */
   detail?: string
+  /** searched, not shown (other names it goes by) */
+  keywords?: string
   /** listed first (e.g. in this playfield) */
   near?: boolean
 }
@@ -34,8 +36,12 @@ export function SuggestInput({
   const shown = text ?? picked?.label ?? value ?? ''
 
   const matches = useMemo(() => {
-    const q = (text ?? '').trim().toLowerCase()
-    const hits = suggestions.filter((s) => !q || s.label.toLowerCase().includes(q) || (s.detail ?? '').toLowerCase().includes(q) || s.value.toLowerCase() === q)
+    // every word typed, anywhere in it ("fiery paleo", "volcano dino", "1613")
+    const words = (text ?? '').toLowerCase().split(/[\s>[\]#]+/).filter(Boolean)
+    const hits = suggestions.filter((s) => {
+      const hay = `${s.label} ${s.detail ?? ''} ${s.keywords ?? ''} ${s.value}`.toLowerCase()
+      return words.every((w) => hay.includes(w))
+    })
     return [...hits.filter((s) => s.near), ...hits.filter((s) => !s.near)].slice(0, LIMIT)
   }, [suggestions, text])
 

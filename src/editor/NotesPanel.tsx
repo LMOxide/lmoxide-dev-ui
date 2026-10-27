@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { AreaEditor, useDraft } from './AreaEditor'
 import { areaCenter, distance } from './geometry'
+import { TagBadges, TagSelect } from './Tags'
 import type { Ctx } from './WorldEditor'
 import { NOTE_KINDS, type Note, type NoteKind, type Review } from './types'
 
@@ -30,7 +31,7 @@ export function NotesPanel({ ctx }: { ctx: Ctx }) {
   const [open, setOpen] = useState<string | null>(null)
 
   async function add() {
-    const note: Note = { id: newId('n'), kind: 'comment', area: { point: [...state.pos] }, reference: null, comment: '', status: 'unreviewed' }
+    const note: Note = { id: newId('n'), kind: 'comment', area: { point: [...state.pos] }, reference: null, comment: '', status: 'unreviewed', tags: ctx.newTags }
     const saved = await ctx.run(() => backend.saveNote(state.playfield, note), 'all')
     if (saved) setOpen(saved.id)
   }
@@ -52,6 +53,7 @@ export function NotesPanel({ ctx }: { ctx: Ctx }) {
             <div className="sv-row">
               <span className="badge wave">{KIND_LABELS[n.kind]}</span>
               <span className="sv-name">{n.reference || n.comment || <i className="muted">no details</i>}</span>
+              <TagBadges tags={n.tags} />
               <span className="badge">{n.status}</span>
               <span className="sv-dist">{distance(areaCenter(n.area), state.pos).toFixed(0)} m</span>
             </div>
@@ -94,6 +96,10 @@ function NoteEditor({ ctx, note, onClose }: { ctx: Ctx; note: Note; onClose: () 
       <div className="sv-field">
         <span>review</span>
         <StatusSelect value={draft.status} onChange={(s) => update((d) => ({ ...d, status: s }))} />
+      </div>
+      <div className="sv-field">
+        <span>tags</span>
+        <TagSelect ctx={ctx} value={draft.tags ?? []} onChange={(tags) => update((d) => ({ ...d, tags }))} />
       </div>
       <div className="sv-row">
         <button onClick={onClose}>Done</button>

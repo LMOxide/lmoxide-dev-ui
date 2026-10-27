@@ -65,7 +65,7 @@ export function Catalog({ ctx, catalog }: { ctx: Ctx; catalog: Placeable[] }) {
             <button
               className="primary"
               onClick={async () => {
-                const o = await ctx.run(() => backend.placeTrigger(account, wall, ctx.feature), 'all')
+                const o = await ctx.run(() => backend.placeTrigger(account, wall, ctx.feature, ctx.newTags), 'all')
                 if (o) ctx.history.record({ kind: 'place', id: o.id, name: o.name, snapshot: o })
               }}
               title="Standing in its middle, facing the way players walk through it"
@@ -107,7 +107,7 @@ export function Catalog({ ctx, catalog }: { ctx: Ctx; catalog: Placeable[] }) {
             <button
               className="primary"
               onClick={async () => {
-                const o = await ctx.run(() => backend.place(account, what, wave, ctx.feature), 'all')
+                const o = await ctx.run(() => backend.place(account, what, wave, ctx.feature, ctx.newTags), 'all')
                 if (o) ctx.history.record({ kind: 'place', id: o.id, name: o.name, snapshot: o })
               }}
               title="Where you stand, facing your way"

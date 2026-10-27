@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { awayFrom, distance, fmtPos, isHidden, toDegrees, toRadians } from './geometry'
 import { valuesOf, type Entry } from './history'
 import { FeatureSelect } from './Features'
+import { TagBadges, TagSelect } from './Tags'
 import { SpawnPicker } from './SpawnPicker'
 import { WallFields } from './Walls'
 import type { Ctx } from './WorldEditor'
@@ -168,6 +169,23 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
           />
         </label>
       )}
+      {can && object.kind !== 'buildie' && (
+        <div className="sv-field">
+          <span>tags</span>
+          <TagSelect
+            ctx={ctx}
+            value={object.tags ?? []}
+            onChange={async (tags) => {
+              const o = await ctx.run(() => backend.edit(object.id, { tags }), 'all')
+              if (!o) return
+              ctx.upsert(o, object.id)
+              if (o.id !== object.id) ctx.history.record({ kind: 'replace', guess: object.id, id: o.id, name: o.name, after: o })
+              else ctx.history.record({ kind: 'edit', id: o.id, name: o.name, before: { tags: object.tags ?? [] }, after: { tags }, at: 0 })
+            }}
+          />
+        </div>
+      )}
+      {!can && <TagBadges tags={object.tags} />}
 
       {can ? (
         <>

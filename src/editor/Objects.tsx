@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { featureLabel, FeatureSelect } from './Features'
 import { distance, inHiddenWave } from './geometry'
 import { Marks } from './Marks'
+import { TagBadges } from './Tags'
 import { MultiSelect } from '../MultiSelect'
 import type { Ctx } from './WorldEditor'
 import { CATEGORIES, type Category, type WaveRef } from './types'
@@ -20,11 +21,15 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
   /** only one author's (or one feature's) changes: '' all */
   const [author, setAuthor] = useState('')
   const [feature, setFeature] = useState('')
+  /** only what carries any of these tags ('-' : untagged) */
+  const [tags, setTags] = useState<string[]>([])
   const authors = useMemo(() => [...new Set(objects.map((o) => o.author).filter((a): a is string => !!a))].sort(), [objects])
   const hidden = useMemo(() => new Set(state.hidden), [state.hidden])
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase()
+    // "#todo" in the search: that tag
+    const qTag = q.startsWith('#') ? q.slice(1) : null
     return objects
       .map((o) => {
         const w = inHiddenWave(o, state.shown_waves, notes.scripts)
@@ -33,7 +38,8 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
       .filter(
         ({ o, d, h }) =>
           cats.has(o.category) &&
-          (!q || o.name.toLowerCase().includes(q) || o.id.includes(q)) &&
+          (!q || (qTag !== null ? (o.tags ?? []).some((t) => t.startsWith(qTag)) : o.name.toLowerCase().includes(q) || o.id.includes(q) || (o.comment ?? '').toLowerCase().includes(q) || (o.tags ?? []).includes(q))) &&
+          (!tags.length || (o.tags?.length ? o.tags.some((t) => tags.includes(t)) : tags.includes('-'))) &&
           (radius === null || d <= radius) &&
           (!hiddenOnly || h) &&
           (!author || o.author === author) &&
@@ -41,7 +47,7 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
           (waveFilter === null || (waveFilter === 'static' ? !o.wave : o.wave?.script === waveFilter.script && o.wave.wave === waveFilter.wave)),
       )
       .sort((a, b) => a.d - b.d)
-  }, [objects, state.pos, state.shown_waves, notes.scripts, hidden, cats, query, radius, hiddenOnly, waveFilter, author, feature])
+  }, [objects, state.pos, state.shown_waves, notes.scripts, hidden, cats, query, radius, hiddenOnly, waveFilter, author, feature, tags])
 
   const counts = useMemo(() => {
     const c = new Map<Category, number>()
@@ -69,7 +75,7 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
         />
       </div>
       <div className="sv-row">
-        <input className="sv-grow" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input className="sv-grow" placeholder="Search (name, comment, #tag)" value={query} onChange={(e) => setQuery(e.target.value)} />
         <select value={radius ?? ''} onChange={(e) => setRadius(e.target.value ? Number(e.target.value) : null)} title="Only this close to you">
           <option value="">any distance</option>
           {[10, 25, 50, 100].map((r) => (
@@ -116,7 +122,10 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
         </select>
         <FeatureSelect features={ctx.features} value={feature} onChange={setFeature} any="every feature" title="Only this feature (and what is nested under it)" />
       </div>
-      {(author || feature) && (
+      <div className="sv-row">
+        <TagFilter ctx={ctx} value={tags} onChange={setTags} />
+      </div>
+      {(author || feature || tags.length > 0) && (
         <div className="sv-row">
           <button
             onClick={() => {
@@ -169,6 +178,7 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
                 {o.feature.split('/').pop()}
               </span>
             )}
+            <TagBadges tags={o.tags} />
             {o.author && (
               <span className="muted small sv-author" title={`changed last by ${o.author}`}>
                 {o.author}
@@ -182,5 +192,26 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
         {!rows.length && <li className="muted">Nothing here matches.</li>}
       </ul>
     </>
+  )
+}
+
+/** Only what carries any of the picked tags (or nothing: "untagged"). */
+function TagFilter({ ctx, value, onChange }: { ctx: Ctx; value: string[]; onChange: (v: string[]) => void }) {
+  const inUse = new Map<string, number>()
+  for (const o of ctx.objects) for (const t of o.tags ?? []) inUse.set(t, (inUse.get(t) ?? 0) + 1)
+  const untagged = ctx.objects.filter((o) => !o.tags?.length).length
+  return (
+    <MultiSelect
+      label="Tags"
+      none="any"
+      options={[
+        ...[...inUse].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t, n]) => ({ value: t, label: `#${t}`, detail: n })),
+        ...ctx.tags.filter((t) => !inUse.has(t.tag)).map((t) => ({ value: t.tag, label: `#${t.tag}`, detail: 0, title: `${t.count} elsewhere` })),
+        { value: '-', label: 'untagged', detail: untagged },
+      ]}
+      value={value}
+      onChange={onChange}
+      title="Only what carries any of these tags (counts: in this playfield)"
+    />
   )
 }

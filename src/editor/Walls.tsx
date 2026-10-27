@@ -4,6 +4,15 @@ import type { Script, TriggerTargets, Vec3, WallAction, WallLook, WallSettings }
 /** "Achievement_PirateTown" / "BA_Explore_Docks" -> "PirateTown" / "Docks" (the raw name stays the value). */
 const prettyArea = (n: string) => n.replace(/^(Achievement_|BA_Explore_|Explore_)/, '').replace(/_/g, ' ')
 
+type Location = TriggerTargets['locations'][number]
+type Achievement = TriggerTargets['achievements'][number]
+
+/** A location as players know it ("Volcano Summit"), else its area's name tidied ("Docks"). */
+const placeName = (l: { name: string; title?: string | null }) => l.title || prettyArea(l.name)
+
+/** An achievement as the game shows it: "Paleontologist > Fiery Explorer [1613]". */
+const achievementLabel = (a: Achievement) => `${a.group ? `${a.group} > ` : ''}${a.title || a.name} [${a.id}]`
+
 export const NEW_WALL: WallSettings = { name: '', size: [6, 3, 1], radius: null, color: 'green', action: 'other', once: false }
 
 type ActionType = 'script' | 'discover' | 'dialog' | 'portal' | 'message' | 'other'
@@ -198,17 +207,23 @@ type Discover = { name: string | null; achievement?: string | null }
  * an achievement that needs several locations lists them.
  */
 function DiscoverFields({ action, targets, playfield, onChange }: { action: Discover; targets: TriggerTargets | null; playfield: number; onChange: (d: Discover) => void }) {
-  const locations: Suggestion[] = (targets?.locations ?? []).map((l) => ({
-    value: l.name,
-    label: prettyArea(l.name),
-    detail: `${l.playfield_name ?? l.playfield}${l.achievements.length ? ` · ${l.achievements.length} achievement${l.achievements.length > 1 ? 's' : ''}` : ''}`,
-    near: l.playfield === playfield,
-  }))
+  const byId = new Map((targets?.achievements ?? []).map((a) => [a.id, a]))
+  const locations: Suggestion[] = (targets?.locations ?? []).map((l: Location) => {
+    const achs = l.achievements.map((id) => byId.get(id)).filter((a): a is Achievement => !!a)
+    return {
+      value: l.name,
+      label: `${placeName(l)} (${l.playfield_name ?? l.playfield})`,
+      detail: [l.name, ...achs.map((a) => a.title || a.name)].join(' · '),
+      keywords: `${l.playfield} ${achs.map((a) => `${a.group ?? ''} ${a.text ?? ''} ${a.name} ${a.category} ${a.id}`).join(' ')}`,
+      near: l.playfield === playfield,
+    }
+  })
   const location = targets?.locations.find((l) => l.name === action.name)
   const achievements: Suggestion[] = (targets?.achievements ?? []).map((x) => ({
     value: String(x.id),
-    label: x.name,
-    detail: `${x.category}${x.locations.length > 1 ? ` · ${x.locations.length} locations` : ''}`,
+    label: achievementLabel(x),
+    detail: `${x.text || x.category}${x.locations.length > 1 ? ` · ${x.locations.length} locations` : ''}`,
+    keywords: `${x.name} ${x.category} ${x.locations.map((l) => placeName(l)).join(' ')}`,
     near: !!location?.achievements.includes(x.id) || x.locations.some((l) => l.playfield === playfield),
   }))
   const achievement = targets?.achievements.find((x) => String(x.id) === action.achievement)
@@ -218,7 +233,7 @@ function DiscoverFields({ action, targets, playfield, onChange }: { action: Disc
         <span>location</span>
         <SuggestInput
           value={action.name}
-          placeholder="optional: the area found here"
+          placeholder="optional: the place found here (name, world, achievement)"
           suggestions={locations}
           onChange={(name) => {
             const l = targets?.locations.find((x) => x.name === name)
@@ -230,8 +245,14 @@ function DiscoverFields({ action, targets, playfield, onChange }: { action: Disc
       </div>
       <div className="sv-field">
         <span>achievement</span>
-        <SuggestInput value={action.achievement ?? null} placeholder="optional: what it counts toward" suggestions={achievements} onChange={(v) => onChange({ ...action, achievement: v })} />
+        <SuggestInput value={action.achievement ?? null} placeholder="optional: what it counts toward (title, world, id)" suggestions={achievements} onChange={(v) => onChange({ ...action, achievement: v })} />
       </div>
+      {achievement?.text && (
+        <div className="sv-field">
+          <span />
+          <div className="small muted">“{achievement.text}”</div>
+        </div>
+      )}
       {achievement && achievement.locations.length > 1 && (
         <div className="sv-field">
           <span />
@@ -240,7 +261,7 @@ function DiscoverFields({ action, targets, playfield, onChange }: { action: Disc
             {achievement.locations.map((l, i) => (
               <span key={l.name + l.playfield}>
                 {i > 0 && ', '}
-                {l.name === action.name ? <b>{prettyArea(l.name)} (this wall)</b> : prettyArea(l.name)}
+                {l.name === action.name ? <b>{placeName(l)} (this wall)</b> : placeName(l)}
               </span>
             ))}
             . Each needs its own wall.

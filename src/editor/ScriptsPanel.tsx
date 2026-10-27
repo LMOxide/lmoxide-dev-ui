@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AreaEditor, useDraft } from './AreaEditor'
 import { areaCenter, scriptDistance, shownWave } from './geometry'
 import { newId, StatusSelect } from './NotesPanel'
+import { TagBadges, TagSelect } from './Tags'
 import type { Ctx } from './WorldEditor'
 import type { Script, Trigger, Wave, WaveRef } from './types'
 import { WaveStepper } from './Waves'
@@ -31,7 +32,7 @@ export function ScriptsPanel({ ctx, showWave }: { ctx: Ctx; showWave: (w: WaveRe
   const nearest = notes.scripts.map((s) => ({ s, d: scriptDistance(s, objects, state.pos) })).sort((a, b) => a.d - b.d)
 
   async function add() {
-    const s: Script = { id: newId('s'), name: 'New script', area: null, reference: null, comment: '', waves: [newWave(1)], status: 'unreviewed' }
+    const s: Script = { id: newId('s'), name: 'New script', area: null, reference: null, comment: '', waves: [newWave(1)], status: 'unreviewed', tags: ctx.newTags }
     const saved = await ctx.run(() => backend.saveScript(state.playfield, s), 'all')
     if (saved) setOpen(saved.id)
   }
@@ -56,6 +57,7 @@ export function ScriptsPanel({ ctx, showWave }: { ctx: Ctx; showWave: (w: WaveRe
               <span onClick={(e) => e.stopPropagation()}>
                 <WaveStepper ctx={ctx} script={s} />
               </span>
+              <TagBadges tags={s.tags} />
               <span className="badge">{s.status}</span>
               <span className="sv-dist">{d === Infinity ? '–' : `${d.toFixed(0)} m`}</span>
             </div>
@@ -96,6 +98,10 @@ function ScriptEditor({ ctx, script, onClose, showWave }: { ctx: Ctx; script: Sc
       <div className="sv-field">
         <span>review</span>
         <StatusSelect value={draft.status} onChange={(s) => update((d) => ({ ...d, status: s }))} />
+      </div>
+      <div className="sv-field">
+        <span>tags</span>
+        <TagSelect ctx={ctx} value={draft.tags ?? []} onChange={(tags) => update((d) => ({ ...d, tags }))} />
       </div>
 
       {draft.waves.map((w, i) => {

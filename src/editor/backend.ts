@@ -14,6 +14,7 @@ import type {
   SetInfo,
   SurveyObject,
   Surveyor,
+  TagUse,
   Vec3,
   TriggerTargets,
   PublishRequest,
@@ -22,6 +23,9 @@ import type {
   WallSettings,
   WaveRef,
 } from './types'
+
+/** The tags everyone is offered (lmoxide_survey::SUGGESTED_TAGS). */
+export const SUGGESTED_TAGS = ['approximate', 'todo', 'review', 'guess', 'placeholder', 'needs-footage', 'verified']
 
 /** What the survey page needs from the server: lmoxide-api's /v1/survey routes, or the mock. */
 export interface SurveyBackend {
@@ -37,10 +41,12 @@ export interface SurveyBackend {
   deleteScript(playfield: number, id: string): Promise<void>
   /** Wear a look (null: back to your own). */
   wear(account: number, what: Placeable | null): Promise<PlayerState>
-  /** Place it where the surveyor stands, facing their way, in a feature; it becomes the selection. */
-  place(account: number, what: Placeable, wave: WaveRef | null, feature: string): Promise<SurveyObject>
+  /** Place it where the surveyor stands, facing their way, in a feature, with tags; it becomes the selection. */
+  place(account: number, what: Placeable, wave: WaveRef | null, feature: string, tags: string[]): Promise<SurveyObject>
   /** A trigger wall where the surveyor stands, across their way; it becomes the selection. */
-  placeTrigger(account: number, wall: WallSettings, feature: string): Promise<SurveyObject>
+  placeTrigger(account: number, wall: WallSettings, feature: string, tags: string[]): Promise<SurveyObject>
+  /** Every tag in use (most used first) and the suggested ones. */
+  tags(): Promise<TagUse[]>
   /** What records can belong to (categories and nested features). */
   features(): Promise<FeaturesView>
   /** A feature nested under `parent` (a category or a feature). */
@@ -148,11 +154,20 @@ export class HttpBackend implements SurveyBackend {
   wear(account: number, what: Placeable | null) {
     return this.call<PlayerState>('POST', `/players/${account}/wear`, { what })
   }
-  place(account: number, what: Placeable, wave: WaveRef | null, feature: string) {
-    return this.call<SurveyObject>('POST', `/players/${account}/place`, { what, wave, feature })
+  place(account: number, what: Placeable, wave: WaveRef | null, feature: string, tags: string[]) {
+    return this.call<SurveyObject>('POST', `/players/${account}/place`, { what, wave, feature, tags })
   }
-  placeTrigger(account: number, wall: WallSettings, feature: string) {
-    return this.call<SurveyObject>('POST', `/players/${account}/place-trigger`, { ...wall, feature })
+  placeTrigger(account: number, wall: WallSettings, feature: string, tags: string[]) {
+    return this.call<SurveyObject>('POST', `/players/${account}/place-trigger`, { ...wall, feature, tags })
+  }
+  async tags() {
+    // (servers before tags: none in use, the usual ones offered)
+    try {
+      return await this.call<TagUse[]>('GET', '/tags')
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) return SUGGESTED_TAGS.map((tag) => ({ tag, count: 0, suggested: true }))
+      throw e
+    }
   }
   features() {
     return this.call<FeaturesView>('GET', '/features')

@@ -17,11 +17,14 @@ import { NotesPanel } from './NotesPanel'
 import { Objects } from './Objects'
 import { ScriptsPanel } from './ScriptsPanel'
 import { FeaturePicker } from './Features'
-import type { FeaturesView, WallLook, Placeable, PlayerState, PlayfieldNotes, SurveyObject, Surveyor, TriggerTargets, Unpublished, WaveRef } from './types'
+import { NewTagsPicker } from './Tags'
+import type { FeaturesView, WallLook, Placeable, PlayerState, PlayfieldNotes, SurveyObject, Surveyor, TagUse, TriggerTargets, Unpublished, WaveRef } from './types'
 
 const ACCOUNT_KEY = 'lmofx.survey.account'
 /** the feature new things go into */
 const FEATURE_KEY = 'lmofx.editor.feature'
+/** the tags new things get */
+const NEW_TAGS_KEY = 'lmofx.editor.new-tags'
 const POLL_MS = 1000
 /** how often the unpublished changes are counted */
 const UNPUBLISHED_MS = 5000
@@ -46,6 +49,11 @@ export interface Ctx {
   feature: string
   setFeature: (id: string) => void
   setFeatures: (f: FeaturesView) => void
+  /** every tag in use and the suggested ones */
+  tags: TagUse[]
+  /** the tags new placements, walls, notes and scripts get */
+  newTags: string[]
+  setNewTags: (tags: string[]) => void
   /** the looks marks can have */
   markLooks: string[]
   /** undo and redo */
@@ -75,6 +83,12 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
     setFeatureState(id)
     saveJson(FEATURE_KEY, id)
   }, [])
+  const [tags, setTags] = useState<TagUse[]>([])
+  const [newTags, setNewTagsState] = useState<string[]>(() => loadJson(NEW_TAGS_KEY, []))
+  const setNewTags = useCallback((t: string[]) => {
+    setNewTagsState(t)
+    saveJson(NEW_TAGS_KEY, t)
+  }, [])
   const [markLooks, setMarkLooks] = useState<string[]>([])
   const history = useHistory(backend)
   const [error, setError] = useState('')
@@ -102,6 +116,8 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
       setObjects(o.objects)
       setNotes(n)
       loaded.current = { playfield: s.playfield, revision: o.revision }
+      // (the tags in use change with the records)
+      backend.tags().then(setTags).catch(() => {})
     },
     [backend],
   )
@@ -210,9 +226,9 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
   const ctx: Ctx | null = useMemo(
     () =>
       state && account !== null
-        ? { backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, setFeatures, markLooks, history, run, setState, upsert }
+        ? { backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, setFeatures, tags, newTags, setNewTags, markLooks, history, run, setState, upsert }
         : null,
-    [backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, markLooks, history, run, upsert],
+    [backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, tags, newTags, setNewTags, markLooks, history, run, upsert],
   )
   const selected = ctx && state?.selected ? (objects.find((o) => o.id === state.selected) ?? null) : null
 
@@ -293,6 +309,7 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
           )}
         </div>
         {ctx && <FeaturePicker ctx={ctx} />}
+        {ctx && <NewTagsPicker ctx={ctx} />}
         <div className="who">
           <button disabled={!history.undoStack.length || account === null} onClick={() => undoRedo(true)} title={history.undoStack.length ? `Undo: ${describe(history.undoStack[history.undoStack.length - 1])} (Ctrl+Z)` : 'Nothing to undo'}>
             ↶ Undo
