@@ -79,7 +79,9 @@ areas, scripts and waves for review.
 - **Import / export**: one file per set or playfield; importing previews duplicates,
   near-duplicates (within a distance and angle you set, each can be taken anyway) and conflicts.
 
-`survey.html?mock` runs the page against an in-memory server, without logging in.
+`survey.html?mock` runs the page against an in-memory server, without logging in. Otherwise it
+logs in to the survey server's API (port 8091; the dev server forwards `/survey-api` there,
+`LMOXIDE_SURVEY_API` picks another), separately from the debug browser's login.
 
 ## Requirements
 
@@ -151,5 +153,6 @@ If the API is not reachable, the effect catalog can also be opened from a file
 | localStorage | `lmofx.fxAt` | where effects play (on me, `@near`, `@ground`) |
 | localStorage | `lmofx.notes`, `lmofx.tags` | notes by effect id; tags you added |
 | localStorage | `lmofx.survey.account` | the surveyor the survey page acts as |
+| localStorage, sessionStorage | `lmofx.survey.apiBase`, `lmofx.survey.session` | the survey page's API base and session |
 
 Notes live only in this browser: export them before clearing site data.

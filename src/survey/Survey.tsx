@@ -51,9 +51,9 @@ export function Survey({ backend, onLogout }: { backend: SurveyBackend; onLogout
   const failed = useCallback(
     (e: unknown) => {
       if (e instanceof ApiError && e.status === 401) onLogout?.()
-      setError(e instanceof ApiError && e.code === 'not_found' && e.message.includes('survey') ? 'this server is not a survey server (--mode survey)' : e instanceof Error ? e.message : String(e))
+      setError(e instanceof ApiError && e.code === 'not_found' && e.message.includes('survey') ? `the API at ${backend.label} doesn't reach a survey server: log out and use the survey server's API (/survey-api here, or port 8091; tools/survey-server.sh)` : e instanceof Error ? e.message : String(e))
     },
-    [onLogout],
+    [onLogout, backend],
   )
 
   const loadPlayfield = useCallback(
