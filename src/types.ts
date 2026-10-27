@@ -25,6 +25,8 @@ export interface Player {
   gm_level: number
   logged_in_at: number
   playfield?: number | null
+  /** where the character is now (x, y up, z); lmoxide 2026-10-27 or later */
+  position?: [number, number, number] | null
 }
 
 export type TimelineType =

@@ -153,11 +153,13 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
       .catch((e) => setPlayersError(failed(e)))
   }, [api, failed])
 
+  // every second while the Teleport section shows the player's coordinates
+  const tracking = view === 'debug' && section === 'teleport'
   useEffect(() => {
     loadPlayers()
-    const t = setInterval(() => document.visibilityState === 'visible' && loadPlayers(), 20_000)
+    const t = setInterval(() => document.visibilityState === 'visible' && loadPlayers(), tracking ? 1_000 : 20_000)
     return () => clearInterval(t)
-  }, [loadPlayers])
+  }, [loadPlayers, tracking])
 
   const gameData: GameData = useMemo(
     () => ({ effects: catalog ?? [], playfields, minifigures, tests, monsters, animations, bccStates }),

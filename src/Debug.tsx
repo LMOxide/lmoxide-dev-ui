@@ -93,6 +93,7 @@ export function Debug({
       <div className="section-body">
         {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && <Missing />}
         {section === 'quick' && <Quick send={send} canSend={canSend} />}
+        {section === 'teleport' && <Whereabouts data={data} online={online} />}
         {section === 'teleport' && <MovePanel send={send} canSend={canSend} />}
         {section === 'teleport' && <TeleportTo data={data} players={players} online={online} query={query} setQuery={setQuery} send={send} canSend={canSend} />}
         {section === 'scenarios' && (
@@ -720,6 +721,36 @@ function Progress({ data, send, canSend }: { data: GameData; send: (c: string) =
         ))}
       </ul>
     </>
+  )
+}
+
+/** Where the chosen player is now (the players list, refreshed every second here). */
+function Whereabouts({ data, online }: { data: GameData; online: Player | undefined }) {
+  const [copied, setCopied] = useState(false)
+  if (!online) return <p className="muted small">Choose a player online to see where they are.</p>
+  const pos = online.position
+  const text = pos ? pos.map((v) => v.toFixed(1)).join(' ') : ''
+  const copy = () =>
+    navigator.clipboard?.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1200)
+    })
+  return (
+    <p className="whereabouts">
+      <span className="muted small">You are at</span>{' '}
+      {online.playfield != null && (
+        <>
+          <span className="title">{playfieldName(data, online.playfield)}</span> <span className="muted mono">{online.playfield}</span>{' '}
+        </>
+      )}
+      {pos ? (
+        <button className="chip mono" onClick={copy} title="x, y (up), z — click to copy">
+          {copied ? 'copied' : `(${pos.map((v) => v.toFixed(1)).join(', ')})`}
+        </button>
+      ) : (
+        <span className="muted small">{online.playfield == null ? 'not in play yet' : 'no position (server older than 2026-10-27)'}</span>
+      )}
+    </p>
   )
 }
 

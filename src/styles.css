@@ -916,6 +916,14 @@ form.inline.wrap {
   }
 }
 
+.whereabouts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 0 0 8px;
+}
+
 .move-panel {
   border: 1px solid var(--border);
   border-radius: 8px;
