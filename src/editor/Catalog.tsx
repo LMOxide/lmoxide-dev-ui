@@ -62,7 +62,14 @@ export function Catalog({ ctx, catalog }: { ctx: Ctx; catalog: Placeable[] }) {
           </label>
           <WallFields value={wall} scripts={ctx.notes.scripts} looks={ctx.looks} targets={ctx.targets} playfield={ctx.state.playfield} onChange={(w) => setWall({ ...wall, ...w })} />
           <div className="sv-row">
-            <button className="primary" onClick={() => ctx.run(() => backend.placeTrigger(account, wall), 'all')} title="Standing in its middle, facing the way players walk through it">
+            <button
+              className="primary"
+              onClick={async () => {
+                const o = await ctx.run(() => backend.placeTrigger(account, wall), 'all')
+                if (o) ctx.history.record({ kind: 'place', id: o.id, name: o.name, snapshot: o })
+              }}
+              title="Standing in its middle, facing the way players walk through it"
+            >
               Place here
             </button>
           </div>
@@ -97,7 +104,14 @@ export function Catalog({ ctx, catalog }: { ctx: Ctx; catalog: Placeable[] }) {
                 {wearable(chosen) ? 'Wear it' : 'Show ghost'}
               </button>
             )}
-            <button className="primary" onClick={() => ctx.run(() => backend.place(account, what, wave), 'all')} title="Where you stand, facing your way">
+            <button
+              className="primary"
+              onClick={async () => {
+                const o = await ctx.run(() => backend.place(account, what, wave), 'all')
+                if (o) ctx.history.record({ kind: 'place', id: o.id, name: o.name, snapshot: o })
+              }}
+              title="Where you stand, facing your way"
+            >
               Place here
             </button>
           </div>

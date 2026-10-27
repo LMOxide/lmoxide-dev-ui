@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { distance, fmtPos, isHidden, toDegrees, toRadians } from './geometry'
+import { valuesOf, type Entry } from './history'
 import { SpawnPicker } from './SpawnPicker'
 import { WallFields } from './Walls'
 import type { Ctx } from './WorldEditor'
@@ -67,9 +68,33 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
     pending.current = {}
     if (!Object.keys(changes).length) return
     setSending(true)
+    const before = valuesOf(object, Object.keys(changes) as (keyof ObjectChanges)[])
     const o = await ctx.run(() => backend.edit(object.id, changes))
     setSending(false)
-    if (o) ctx.upsert(o, object.id)
+    if (!o) return
+    ctx.upsert(o, object.id)
+    // a guess comes back as a new placement replacing it
+    if (o.id !== object.id) ctx.history.record({ kind: 'replace', guess: object.id, id: o.id, name: o.name, after: o })
+    else ctx.history.record({ kind: 'edit', id: o.id, name: o.name, before, after: changes, at: Date.now() })
+  }
+
+  /** Reset: an edited or confirmed guess back to the guess; else every change made to it since
+   * this page was opened undone. */
+  const edits = ctx.history.undoStack.filter((e): e is Extract<Entry, { kind: 'edit' }> => e.kind === 'edit' && e.id === object.id)
+  const canReset = !!object.replaces || edits.length > 0
+  async function reset() {
+    if (object.replaces) {
+      const guess = await ctx.run(() => backend.forget(object.id), 'all')
+      ctx.history.record({ kind: 'reset', id: object.id, name: object.name, snapshot: object })
+      if (guess) ctx.run(() => backend.select(account, guess.id))
+      return
+    }
+    // the earliest value of each field changed
+    const back: ObjectChanges = {}
+    for (const e of [...edits].reverse()) Object.assign(back, e.before)
+    const before = valuesOf(object, Object.keys(back) as (keyof ObjectChanges)[])
+    const o = await ctx.run(() => backend.edit(object.id, back), 'all')
+    if (o) ctx.history.record({ kind: 'edit', id: o.id, name: o.name, before, after: back, at: 0 })
   }
 
   function change(d: Partial<Draft>) {
@@ -253,7 +278,13 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
 
       <div className="sv-row">
         {object.category === 'guessed' && (
-          <button className="primary" onClick={() => ctx.run(() => flush().then(() => backend.confirm(object.id)), 'all')}>
+          <button
+            className="primary"
+            onClick={async () => {
+              const o = await ctx.run(() => flush().then(() => backend.confirm(object.id)), 'all')
+              if (o) ctx.history.record({ kind: 'replace', guess: object.id, id: o.id, name: o.name, after: o })
+            }}
+          >
             Confirm
           </button>
         )}
@@ -262,10 +293,31 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
         <button className="ghost" onClick={() => ctx.run(() => backend.select(account, null))}>
           Deselect
         </button>
+        {can && (
+          <button
+            disabled={!canReset}
+            onClick={reset}
+            title={
+              object.replaces
+                ? 'Back to the guess it replaces (its changes are dropped)'
+                : canReset
+                  ? 'Undo every change to it since this page was opened'
+                  : 'Nothing changed since this page was opened'
+            }
+          >
+            {object.replaces ? 'Reset to guess' : 'Reset'}
+          </button>
+        )}
         {can &&
           (reallyDelete ? (
             <>
-              <button className="sv-danger" onClick={() => ctx.run(() => backend.remove(object.id), 'all')}>
+              <button
+                className="sv-danger"
+                onClick={async () => {
+                  const r = await ctx.run(() => backend.remove(object.id), 'all')
+                  if (r) ctx.history.record({ kind: 'delete', id: object.id, name: object.name, record: r.id, snapshot: object, guess: object.category === 'guessed' })
+                }}
+              >
                 Really delete
               </button>
               <button className="ghost" onClick={() => setReallyDelete(false)}>

@@ -51,7 +51,12 @@ export interface SurveyBackend {
   teleport(account: number, pos: Vec3): Promise<PlayerState>
   edit(id: string, changes: ObjectChanges): Promise<SurveyObject>
   confirm(id: string): Promise<SurveyObject>
-  remove(id: string): Promise<void>
+  /** Deletes it; the answer is the record that keeps it deleted (forget it to undo). */
+  remove(id: string): Promise<{ id: string }>
+  /** Drops a placement's record entirely; a guess it replaced comes back (its view). */
+  forget(id: string): Promise<SurveyObject | null>
+  /** Makes it exactly as the snapshot has it (undo and redo). */
+  put(id: string, snapshot: SurveyObject): Promise<SurveyObject>
   setInfo(): Promise<SetInfo>
   saveSetInfo(info: SetInfo): Promise<SetInfo>
   exportSet(playfield: number | null): Promise<Bundle>
@@ -163,8 +168,14 @@ export class HttpBackend implements SurveyBackend {
   confirm(id: string) {
     return this.call<SurveyObject>('POST', `/objects/${encodeURIComponent(id)}/confirm`)
   }
-  async remove(id: string) {
-    await this.call('DELETE', `/objects/${encodeURIComponent(id)}`)
+  remove(id: string) {
+    return this.call<{ id: string }>('DELETE', `/objects/${encodeURIComponent(id)}`)
+  }
+  forget(id: string) {
+    return this.call<SurveyObject | null>('POST', `/objects/${encodeURIComponent(id)}/forget`)
+  }
+  put(id: string, snapshot: SurveyObject) {
+    return this.call<SurveyObject>('PUT', `/objects/${encodeURIComponent(id)}`, snapshot)
   }
   setInfo() {
     return this.call<SetInfo>('GET', '/set')

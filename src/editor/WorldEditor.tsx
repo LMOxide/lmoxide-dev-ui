@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../api'
 import { ToolSwitch } from '../ToolSwitch'
+import { describe, useHistory, type History } from './history'
 import { loadJson, saveJson } from '../storage'
 import type { SurveyBackend } from './backend'
 import { Catalog } from './Catalog'
@@ -30,6 +31,8 @@ export interface Ctx {
   looks: string[]
   /** what trigger walls can discover or open (null: not loaded) */
   targets: TriggerTargets | null
+  /** undo and redo */
+  history: History
   /** Runs a call, shows its error, refreshes what it may have changed. */
   run: <T>(f: () => Promise<T>, refresh?: 'state' | 'all') => Promise<T | undefined>
   setState: (s: PlayerState) => void
@@ -46,6 +49,7 @@ export function WorldEditor({ backend, onLogout }: { backend: SurveyBackend; onL
   const [catalog, setCatalog] = useState<Placeable[]>([])
   const [looks, setLooks] = useState<string[]>(['red', 'green'])
   const [targets, setTargets] = useState<TriggerTargets | null>(null)
+  const history = useHistory(backend)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<RightTab>('selection')
   const [transfer, setTransfer] = useState(false)
@@ -129,8 +133,8 @@ export function WorldEditor({ backend, onLogout }: { backend: SurveyBackend; onL
   }, [])
 
   const ctx: Ctx | null = useMemo(
-    () => (state && account !== null ? { backend, account, state, objects, notes, catalog, looks, targets, run, setState, upsert } : null),
-    [backend, account, state, objects, notes, catalog, looks, targets, run, upsert],
+    () => (state && account !== null ? { backend, account, state, objects, notes, catalog, looks, targets, history, run, setState, upsert } : null),
+    [backend, account, state, objects, notes, catalog, looks, targets, history, run, upsert],
   )
   const selected = ctx && state?.selected ? (objects.find((o) => o.id === state.selected) ?? null) : null
 
@@ -140,6 +144,28 @@ export function WorldEditor({ backend, onLogout }: { backend: SurveyBackend; onL
     if (state?.selected && state.selected !== lastSelected.current) setTab('selection')
     lastSelected.current = state?.selected ?? null
   }, [state?.selected])
+
+  /** Undoes (or redoes) a step and selects what it leaves. */
+  const undoRedo = useCallback(
+    async (back: boolean) => {
+      const id = await run(() => (back ? history.undo() : history.redo()), 'all')
+      if (id && account !== null) run(() => backend.select(account, id))
+    },
+    [run, history, account, backend],
+  )
+
+  // Ctrl+Z, Ctrl+Shift+Z / Ctrl+Y outside text boxes (where they edit the text)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (!(e.ctrlKey || e.metaKey) || (t && ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) return
+      const k = e.key.toLowerCase()
+      if (k === 'z' && !e.shiftKey && history.undoStack.length) (e.preventDefault(), undoRedo(true))
+      else if (((k === 'z' && e.shiftKey) || k === 'y') && history.redoStack.length) (e.preventDefault(), undoRedo(false))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [history, undoRedo])
 
   const mock = 'move' in backend ? (backend as unknown as MockBackend) : null
 
@@ -180,6 +206,12 @@ export function WorldEditor({ backend, onLogout }: { backend: SurveyBackend; onL
           )}
         </div>
         <div className="who">
+          <button disabled={!history.undoStack.length || account === null} onClick={() => undoRedo(true)} title={history.undoStack.length ? `Undo: ${describe(history.undoStack[history.undoStack.length - 1])} (Ctrl+Z)` : 'Nothing to undo'}>
+            ↶ Undo
+          </button>
+          <button disabled={!history.redoStack.length || account === null} onClick={() => undoRedo(false)} title={history.redoStack.length ? `Redo: ${describe(history.redoStack[history.redoStack.length - 1])} (Ctrl+Shift+Z)` : 'Nothing to redo'}>
+            ↷ Redo
+          </button>
           <button onClick={() => setTransfer(true)}>Import / export</button>
           <span className="muted small">{backend.label}</span>
           {onLogout && (

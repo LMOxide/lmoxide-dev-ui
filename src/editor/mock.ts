@@ -47,6 +47,9 @@ function base(id: string, p: Placeable, pos: Vec3, category: SurveyObject['categ
 export class MockBackend implements SurveyBackend {
   readonly label = 'mock server (nothing is saved)'
   private objectsById = new Map<string, SurveyObject>()
+  /** guesses replaced by placements (by guess id), and deleted guesses' records */
+  private guesses = new Map<string, SurveyObject>()
+  private removals = new Map<string, SurveyObject>()
   private revision = 1
   private notesData: PlayfieldNotes = { notes: [], scripts: [] }
   private info: SetInfo = { name: 'Mock set', authors: ['mock'], comment: '' }
@@ -103,7 +106,8 @@ export class MockBackend implements SurveyBackend {
   private surveyed(o: SurveyObject): SurveyObject {
     if (o.category === 'surveyed') return o
     if (o.category !== 'guessed') throw new Error(`${o.category} objects can only be hidden`)
-    const s: SurveyObject = { ...o, id: newId('p'), category: 'surveyed', author: 'mock', updated: now() }
+    const s: SurveyObject = { ...o, id: newId('p'), category: 'surveyed', author: 'mock', updated: now(), replaces: { id: o.id, kind: o.kind as never, pos: o.pos } }
+    this.guesses.set(o.id, structuredClone(o))
     this.objectsById.delete(o.id)
     this.objectsById.set(s.id, s)
     if (this.player.selected === o.id) this.player.selected = s.id
@@ -260,6 +264,28 @@ export class MockBackend implements SurveyBackend {
     this.objectsById.delete(id)
     if (this.player.selected === id) this.player.selected = null
     this.bump()
+    if (o.category !== 'guessed') return { id }
+    const record = newId('p')
+    this.removals.set(record, o)
+    return { id: record }
+  }
+  async forget(id: string) {
+    const removed = this.removals.get(id)
+    const o = this.objectsById.get(id)
+    const guess = removed ?? (o?.replaces ? this.guesses.get(o.replaces.id) : undefined)
+    this.removals.delete(id)
+    this.objectsById.delete(id)
+    if (this.player.selected === id) this.player.selected = null
+    if (guess) this.objectsById.set(guess.id, structuredClone(guess))
+    this.bump()
+    return guess ? structuredClone(guess) : null
+  }
+  async put(id: string, snapshot: SurveyObject) {
+    const o: SurveyObject = { ...structuredClone(snapshot), id, category: 'surveyed', updated: now() }
+    if (o.replaces) this.objectsById.delete(o.replaces.id)
+    this.objectsById.set(id, o)
+    this.bump()
+    return structuredClone(o)
   }
   async setInfo() {
     return structuredClone(this.info)

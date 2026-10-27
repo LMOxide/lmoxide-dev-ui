@@ -87,6 +87,10 @@ the survey server (*Editing as*): its position and facing place things.
   changes in game as you edit.
 - **Notes**: mission areas, achievements, dialogues, scripts and comments, at a spot, in a
   circle or in an area walked out corner by corner; naming the thing is optional.
+- **Undo / redo** (top right, `Ctrl Z` / `Ctrl Shift Z` or `Ctrl Y` outside text boxes): placing,
+  editing (moves and turns typed in quick succession are one step), confirming, deleting and
+  resetting, for this page's session. **Reset** on the selection: an edited or confirmed guess
+  back to the guess; anything else back to how it was when the page was opened.
 - **Import / export**: one file per set or playfield; importing previews duplicates,
   near-duplicates (within a distance and angle you set, each can be taken anyway) and conflicts.
 

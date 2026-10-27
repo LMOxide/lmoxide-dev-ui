@@ -65,6 +65,9 @@ export interface SurveyObject {
   color?: string
   action?: WallAction
   once?: boolean
+  playfield?: number
+  /** the guess it replaces (Reset brings it back) */
+  replaces?: { id: string; kind: Kind; monster_data?: number | null; template?: number | null; pos: Vec3 } | null
   comment?: string
   author?: string
   /** unix seconds */
