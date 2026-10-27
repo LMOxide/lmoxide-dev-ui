@@ -74,15 +74,43 @@ API gaps found along the way are in [`docs/API-PROPOSALS.md`](docs/API-PROPOSALS
 
 For a survey server (`--mode survey`, LMOxide's `tools/survey-server.sh`): place enemies, NPCs
 and smashables where they stood on live, confirm, edit or delete the guessed content, place
-trigger walls, and mark areas, scripts and waves for review. You edit as a character online on
-the survey server (*Editing as*): its position and facing place things.
+trigger walls, mark areas, scripts and waves for review, and choose what counts toward
+achievements. You edit as a character online on the survey server (*Editing as*): its position
+and facing place things. With nobody chosen the tree can still be browsed and edited; placing and
+showing things in game need the character.
 
-- **Place**: pick something, *Wear it* (or *Show ghost* for buildies and interactables), walk to
-  where it stood facing its way, *Place here*, optionally into a script's wave.
-- **In this playfield**: everything spawned, nearest first, by category (guessed, surveyed,
-  live, demo, client), distance and wave; hide (only for you, never saved), *Hide listed*,
-  *Unhide all*, *Select nearest*. Attacking something in game selects it too, and so does
-  interacting with a buildie (buildies are listed, can be selected and hidden, not changed yet).
+Everything is in one tree, grouped by what it is for; tabs above it pick the top folder:
+
+```
+Spawns/        {world}/  scripts/ (links) · triggers/ · notes/ · what spawns at start
+                         (by kind: Enemies/, NPCs/, ... when there are many)
+Scripts/       {script}/ triggers/ (walls that start it; optional) · waves/ {wave}/ what it spawns
+Achievements/  Smash/    {achievement}/ {enemy}        every smash achievement
+               Discover/ {world}/ {location}/ triggers/ every exploration location
+```
+
+- Rows that need work are marked amber (a smash achievement without enemies, a location no
+  trigger discovers, a wave that spawns nothing, a guess), done ones green; folders count them
+  (`3/12`). The ☰ button shows only what needs work; the search (`#tag` too), the tag filter and
+  the ⏷ filters (category, author, feature, distance; *Show only these in game*, *Hide these*)
+  narrow the tree.
+- Everything takes tags (#todo, #review, #guess, ...): spawns and walls, scripts, waves, smash
+  achievements and discover locations (their tags and comment are a rule record, lmoxide 4a2723b).
+- **Copy and paste** (right click, or `Ctrl C` / `Ctrl V` on the selected row): spawns and trigger
+  walls, a wave with its spawns, a whole script, an achievement's enemies. Paste a wave into
+  another script, spawns into a wave or a world, walls onto a script (they start it) or a location
+  (they discover it). Copies keep their spot (*Move to me* puts them where you stand) and are new
+  records (each one an undo step).
+- **Place**: a world's (or a wave's) page has a spawn picker (search the catalog), *Wear it* (or
+  *Show ghost* for buildies and interactables), walk to where it stood facing its way, *Place
+  here*; *Trigger wall* places a wall where you stand. A location's or a script's triggers place a
+  wall that already discovers it or starts it. *Add world…* puts any world in the tree.
+- **Smash achievements**: choose the enemies (or smashables) that count toward each; the minifigure
+  copies of one ("Smash 50 Witches as ...") are one row. Play servers count only those enemies
+  once the rule is published and approved.
+- Attacking something in game (or *Select nearest*, or placing) selects its row; selecting a row
+  in your world selects it in game. The eye on a row hides it in game (only for you, never
+  saved); *Unhide all*. A wave's eye shows that wave (a script shows one wave at a time).
 - **Trigger walls** can also open a portal (a teleport window, suggested by destination).
 - **Selection**: x/y/z and heading with nudges, *Move to me*, *Face my way*, *Perpendicular to
   me* (a wall along your way), *Face away from me* (an enemy with its back to you), *Face me*;
@@ -92,9 +120,9 @@ the survey server (*Editing as*): its position and facing place things.
   (both make them surveyed) or *Delete*; live, demo and client objects can only be hidden.
 - **Scripts**: waves with a name, what starts them (time, an enemy's health, a player walking
   in, another wave defeated, or a comment), *Preview*. Of a script with several waves only one
-  is shown at a time, wave 1 at first: step with ◀ ▶ (or *all*) in *Waves shown*, nearest
-  scripts first (by their placements). Placing into a wave shows that wave.
-- **Trigger walls**: *Trigger wall* in Place: a wall (width, height, depth; red, green, shield
+  is shown at a time, wave 1 at first: step with ◀ ▶ (or *all*) on its page. Placing into a wave
+  shows that wave.
+- **Trigger walls**: a wall (width, height, depth; red, green, shield
   or forcefield look) placed across your way that does something when a player walks through
   it: starts a script's wave, discovers a location, opens a dialogue, shows a message (or a
   comment says what), optionally only once. Resize, recolour, move and turn it like the rest; it
@@ -108,6 +136,8 @@ the survey server (*Editing as*): its position and facing place things.
 - **Publish**: edits are saved on the survey server as you make them (written to disk once you pause), so a crash loses nothing, but play servers only see what you publish. The header button counts your unpublished records (`Publish (n)`, or *Saved · all published*); the dialog publishes all of yours or one playfield/feature/author group, and lists each record (`GET /v1/survey/unpublished`, `POST /v1/survey/publish`, lmoxide d07b419).
 - **Import / export**: one file per set or playfield; importing previews duplicates,
   near-duplicates (within a distance and angle you set, each can be taken anyway) and conflicts.
+
+The world editor is built with Tailwind and shadcn/ui (`src/components/ui`, add more with `pnpm dlx shadcn@latest add <name>`); its older panels keep the dev UI's own styles (`styles.css`, `editor.css`, in a layer below Tailwind's utilities: `src/editor/app.css`).
 
 `/editor/?mock` runs it against an in-memory server, without signing in. `survey.html` (its old
 address) forwards to `/editor/`.
@@ -186,6 +216,7 @@ If the API is not reachable, the effect catalog can also be opened from a file
 | localStorage | `lmofx.fxAt` | where effects play (on me, `@near`, `@ground`) |
 | localStorage | `lmofx.notes`, `lmofx.tags` | notes by effect id; tags you added |
 | localStorage | `lmofx.survey.account` | the character the world editor edits as |
+| localStorage | `lmofx.editor.tab`, `lmofx.editor.open`, `lmofx.editor.pinned-worlds` | the world editor's tab, open folders, worlds added to Spawns |
 | localStorage | `lmofx.tool` | the tool opened last |
 
 Notes live only in this browser: export them before clearing site data.

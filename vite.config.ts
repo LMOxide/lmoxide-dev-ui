@@ -1,4 +1,6 @@
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 
 // In development /api goes to the play server's lmoxide-api (tools/web-dev-backend.sh or
@@ -10,7 +12,8 @@ const editorApiTarget = process.env.LMOXIDE_EDITOR_API ?? process.env.LMOXIDE_SU
 export default defineConfig({
   // relative asset paths: dist/ works from any directory or path on a static host
   base: './',
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
+  resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   // the sign-in page (/), the debugger (/debugger/), the world editor (/editor/), and
   // survey.html, the editor's old address (forwards to /editor/)
   build: {

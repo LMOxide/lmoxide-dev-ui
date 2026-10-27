@@ -1,4 +1,4 @@
-import { scriptDistance, shownWave } from './geometry'
+import { shownWave } from './geometry'
 import type { Ctx } from './WorldEditor'
 import type { Script } from './types'
 
@@ -23,29 +23,5 @@ export function WaveStepper({ ctx, script }: { ctx: Ctx; script: Script }) {
         all
       </button>
     </span>
-  )
-}
-
-/** The scripts with several waves, nearest first (by their placements: scripts rarely have an area). */
-export function WavesNearby({ ctx }: { ctx: Ctx }) {
-  const { state, objects, notes } = ctx
-  const scripts = notes.scripts
-    .filter((s) => s.waves.length > 1)
-    .map((s) => ({ s, d: scriptDistance(s, objects, state.pos) }))
-    .sort((a, b) => a.d - b.d)
-  if (!scripts.length) return null
-  return (
-    <div className="sv-panel">
-      <div className="small muted">Waves shown (one per script; place into a wave to see it)</div>
-      {scripts.map(({ s, d }) => (
-        <div key={s.id} className="sv-row">
-          <span className="sv-name small" title={s.comment}>
-            {s.name || 'script'}
-          </span>
-          <WaveStepper ctx={ctx} script={s} />
-          <span className="sv-dist">{d === Infinity ? '–' : `${d.toFixed(0)} m`}</span>
-        </div>
-      ))}
-    </div>
   )
 }

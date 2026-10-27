@@ -7,18 +7,18 @@ import type { Player } from '../types'
 import { describe, useHistory, type History } from './history'
 import { loadJson, saveJson } from '../storage'
 import type { SurveyBackend } from './backend'
-import { Catalog } from './Catalog'
-import { Editor } from './Editor'
 import { fmtPos, toDegrees } from './geometry'
 import { ImportExport } from './ImportExport'
+import { Browser } from './Browser'
+import { useWorlds } from './worlds'
 import { Publish, recordCount } from './Publish'
 import type { MockBackend } from './mock'
-import { NotesPanel } from './NotesPanel'
-import { Objects } from './Objects'
-import { ScriptsPanel } from './ScriptsPanel'
 import { FeaturePicker } from './Features'
 import { NewTagsPicker } from './Tags'
-import type { FeaturesView, WallLook, Placeable, PlayerState, PlayfieldNotes, SurveyObject, Surveyor, TagUse, TriggerTargets, Unpublished, WaveRef } from './types'
+import type { FeaturesView, WallLook, Placeable, PlayerState, PlayfieldNotes, SurveyObject, Surveyor, TagUse, TriggerTargets, Unpublished } from './types'
+
+/** The state the editor uses with nobody in game (playfield -1: no world is "here"). */
+const OFFLINE: PlayerState = { account_id: -1, character_name: '', playfield: -1, pos: [0, 0, 0], heading: 0, selected: null, hidden: [], shown_waves: {}, wearing: null, revision: 0 }
 
 const ACCOUNT_KEY = 'lmofx.survey.account'
 /** the feature new things go into */
@@ -28,8 +28,6 @@ const NEW_TAGS_KEY = 'lmofx.editor.new-tags'
 const POLL_MS = 1000
 /** how often the unpublished changes are counted */
 const UNPUBLISHED_MS = 5000
-
-type RightTab = 'selection' | 'scripts' | 'notes'
 
 /** What the panels share: the surveyor's state and the calls that change it. */
 export interface Ctx {
@@ -92,14 +90,10 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
   const [markLooks, setMarkLooks] = useState<string[]>([])
   const history = useHistory(backend)
   const [error, setError] = useState('')
-  const [tab, setTab] = useState<RightTab>('selection')
-  /** narrow screens: which column shows (0 place, 1 the playfield's objects, 2 the right one) */
-  const [col, setCol] = useState(1)
   const [transfer, setTransfer] = useState(false)
   const [publishing, setPublishing] = useState(false)
   /** null: the server can't tell (older than publishing) */
   const [unpublished, setUnpublished] = useState<Unpublished[] | null>(null)
-  const [waveFilter, setWaveFilter] = useState<WaveRef | 'static' | null>(null)
   const loaded = useRef<{ playfield: number; revision: number } | null>(null)
 
   const failed = useCallback(
@@ -110,16 +104,20 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
     [onExpire, onLogout, backend],
   )
 
+  const worlds = useWorlds(backend, failed)
+  const setWorld = worlds.set
+
   const loadPlayfield = useCallback(
     async (s: PlayerState) => {
       const [o, n] = await Promise.all([backend.objects(s.playfield), backend.notes(s.playfield)])
       setObjects(o.objects)
       setNotes(n)
+      setWorld(s.playfield, { objects: o.objects, notes: n })
       loaded.current = { playfield: s.playfield, revision: o.revision }
       // (the tags in use change with the records)
       backend.tags().then(setTags).catch(() => {})
     },
-    [backend],
+    [backend, setWorld],
   )
 
   const refresh = useCallback(
@@ -219,26 +217,24 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
     [refresh, failed],
   )
 
-  const upsert = useCallback((o: SurveyObject, replaced?: string) => {
-    setObjects((list) => [...list.filter((x) => x.id !== o.id && x.id !== replaced), o])
-  }, [])
+  const worldUpsert = worlds.upsert
+  const playfield = state?.playfield
+  const upsert = useCallback(
+    (o: SurveyObject, replaced?: string) => {
+      setObjects((list) => [...list.filter((x) => x.id !== o.id && x.id !== replaced), o])
+      if (playfield !== undefined) worldUpsert(o, playfield, replaced)
+    },
+    [worldUpsert, playfield],
+  )
 
-  const ctx: Ctx | null = useMemo(
+  const ctx: Ctx = useMemo(
     () =>
+      // nobody chosen (or online): the tree can still be read and edited, without the game
       state && account !== null
         ? { backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, setFeatures, tags, newTags, setNewTags, markLooks, history, run, setState, upsert }
-        : null,
+        : { backend, account: -1, state: OFFLINE, objects: [], notes: { notes: [], scripts: [] }, catalog, looks, targets, features, feature, setFeature, setFeatures, tags, newTags, setNewTags, markLooks, history, run, setState, upsert },
     [backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, tags, newTags, setNewTags, markLooks, history, run, upsert],
   )
-  const selected = ctx && state?.selected ? (objects.find((o) => o.id === state.selected) ?? null) : null
-
-  // selecting in game (by attacking) shows the selection
-  const lastSelected = useRef<string | null>(null)
-  useEffect(() => {
-    if (state?.selected && state.selected !== lastSelected.current) setTab('selection')
-    lastSelected.current = state?.selected ?? null
-  }, [state?.selected])
-
   /** Undoes (or redoes) a step and selects what it leaves. */
   const undoRedo = useCallback(
     async (back: boolean) => {
@@ -337,7 +333,7 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
       </header>
       <div className="banners">
         {error && <p className="banner warn">{error}</p>}
-        {account === null && !onPlay && <p className="banner warn">Choose who you edit as: a character online on the survey server (its position places things).</p>}
+        {account === null && !onPlay && <p className="banner warn">Nobody chosen to edit as: you can browse and edit the tree, but placing, moving to you and showing things in game need a character online on the survey server (choose it above).</p>}
         {onPlay && (
           <p className="banner">
             You're on the play server ({onPlay.character_name}).{' '}
@@ -350,51 +346,7 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
           </p>
         )}
       </div>
-      {ctx && (
-        <main className="sv-cols">
-          {/* narrow screens: one column at a time */}
-          <div className="segmented narrow-tabs">
-            {['Place', 'In this playfield', selected ? 'Selection' : 'Selection & scripts'].map((label, i) => (
-              <button key={i} className={col === i ? 'on' : ''} onClick={() => setCol(i)}>
-                {label}
-              </button>
-            ))}
-          </div>
-          <section className={`sv-col${col === 0 ? '' : ' narrow-hidden'}`}>
-            <Catalog ctx={ctx} catalog={catalog} />
-          </section>
-          <section className={`sv-col${col === 1 ? '' : ' narrow-hidden'}`}>
-            <Objects
-              ctx={ctx}
-              waveFilter={waveFilter}
-              setWaveFilter={setWaveFilter}
-              onSelect={() => {
-                setTab('selection')
-                setCol(2)
-              }}
-            />
-          </section>
-          <section className={`sv-col${col === 2 ? '' : ' narrow-hidden'}`}>
-            <div className="segmented sv-tabs">
-              {(['selection', 'scripts', 'notes'] as RightTab[]).map((t) => (
-                <button key={t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>
-                  {t === 'selection' ? 'Selection' : t === 'scripts' ? `Scripts (${notes.scripts.length})` : `Notes (${notes.notes.length})`}
-                </button>
-              ))}
-            </div>
-            {tab === 'selection' &&
-              (selected ? (
-                <Editor key={selected.id} ctx={ctx} object={selected} />
-              ) : (
-                <p className="muted">
-                  Nothing selected. Pick something in the list, use <i>Select nearest</i>, or attack it in game.
-                </p>
-              ))}
-            {tab === 'scripts' && <ScriptsPanel ctx={ctx} showWave={(w) => setWaveFilter(w)} />}
-            {tab === 'notes' && <NotesPanel ctx={ctx} />}
-          </section>
-        </main>
-      )}
+      <Browser ctx={ctx} worlds={worlds} />
       {publishing && unpublished && <Publish backend={backend} unpublished={unpublished} setUnpublished={setUnpublished} onClose={() => setPublishing(false)} />}
       {transfer && <ImportExport backend={backend} playfield={state?.playfield ?? null} objects={objects} onClose={() => setTransfer(false)} onImported={() => refresh(true).catch(failed)} />}
     </div>

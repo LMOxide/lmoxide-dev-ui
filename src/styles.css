@@ -123,34 +123,34 @@ kbd {
   color: var(--error);
 }
 
-button,
-input,
-select,
-textarea {
+button:not([data-slot]),
+input:not([data-slot]),
+select:not([data-slot]),
+textarea:not([data-slot]) {
   font: inherit;
   color: inherit;
 }
-input,
-select,
-textarea {
+input:not([data-slot]),
+select:not([data-slot]),
+textarea:not([data-slot]) {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 5px 8px;
   min-width: 0;
 }
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
-button:focus-visible {
+input:not([data-slot]):focus-visible,
+select:not([data-slot]):focus-visible,
+textarea:not([data-slot]):focus-visible,
+button:not([data-slot]):focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
-textarea {
+textarea:not([data-slot]) {
   width: 100%;
   resize: vertical;
 }
-button {
+button:not([data-slot]) {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -158,10 +158,10 @@ button {
   cursor: pointer;
   white-space: nowrap;
 }
-button:hover:not(:disabled) {
+button:not([data-slot]):hover:not(:disabled) {
   background: var(--surface-2);
 }
-button:disabled {
+button:not([data-slot]):disabled {
   opacity: 0.45;
   cursor: default;
 }

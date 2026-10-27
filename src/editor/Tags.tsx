@@ -1,4 +1,4 @@
-import { MultiSelect } from '../MultiSelect'
+import { MultiCombobox } from '@/components/combobox'
 import type { Ctx } from './WorldEditor'
 
 /**
@@ -22,16 +22,17 @@ export function tidyTags(tags: string[]): string[] {
 
 /** Picks tags: the ones in use (with how many records carry them) and the suggested ones; typing adds a new one. */
 export function TagSelect({ ctx, value, onChange, label, none = 'no tags', title }: { ctx: Ctx; value: string[]; onChange: (v: string[]) => void; label?: string; none?: string; title?: string }) {
-  const known = ctx.tags.map((t) => ({ value: t.tag, label: `#${t.tag}`, detail: t.count || undefined }))
+  const known = ctx.tags.map((t) => ({ value: t.tag, label: `#${t.tag}`, detail: t.count ? String(t.count) : undefined, group: t.count ? 'In use' : 'Suggested' }))
   // tags it has that the list doesn't know yet
   const extra = value.filter((v) => !ctx.tags.some((t) => t.tag === v)).map((v) => ({ value: v, label: `#${v}` }))
   return (
-    <MultiSelect
+    <MultiCombobox
       label={label}
-      none={none}
+      placeholder={none}
       options={[...known, ...extra]}
       value={value}
       onChange={(v) => onChange(tidyTags(v))}
+      search="Search tags…"
       create="Add tag"
       title={title ?? 'Labels for sorting work out (#approximate: rough, fix later; #todo; #review; ...). They change nothing in game.'}
     />

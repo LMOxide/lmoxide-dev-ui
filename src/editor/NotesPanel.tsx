@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { AreaEditor, useDraft } from './AreaEditor'
-import { areaCenter, distance } from './geometry'
-import { TagBadges, TagSelect } from './Tags'
+import { areaCenter } from './geometry'
+import { TagSelect } from './Tags'
 import type { Ctx } from './WorldEditor'
 import { NOTE_KINDS, type Note, type NoteKind, type Review } from './types'
 
@@ -25,49 +25,10 @@ export function StatusSelect({ value, onChange }: { value: Review; onChange: (r:
   )
 }
 
-/** Areas someone has to check and implement: missions, achievements, dialogues, scripts, comments. */
-export function NotesPanel({ ctx }: { ctx: Ctx }) {
-  const { backend, state, notes } = ctx
-  const [open, setOpen] = useState<string | null>(null)
-
-  async function add() {
-    const note: Note = { id: newId('n'), kind: 'comment', area: { point: [...state.pos] }, reference: null, comment: '', status: 'unreviewed', tags: ctx.newTags }
-    const saved = await ctx.run(() => backend.saveNote(state.playfield, note), 'all')
-    if (saved) setOpen(saved.id)
-  }
-
-  const sorted = [...notes.notes].sort((a, b) => distance(areaCenter(a.area), state.pos) - distance(areaCenter(b.area), state.pos))
-  return (
-    <>
-      <div className="sv-row">
-        <button className="primary" onClick={add}>
-          New note here
-        </button>
-        <span className="muted small">Name what it is only if you found it; a comment is always welcome.</span>
-      </div>
-      {sorted.map((n) =>
-        open === n.id ? (
-          <NoteEditor key={n.id} ctx={ctx} note={n} onClose={() => setOpen(null)} />
-        ) : (
-          <div key={n.id} className="sv-panel" onClick={() => setOpen(n.id)} style={{ cursor: 'pointer' }}>
-            <div className="sv-row">
-              <span className="badge wave">{KIND_LABELS[n.kind]}</span>
-              <span className="sv-name">{n.reference || n.comment || <i className="muted">no details</i>}</span>
-              <TagBadges tags={n.tags} />
-              <span className="badge">{n.status}</span>
-              <span className="sv-dist">{distance(areaCenter(n.area), state.pos).toFixed(0)} m</span>
-            </div>
-          </div>
-        ),
-      )}
-      {!notes.notes.length && <p className="muted">No notes in this playfield yet.</p>}
-    </>
-  )
-}
-
-function NoteEditor({ ctx, note, onClose }: { ctx: Ctx; note: Note; onClose: () => void }) {
+export function NoteEditor({ ctx, note, onClose, playfield }: { ctx: Ctx; note: Note; onClose?: () => void; playfield?: number }) {
   const { backend, account, state } = ctx
-  const [draft, update] = useDraft(note, (n) => ctx.run(() => backend.saveNote(state.playfield, n), 'all'))
+  const pf = playfield ?? state.playfield
+  const [draft, update] = useDraft(note, (n) => ctx.run(() => backend.saveNote(pf, n), 'all'))
   const [reallyDelete, setReallyDelete] = useState(false)
   return (
     <div className="sv-panel focus">
@@ -102,10 +63,10 @@ function NoteEditor({ ctx, note, onClose }: { ctx: Ctx; note: Note; onClose: () 
         <TagSelect ctx={ctx} value={draft.tags ?? []} onChange={(tags) => update((d) => ({ ...d, tags }))} />
       </div>
       <div className="sv-row">
-        <button onClick={onClose}>Done</button>
+        {onClose && <button onClick={onClose}>Done</button>}
         <button onClick={() => ctx.run(() => backend.teleport(account, areaCenter(draft.area)))}>Go to it</button>
         {reallyDelete ? (
-          <button className="sv-danger" onClick={() => ctx.run(() => backend.deleteNote(state.playfield, note.id), 'all').then(onClose)}>
+          <button className="sv-danger" onClick={() => ctx.run(() => backend.deleteNote(pf, note.id), 'all').then(() => onClose?.())}>
             Really delete
           </button>
         ) : (

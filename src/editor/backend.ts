@@ -9,6 +9,9 @@ import type {
   ObjectChanges,
   Placeable,
   PlayerState,
+  PlayfieldInfo,
+  SmashAchievement,
+  SmashRule,
   PlayfieldNotes,
   Script,
   SetInfo,
@@ -87,6 +90,15 @@ export interface SurveyBackend {
   exportSet(playfield: number | null): Promise<Bundle>
   /** dryRun: only the report (the preview). */
   importSet(bundle: Bundle, options: MergeOptions, dryRun: boolean): Promise<MergeReport>
+  /** Every named playfield, with how much is in it. */
+  playfields(): Promise<PlayfieldInfo[]>
+  /** A copy of a snapshot as a new record in any playfield (paste); nobody's selection changes. */
+  create(playfield: number, snapshot: SurveyObject): Promise<SurveyObject>
+  smashAchievements(): Promise<SmashAchievement[]>
+  /** Every rule: smash achievements' enemies, discover locations' tags. */
+  achievementRules(): Promise<SmashRule[]>
+  saveRule(key: string, rule: { enemies: string[]; comment?: string; tags?: string[]; feature?: string }): Promise<SmashAchievement | null>
+  deleteRule(key: string): Promise<void>
 }
 
 export class HttpBackend implements SurveyBackend {
@@ -244,5 +256,23 @@ export class HttpBackend implements SurveyBackend {
   }
   importSet(bundle: Bundle, options: MergeOptions, dryRun: boolean) {
     return this.call<MergeReport>('POST', '/import', { bundle, options, dry_run: dryRun })
+  }
+  playfields() {
+    return this.call<PlayfieldInfo[]>('GET', '/playfields')
+  }
+  create(playfield: number, snapshot: SurveyObject) {
+    return this.call<SurveyObject>('POST', `/playfields/${playfield}/objects`, snapshot)
+  }
+  smashAchievements() {
+    return this.call<SmashAchievement[]>('GET', '/smash-achievements')
+  }
+  achievementRules() {
+    return this.call<SmashRule[]>('GET', '/achievement-rules')
+  }
+  saveRule(key: string, rule: { enemies: string[]; comment?: string; tags?: string[]; feature?: string }) {
+    return this.call<SmashAchievement | null>('PUT', `/smash-achievements/${encodeURIComponent(key)}`, rule)
+  }
+  async deleteRule(key: string) {
+    await this.call('DELETE', `/smash-achievements/${encodeURIComponent(key)}`)
   }
 }

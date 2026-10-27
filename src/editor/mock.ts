@@ -13,7 +13,10 @@ import type {
   ObjectChanges,
   Placeable,
   PlayerState,
+  PlayfieldInfo,
   PlayfieldNotes,
+  SmashAchievement,
+  SmashRule,
   Script,
   SetInfo,
   SurveyObject,
@@ -140,11 +143,12 @@ export class MockBackend implements SurveyBackend {
   async catalog() {
     return CATALOG
   }
-  async objects() {
-    return { revision: this.revision, objects: structuredClone([...this.objectsById.values()]) }
+  async objects(pf: number) {
+    // everything is in the one playfield
+    return { revision: this.revision, objects: pf === PLAYFIELD ? structuredClone([...this.objectsById.values()]) : [] }
   }
-  async notes() {
-    return structuredClone(this.notesData)
+  async notes(pf: number) {
+    return pf === PLAYFIELD ? structuredClone(this.notesData) : { notes: [], scripts: [] }
   }
   async saveNote(_pf: number, note: Note) {
     const n = { ...note, author: 'mock', updated: now() }
@@ -433,5 +437,59 @@ export class MockBackend implements SurveyBackend {
       this.bump()
     }
     return report
+  }
+
+  async playfields(): Promise<PlayfieldInfo[]> {
+    const objs = [...this.objectsById.values()]
+    const here: PlayfieldInfo = {
+      id: PLAYFIELD,
+      name: 'Pirate World',
+      base: objs.filter((o) => o.category !== 'surveyed').length,
+      placements: objs.filter((o) => o.category === 'surveyed' && o.kind !== 'trigger').length,
+      triggers: objs.filter((o) => o.kind === 'trigger').length,
+      scripts: this.notesData.scripts.length,
+      notes: this.notesData.notes.length,
+    }
+    const empty = (id: number, name: string): PlayfieldInfo => ({ id, name, base: 0, placements: 0, triggers: 0, scripts: 0, notes: 0 })
+    return [here, empty(1300, 'Tutorial'), empty(4200, 'Isle of Yarr'), empty(4600, 'Pirate World - Sea'), empty(6200, 'Dinosaur Rise')]
+  }
+  async create(pf: number, snapshot: SurveyObject) {
+    if (pf !== PLAYFIELD) throw new Error('the mock has one playfield')
+    const o: SurveyObject = { ...structuredClone(snapshot), id: newId(snapshot.kind === 'trigger' ? 't' : 'p'), category: 'surveyed', replaces: null, playfield: pf, author: 'mock', updated: now() }
+    this.objectsById.set(o.id, o)
+    this.bump()
+    return structuredClone(o)
+  }
+  private rules = new Map<string, SmashRule>()
+  async smashAchievements(): Promise<SmashAchievement[]> {
+    const a = (key: string, title: string, text: string, group: string | null, kind: SmashAchievement['kind'], what: SmashAchievement['what'], match: string | null, n: number, minifigures = 0): SmashAchievement => ({
+      key,
+      ids: key.startsWith('minifigure:') ? [2576, 2661] : [Number(key)],
+      title,
+      text,
+      group,
+      kind,
+      what,
+      match,
+      n,
+      minifigures,
+      rule: structuredClone(this.rules.get(key) ?? null),
+    })
+    return [
+      a('2163', 'Novice Monster Smasher', 'Smash 1000 Monsters.', 'Global', 'counter', 'kills', null, 1000),
+      a('723', 'Ghostbuster', 'Vanquish the menace of the Pirate World.', 'Pirate World', 'defeat', 'kills', 'Captain Dreadleg', 1),
+      a('minifigure:kills_or_smashes:witch:50', 'Witch Hunter', 'Smash 50 Witches.', 'Minifigures', 'counter', 'kills_or_smashes', 'Witch', 50, 17),
+      a('minifigure:kills_or_smashes:skeleton:50', 'Bone Breaker', 'Smash 50 Skeletons.', 'Minifigures', 'counter', 'kills_or_smashes', 'Skeleton', 50, 17),
+    ]
+  }
+  async achievementRules() {
+    return structuredClone([...this.rules.values()])
+  }
+  async saveRule(key: string, r: { enemies: string[]; comment?: string; tags?: string[]; feature?: string }) {
+    this.rules.set(key, { id: key, enemies: r.enemies, comment: r.comment ?? '', tags: r.tags ?? [], feature: r.feature ?? 'live', author: 'mock', updated: now() })
+    return (await this.smashAchievements()).find((x) => x.key === key) ?? null
+  }
+  async deleteRule(key: string) {
+    this.rules.delete(key)
   }
 }

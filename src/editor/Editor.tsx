@@ -3,7 +3,8 @@ import { awayFrom, distance, fmtPos, isHidden, toDegrees, toRadians } from './ge
 import { valuesOf, type Entry } from './history'
 import { FeatureSelect } from './Features'
 import { TagBadges, TagSelect } from './Tags'
-import { SpawnPicker } from './SpawnPicker'
+import { Combobox } from '@/components/combobox'
+import { spawnOptions } from './Details'
 import { WallFields } from './Walls'
 import type { Ctx } from './WorldEditor'
 import { editable, type Kind, type ObjectChanges, type Placeable, type SurveyObject, type Vec3, type WallSettings, type WaveRef } from './types'
@@ -55,6 +56,8 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
   const can = editable(object.category)
   const hidden = isHidden(object, new Set(state.hidden), state.shown_waves, ctx.notes.scripts)
   const walks = draft.kind === 'enemy' || draft.kind === 'npc'
+  /** in the surveyor's world: what uses where they stand works */
+  const here = (object.playfield ?? state.playfield) === state.playfield
 
   // someone else (or the game) changed it: take their values unless we're mid-edit
   useEffect(() => {
@@ -144,14 +147,32 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
           </button>
         )}
       </div>
-      {picking && <SpawnPicker catalog={ctx.catalog} onPick={changeInto} onCancel={() => setPicking(false)} />}
+      {picking && (
+        <div className="sv-row">
+          <Combobox
+            className="sv-grow"
+            defaultOpen
+            options={spawnOptions(ctx.catalog)}
+            value={null}
+            onChange={(v) => {
+              const p = ctx.catalog.find((x) => `${x.kind}:${x.name}:${x.monster_data ?? ''}:${x.template ?? ''}` === v)
+              if (p) changeInto(p)
+            }}
+            placeholder="Change into… (name, kind, look, template)"
+            search="Search names, looks, templates…"
+          />
+          <button className="ghost" onClick={() => setPicking(false)}>
+            Cancel
+          </button>
+        </div>
+      )}
       <div className="muted small mono">
         {(can ? draft.monster_data : object.monster_data) != null && `look ${can ? draft.monster_data : object.monster_data} · `}
         {(can ? draft.template : object.template) != null && `template ${can ? draft.template : object.template} · `}
         {object.id}
       </div>
       <div className="muted small">
-        {distance(object.pos, state.pos).toFixed(1)} m from you
+        {here ? `${distance(object.pos, state.pos).toFixed(1)} m from you` : 'in another world than you'}
         {object.author && ` · by ${object.author}`}
         {object.updated ? ` · ${new Date(object.updated * 1000).toLocaleString()}` : ''}
         {sending && ' · sending…'}
@@ -216,6 +237,8 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
               <button onClick={() => turn(45)}>+45</button>
             </div>
           </div>
+          {here && (
+            <>
           <div className="sv-row">
             <button onClick={() => change({ pos: [...state.pos] })} title={fmtPos(state.pos)}>
               Move to me
@@ -236,6 +259,8 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
               Face me
             </button>
           </div>
+            </>
+          )}
           {draft.kind === 'enemy' && (
             <label className="sv-field">
               <span>level</span>
@@ -276,10 +301,10 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
                         <button disabled={i === draft.patrol.length - 1} onClick={() => movePoint(i, 1)} title="Later on the route">
                           ↓
                         </button>
-                        <button onClick={() => setPatrol(draft.patrol.map((q, j) => (j === i ? ([...state.pos] as Vec3) : q)))} title="Move this point to where you stand">
+                        <button disabled={!here} onClick={() => setPatrol(draft.patrol.map((q, j) => (j === i ? ([...state.pos] as Vec3) : q)))} title="Move this point to where you stand">
                           here
                         </button>
-                        <button onClick={() => ctx.run(() => backend.teleport(account, p))} title="Go to this point">
+                        <button disabled={!here} onClick={() => ctx.run(() => backend.teleport(account, p))} title="Go to this point">
                           go
                         </button>
                         <button onClick={() => setPatrol(draft.patrol.filter((_, j) => j !== i))} title="Remove this point">
@@ -290,7 +315,7 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
                   ))}
                 </ol>
                 <div className="sv-row">
-                  <button className="primary" onClick={() => setPatrol([...draft.patrol, [...state.pos] as Vec3])}>
+                  <button className="primary" disabled={!here} title={here ? undefined : 'Be in its world in game'} onClick={() => setPatrol([...draft.patrol, [...state.pos] as Vec3])}>
                     Add a point here
                   </button>
                   {draft.patrol.length === 0 && (
@@ -333,11 +358,15 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
             Confirm
           </button>
         )}
-        <button onClick={() => ctx.run(() => backend.hide(account, [object.id], !hidden))}>{hidden ? 'Show' : 'Hide'}</button>
-        <button onClick={() => ctx.run(() => backend.teleport(account, object.pos))}>Go to it</button>
-        <button className="ghost" onClick={() => ctx.run(() => backend.select(account, null))}>
-          Deselect
-        </button>
+        {here && (
+          <>
+            <button onClick={() => ctx.run(() => backend.hide(account, [object.id], !hidden))}>{hidden ? 'Show' : 'Hide'}</button>
+            <button onClick={() => ctx.run(() => backend.teleport(account, object.pos))}>Go to it</button>
+            <button className="ghost" onClick={() => ctx.run(() => backend.select(account, null))}>
+              Deselect
+            </button>
+          </>
+        )}
         {can && (
           <button
             disabled={!canReset}

@@ -208,6 +208,7 @@ export interface Wave {
   name: string
   trigger: Trigger | null
   comment: string
+  tags?: string[]
 }
 
 export interface Script {
@@ -241,7 +242,7 @@ export interface Unpublished {
   mine: boolean
   /** "2 added, 1 changed" */
   summary: string
-  items: { kind: 'placement' | 'trigger' | 'note' | 'script'; id: string; name: string; op: 'added' | 'changed' | 'removed'; details?: string[]; updated: number; tags?: string[] }[]
+  items: { kind: 'placement' | 'trigger' | 'note' | 'script' | 'smash_rule'; id: string; name: string; op: 'added' | 'changed' | 'removed'; details?: string[]; updated: number; tags?: string[] }[]
 }
 
 /** `POST /v1/survey/publish`: only the given playfield, feature, author (default: the caller;
@@ -310,3 +311,55 @@ export interface ObjectChanges {
   /** replaces its tags */
   tags?: string[]
 }
+
+/** A playfield (world) the editor can show (`GET /v1/survey/playfields`): every named one, with
+ * how much is in it. */
+export interface PlayfieldInfo {
+  id: number
+  name: string
+  /** base content (live, demo, client, guessed) */
+  base: number
+  /** the set's placements, trigger walls, scripts and notes in it */
+  placements: number
+  triggers: number
+  scripts: number
+  notes: number
+}
+
+/**
+ * What an editor said about an achievement (lmoxide_survey::SmashRule): which enemies count
+ * toward a smash achievement, or, for a discover location (`find:<playfield>:<name>`), only tags
+ * and a comment.
+ */
+export interface SmashRule {
+  id: string
+  enemies: string[]
+  comment: string
+  tags?: string[]
+  feature?: string
+  author?: string
+  updated?: number
+}
+
+/** An achievement for smashing enemies (`GET /v1/survey/smash-achievements`). The copies of one
+ * for every minifigure ("Smash 50 Witches as Judge", ...) are one. */
+export interface SmashAchievement {
+  /** the achievement's id, or `minifigure:<what>:<match>:<n>` for the minifigure copies */
+  key: string
+  ids: number[]
+  title: string
+  text: string
+  group: string | null
+  /** counter: smash n of them; defeat: once */
+  kind: 'counter' | 'defeat' | 'find'
+  what: 'kills' | 'smashes' | 'kills_or_smashes' | null
+  /** what the game data counts without a rule (a part of the name, or the boss) */
+  match: string | null
+  n: number
+  /** how many minifigures have a copy (0: not a minifigure's) */
+  minifigures: number
+  rule: SmashRule | null
+}
+
+/** The rule key of a discover location. */
+export const findKey = (playfield: number, name: string) => `find:${playfield}:${name}`
