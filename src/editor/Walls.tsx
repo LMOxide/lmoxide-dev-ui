@@ -208,7 +208,10 @@ type Discover = { name: string | null; achievement?: string | null }
  */
 function DiscoverFields({ action, targets, playfield, onChange }: { action: Discover; targets: TriggerTargets | null; playfield: number; onChange: (d: Discover) => void }) {
   const byId = new Map((targets?.achievements ?? []).map((a) => [a.id, a]))
-  const locations: Suggestion[] = (targets?.locations ?? []).map((l: Location) => {
+  // a wall stores only the area's name, and some worlds share one ("Achievement_Volcano" on
+  // Volcano Island and in Dinosaur Rise): this playfield's comes first, so it is the one shown
+  const all = [...(targets?.locations ?? [])].sort((a, b) => Number(b.playfield === playfield) - Number(a.playfield === playfield))
+  const locations: Suggestion[] = all.map((l: Location) => {
     const achs = l.achievements.map((id) => byId.get(id)).filter((a): a is Achievement => !!a)
     return {
       value: l.name,
@@ -218,7 +221,7 @@ function DiscoverFields({ action, targets, playfield, onChange }: { action: Disc
       near: l.playfield === playfield,
     }
   })
-  const location = targets?.locations.find((l) => l.name === action.name)
+  const location = all.find((l) => l.name === action.name)
   const achievements: Suggestion[] = (targets?.achievements ?? []).map((x) => ({
     value: String(x.id),
     label: achievementLabel(x),

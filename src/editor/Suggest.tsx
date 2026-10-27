@@ -75,7 +75,7 @@ export function SuggestInput({
       {open && matches.length > 0 && (
         <ul className="suggest-list">
           {matches.map((s, i) => (
-            <li key={s.value} className={i === active ? 'on' : ''} onMouseDown={(e) => (e.preventDefault(), pick(s))}>
+            <li key={`${s.value}|${s.detail ?? ''}|${i}`} className={i === active ? 'on' : ''} onMouseDown={(e) => (e.preventDefault(), pick(s))}>
               <span className="sv-name">{s.label}</span>
               {s.detail && <span className="muted small">{s.detail}</span>}
             </li>
