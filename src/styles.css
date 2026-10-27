@@ -368,15 +368,6 @@ button.link.danger {
   font-size: 12.5px;
 }
 .chip.on,
-.chip.tri-yes {
-  background: var(--selected);
-  border-color: var(--accent);
-}
-.chip.tri-no {
-  text-decoration: line-through;
-  border-style: dashed;
-  color: var(--text-2);
-}
 .chip kbd {
   font-size: 10px;
 }
@@ -994,4 +985,51 @@ form.inline.wrap {
     max-height: 55vh;
     overflow: auto;
   }
+}
+
+/* multi-select combo box (MultiSelect.tsx) */
+.multi {
+  position: relative;
+  display: inline-block;
+}
+.multi-button {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.multi-caret {
+  opacity: 0.6;
+  margin-left: 2px;
+}
+.multi-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 220px;
+  max-width: min(360px, 90vw);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.18);
+  padding: 6px;
+}
+.multi-search {
+  width: 100%;
+}
+.multi-actions {
+  display: flex;
+  gap: 10px;
+  margin: 4px 2px;
+}
+.multi-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 40vh;
+  overflow: auto;
+}
+.multi-list li {
+  padding: 2px 4px;
 }

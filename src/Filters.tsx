@@ -1,24 +1,36 @@
 import { AutoInput } from './AutoInput'
-import { NO_FILTERS, type Filters, type Tri } from './catalog'
+import { NO_FILTERS, type Filters } from './catalog'
+import { MultiSelect } from './MultiSelect'
 import type { Suggestion } from './suggest'
 
-function TriChip({ label, value, onChange, title }: { label: string; value: Tri; onChange: (t: Tri) => void; title?: string }) {
-  const next: Record<Tri, Tri> = { any: 'yes', yes: 'no', no: 'any' }
+type TriKey = 'sound' | 'particle' | 'anim' | 'lua' | 'looping' | 'used'
+
+const TRI: { key: TriKey; label: string; title?: string }[] = [
+  { key: 'sound', label: 'sound' },
+  { key: 'particle', label: 'particle' },
+  { key: 'anim', label: 'anim attr', title: 'animation attribute (EMotionFX)' },
+  { key: 'lua', label: 'Lua' },
+  { key: 'looping', label: 'looping' },
+  { key: 'used', label: 'used', title: 'used by an item or spell' },
+]
+
+/** "Has" / "has not" pickers over the yes/no/any filters: picking a key in one drops it from the other. */
+function TriPicker({ filters, set, which }: { filters: Filters; set: (f: Partial<Filters>) => void; which: 'yes' | 'no' }) {
   return (
-    <button
-      type="button"
-      className={`chip tri-${value}`}
-      title={(title ?? label) + ': click for has / has not / any'}
-      aria-label={`${label}: ${value === 'any' ? 'any' : value === 'yes' ? 'has' : 'has not'}`}
-      onClick={() => onChange(next[value])}
-      onContextMenu={(e) => {
-        e.preventDefault()
-        onChange('any')
+    <MultiSelect
+      label={which === 'yes' ? 'Has' : 'Has not'}
+      none="any"
+      options={TRI.map((t) => ({ value: t.key, label: t.label, title: t.title }))}
+      value={TRI.filter((t) => filters[t.key] === which).map((t) => t.key)}
+      onChange={(v) => {
+        const next: Partial<Filters> = {}
+        for (const t of TRI) {
+          if (v.includes(t.key)) next[t.key] = which
+          else if (filters[t.key] === which) next[t.key] = 'any'
+        }
+        set(next)
       }}
-    >
-      {value === 'no' ? 'no ' : value === 'yes' ? '✓ ' : ''}
-      {label}
-    </button>
+    />
   )
 }
 
@@ -58,13 +70,9 @@ export function FilterPanel({
         }}
         aria-label="Search effects"
       />
-      <div className="chips">
-        <TriChip label="sound" value={filters.sound} onChange={(sound) => set({ sound })} />
-        <TriChip label="particle" value={filters.particle} onChange={(particle) => set({ particle })} />
-        <TriChip label="anim attr" value={filters.anim} onChange={(anim) => set({ anim })} title="animation attribute (EMotionFX)" />
-        <TriChip label="Lua" value={filters.lua} onChange={(lua) => set({ lua })} />
-        <TriChip label="looping" value={filters.looping} onChange={(looping) => set({ looping })} />
-        <TriChip label="used" value={filters.used} onChange={(used) => set({ used })} title="used by an item or spell" />
+      <div className="selects">
+        <TriPicker filters={filters} set={set} which="yes" />
+        <TriPicker filters={filters} set={set} which="no" />
       </div>
       <div className="selects">
         <select value={filters.kind} onChange={(e) => set({ kind: e.target.value as Filters['kind'] })} aria-label="Kind">

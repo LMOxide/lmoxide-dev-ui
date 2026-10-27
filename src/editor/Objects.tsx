@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { featureLabel, FeatureSelect } from './Features'
 import { distance, inHiddenWave } from './geometry'
 import { Marks } from './Marks'
+import { MultiSelect } from '../MultiSelect'
 import type { Ctx } from './WorldEditor'
 import { CATEGORIES, type Category, type WaveRef } from './types'
 import { WavesNearby } from './Waves'
@@ -48,14 +49,6 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
     return c
   }, [objects])
 
-  function toggleCat(c: Category) {
-    setCats((old) => {
-      const s = new Set(old)
-      if (s.has(c)) s.delete(c)
-      else s.add(c)
-      return s
-    })
-  }
 
   const hiddenCount = state.hidden.length
   const shownIds = rows.filter((r) => !r.h).map((r) => r.o.id)
@@ -65,11 +58,15 @@ export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx
       <h2>In this playfield</h2>
       <WavesNearby ctx={ctx} />
       <div className="sv-row tight">
-        {CATEGORIES.map((c) => (
-          <button key={c} className={`chip ${cats.has(c) ? 'on' : ''}`} onClick={() => toggleCat(c)}>
-            {c} <span className="muted">{counts.get(c) ?? 0}</span>
-          </button>
-        ))}
+        <MultiSelect
+          label="Show"
+          all="every category"
+          none="nothing"
+          options={CATEGORIES.map((c) => ({ value: c, detail: counts.get(c) ?? 0 }))}
+          value={CATEGORIES.filter((c) => cats.has(c))}
+          onChange={(v) => setCats(new Set(v as Category[]))}
+          title="Which categories the list shows"
+        />
       </div>
       <div className="sv-row">
         <input className="sv-grow" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />

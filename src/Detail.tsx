@@ -1,3 +1,4 @@
+import { MultiSelect } from './MultiSelect'
 import { useState } from 'react'
 import { describe, isPackage, soundName } from './catalog'
 import type { Note } from './notes'
@@ -48,9 +49,7 @@ export function Detail({
   onNote: (n: Note) => void
 }) {
   const [hook, setHook] = useState('')
-  const [newTag, setNewTag] = useState('')
   const n: Note = note ?? { tags: [], text: '', updated: 0 }
-  const toggle = (t: string) => onNote({ ...n, tags: n.tags.includes(t) ? n.tags.filter((x) => x !== t) : [...n.tags, t], updated: Date.now() })
   const pkg = isPackage(effect) ? effect : null
   const disabled = !canSend || !pkg
 
@@ -103,24 +102,15 @@ export function Detail({
 
       <section className="note-editor">
         <h3>Note</h3>
-        <div className="chips">
-          {tags.map((t, i) => (
-            <button key={t} type="button" className={`chip${n.tags.includes(t) ? ' on' : ''}`} onClick={() => toggle(t)} title={i < 9 ? `key ${i + 1}` : undefined}>
-              {i < 9 && <kbd>{i + 1}</kbd>} {t}
-            </button>
-          ))}
-          <form
-            className="inline"
-            onSubmit={(e) => {
-              e.preventDefault()
-              const t = newTag.trim()
-              if (t && !n.tags.includes(t)) toggle(t)
-              setNewTag('')
-            }}
-          >
-            <input value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="+ tag" aria-label="New tag" size={8} />
-          </form>
-        </div>
+        <MultiSelect
+          label="Tags"
+          none="no tags"
+          create="Add tag"
+          options={[...new Set([...tags, ...n.tags])].map((t, i) => ({ value: t, title: i < 9 ? `key ${i + 1}` : undefined, detail: i < 9 ? `(${i + 1})` : undefined }))}
+          value={n.tags}
+          onChange={(v) => onNote({ ...n, tags: v, updated: Date.now() })}
+          title="Tags of this entry (keys 1-9 toggle the first nine)"
+        />
         <textarea
           value={n.text}
           onChange={(e) => onNote({ ...n, text: e.target.value, updated: Date.now() })}
