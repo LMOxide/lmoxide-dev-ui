@@ -326,6 +326,9 @@ function Browser({ api, session, setApiBase, logout }: { api: Api; session: Sess
           <button className="ghost search-all" onClick={() => setPalette(true)} title="Search everything (Ctrl+K)">
             ⌕ Search all <kbd>Ctrl K</kbd>
           </button>
+          <a className="small" href="./survey.html" title="Survey servers: place and mark content (survey.html)">
+            Survey
+          </a>
         </nav>
         <div className="player">
           <label>
