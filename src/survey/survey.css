@@ -1,0 +1,193 @@
+/* The survey page (survey.html); colours and controls come from ../styles.css. */
+
+:root {
+  --cat-guessed: #b06a00;
+  --cat-guessed-bg: #fff1d6;
+  --cat-surveyed: #1f7a3a;
+  --cat-surveyed-bg: #e1f3e6;
+  --cat-fixed: #52514e;
+  --cat-fixed-bg: #efefec;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --cat-guessed: #f0c96a;
+    --cat-guessed-bg: #3a2e10;
+    --cat-surveyed: #6fcf8e;
+    --cat-surveyed-bg: #173322;
+    --cat-fixed: #c3c2b7;
+    --cat-fixed-bg: #2b2b28;
+  }
+}
+
+.sv {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.sv-top .where {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.sv-cols {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(300px, 1.3fr) minmax(320px, 1.4fr);
+}
+.sv-col {
+  min-height: 0;
+  overflow: auto;
+  padding: 10px 14px 24px;
+  border-right: 1px solid var(--border);
+}
+.sv-col:last-child {
+  border-right: 0;
+}
+@media (max-width: 1000px) {
+  .sv-cols {
+    display: block;
+    overflow: auto;
+  }
+  .sv-col {
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    overflow: visible;
+    padding: 10px 16px 20px;
+  }
+}
+.sv-col h2 {
+  font-size: 14px;
+  margin: 2px 0 8px;
+}
+.sv-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin: 6px 0;
+}
+.sv-row.tight {
+  gap: 2px;
+}
+.sv-grow {
+  flex: 1;
+  min-width: 0;
+}
+.sv-list {
+  list-style: none;
+  margin: 6px 0;
+  padding: 0;
+}
+.sv-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.sv-list li:hover {
+  background: var(--surface-2);
+}
+.sv-list li.on {
+  background: var(--selected);
+}
+.sv-list li.hidden-obj .sv-name {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+.sv-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sv-dist {
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  font-size: 12px;
+}
+.badge {
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 0 7px;
+  white-space: nowrap;
+  background: var(--cat-fixed-bg);
+  color: var(--cat-fixed);
+}
+.badge.guessed {
+  background: var(--cat-guessed-bg);
+  color: var(--cat-guessed);
+}
+.badge.surveyed {
+  background: var(--cat-surveyed-bg);
+  color: var(--cat-surveyed);
+}
+.badge.wave {
+  background: var(--tag-bg);
+  color: var(--tag);
+}
+.eye {
+  padding: 0 5px;
+  font-size: 13px;
+  line-height: 20px;
+}
+.sv-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+.sv-panel.focus {
+  border-color: var(--accent);
+}
+.sv-field {
+  display: grid;
+  grid-template-columns: 74px 1fr;
+  gap: 6px;
+  align-items: center;
+  margin: 6px 0;
+}
+.sv-field > span {
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.sv-num {
+  width: 84px;
+}
+.sv-nudge button {
+  padding: 2px 6px;
+  font-size: 12px;
+}
+.sv-tabs {
+  margin-bottom: 8px;
+}
+.sv-danger {
+  color: var(--error);
+}
+.sv-modal-back {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+  padding: 16px;
+}
+.sv-modal {
+  width: min(760px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+}
+.sv-report li {
+  cursor: default;
+}
+.sv-wave {
+  border-top: 1px dashed var(--border);
+  padding-top: 6px;
+  margin-top: 6px;
+}

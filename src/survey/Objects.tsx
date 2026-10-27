@@ -1,0 +1,137 @@
+import { useMemo, useState } from 'react'
+import { distance, isHidden } from './geometry'
+import type { Ctx } from './Survey'
+import { CATEGORIES, type Category, type WaveRef } from './types'
+import { waveLabel } from './WaveSelect'
+
+const LIMIT = 300
+
+/** Everything this playfield spawns, nearest first. */
+export function Objects({ ctx, waveFilter, setWaveFilter, onSelect }: { ctx: Ctx; waveFilter: WaveRef | 'static' | null; setWaveFilter: (w: WaveRef | 'static' | null) => void; onSelect: () => void }) {
+  const { backend, account, state, objects, notes } = ctx
+  const [cats, setCats] = useState<Set<Category>>(() => new Set(CATEGORIES))
+  const [query, setQuery] = useState('')
+  const [radius, setRadius] = useState<number | null>(null)
+  const [hiddenOnly, setHiddenOnly] = useState(false)
+  const hidden = useMemo(() => new Set(state.hidden), [state.hidden])
+
+  const rows = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    return objects
+      .map((o) => ({ o, d: distance(o.pos, state.pos), h: isHidden(o, hidden, state.focus) }))
+      .filter(
+        ({ o, d, h }) =>
+          cats.has(o.category) &&
+          (!q || o.name.toLowerCase().includes(q) || o.id.includes(q)) &&
+          (radius === null || d <= radius) &&
+          (!hiddenOnly || h) &&
+          (waveFilter === null || (waveFilter === 'static' ? !o.wave : o.wave?.script === waveFilter.script && o.wave.wave === waveFilter.wave)),
+      )
+      .sort((a, b) => a.d - b.d)
+  }, [objects, state.pos, state.focus, hidden, cats, query, radius, hiddenOnly, waveFilter])
+
+  const counts = useMemo(() => {
+    const c = new Map<Category, number>()
+    for (const o of objects) c.set(o.category, (c.get(o.category) ?? 0) + 1)
+    return c
+  }, [objects])
+
+  function toggleCat(c: Category) {
+    setCats((old) => {
+      const s = new Set(old)
+      if (s.has(c)) s.delete(c)
+      else s.add(c)
+      return s
+    })
+  }
+
+  const hiddenCount = state.hidden.length
+  const shownIds = rows.filter((r) => !r.h).map((r) => r.o.id)
+
+  return (
+    <>
+      <h2>In this playfield</h2>
+      <div className="sv-row tight">
+        {CATEGORIES.map((c) => (
+          <button key={c} className={`chip ${cats.has(c) ? 'on' : ''}`} onClick={() => toggleCat(c)}>
+            {c} <span className="muted">{counts.get(c) ?? 0}</span>
+          </button>
+        ))}
+      </div>
+      <div className="sv-row">
+        <input className="sv-grow" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <select value={radius ?? ''} onChange={(e) => setRadius(e.target.value ? Number(e.target.value) : null)} title="Only this close to you">
+          <option value="">any distance</option>
+          {[10, 25, 50, 100].map((r) => (
+            <option key={r} value={r}>
+              within {r} m
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="sv-row">
+        <select
+          value={waveFilter === null ? '' : waveFilter === 'static' ? 'static' : `${waveFilter.script}\n${waveFilter.wave}`}
+          onChange={(e) => {
+            const v = e.target.value
+            const [script, wave] = v.split('\n')
+            setWaveFilter(v === '' ? null : v === 'static' ? 'static' : { script, wave })
+          }}
+          title="Placements spawned at start, or by a script's wave"
+        >
+          <option value="">all spawns</option>
+          <option value="static">at start only</option>
+          {notes.scripts.map((s) => (
+            <optgroup key={s.id} label={s.name || 'script'}>
+              {s.waves.map((w, i) => (
+                <option key={w.id} value={`${s.id}\n${w.id}`}>
+                  {w.name || `wave ${i + 1}`}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        <label className="check small">
+          <input type="checkbox" checked={hiddenOnly} onChange={(e) => setHiddenOnly(e.target.checked)} /> hidden only
+        </label>
+      </div>
+      <div className="sv-row">
+        <button onClick={() => ctx.run(() => backend.selectNearest(account)).then(onSelect)}>Select nearest</button>
+        <button disabled={!shownIds.length} onClick={() => ctx.run(() => backend.hide(account, shownIds, true))} title="Hide everything this list shows">
+          Hide listed
+        </button>
+        <button disabled={!hiddenCount && !state.focus} onClick={() => ctx.run(() => backend.unhideAll(account))}>
+          Unhide all{hiddenCount ? ` (${hiddenCount})` : ''}
+        </button>
+      </div>
+      <ul className="sv-list">
+        {rows.slice(0, LIMIT).map(({ o, d, h }) => (
+          <li
+            key={o.id}
+            className={`${state.selected === o.id ? 'on' : ''} ${h ? 'hidden-obj' : ''}`}
+            onClick={() => ctx.run(() => backend.select(account, o.id)).then(onSelect)}
+          >
+            <button
+              className="ghost eye"
+              title={h ? 'Show it' : 'Hide it (only for you, until you show it again)'}
+              onClick={(e) => {
+                e.stopPropagation()
+                ctx.run(() => backend.hide(account, [o.id], !hidden.has(o.id)))
+              }}
+            >
+              {h ? '◌' : '◉'}
+            </button>
+            <span className="sv-name" title={o.id}>
+              {o.name}
+            </span>
+            {o.wave && <span className="badge wave">{waveLabel(notes.scripts, o.wave)}</span>}
+            <span className={`badge ${o.category}`}>{o.category}</span>
+            <span className="sv-dist">{d < 1000 ? `${d.toFixed(0)} m` : 'far'}</span>
+          </li>
+        ))}
+        {rows.length > LIMIT && <li className="muted">{rows.length - LIMIT} more: narrow the search.</li>}
+        {!rows.length && <li className="muted">Nothing here matches.</li>}
+      </ul>
+    </>
+  )
+}

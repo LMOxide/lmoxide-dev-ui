@@ -50,6 +50,30 @@ or shows the effect, Shift+Enter puts the command in the console to edit (or pla
 
 API gaps found along the way are in [`docs/API-PROPOSALS.md`](docs/API-PROPOSALS.md).
 
+**Survey** (`survey.html`, a page of its own; LMOxide's `docs/SURVEY.md`)
+
+For a survey server (`--mode survey`): place enemies, NPCs, smashables, buildies and
+interactables where they stood on live, confirm, edit or delete the guessed content, and mark
+areas, scripts and waves for review.
+
+- **Place**: pick something, *Wear it* (or *Show ghost* for buildies and interactables), walk to
+  where it stood facing its way, *Place here*, optionally into a script's wave.
+- **In this playfield**: everything spawned, nearest first, by category (guessed, surveyed,
+  live, demo, client), distance and wave; hide (only for you, never saved), *Hide listed*,
+  *Unhide all*, *Select nearest*. Attacking something in game selects it too.
+- **Selection**: x/y/z and heading with nudges, *Move to me*, *Face my way*; changes show in game
+  as you type. Guesses: *Confirm*, edit (both make them surveyed) or *Delete*; live, demo and
+  client objects can only be hidden.
+- **Scripts**: waves with a name, what starts them (time, an enemy's health, a player walking
+  in, another wave defeated, or a comment), *Only this wave* (hides the script's other waves),
+  *Preview*.
+- **Notes**: mission areas, achievements, dialogues, scripts and comments, at a spot, in a
+  circle or in an area walked out corner by corner; naming the thing is optional.
+- **Import / export**: one file per set or playfield; importing previews duplicates,
+  near-duplicates (within a distance and angle you set, each can be taken anyway) and conflicts.
+
+`survey.html?mock` runs the page against an in-memory server, without logging in.
+
 ## Requirements
 
 - `lmoxide-api` with the game data catalogs (lmoxide after `2c668c5`: monsters, animations,
@@ -119,5 +143,6 @@ If the API is not reachable, the effect catalog can also be opened from a file
 | localStorage | `lmofx.history` | the command box history |
 | localStorage | `lmofx.fxAt` | where effects play (on me, `@near`, `@ground`) |
 | localStorage | `lmofx.notes`, `lmofx.tags` | notes by effect id; tags you added |
+| localStorage | `lmofx.survey.account` | the surveyor the survey page acts as |
 
 Notes live only in this browser: export them before clearing site data.
