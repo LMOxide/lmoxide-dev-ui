@@ -258,8 +258,9 @@ export class MockBackend implements SurveyBackend {
   }
   async wallLooks() {
     return [
+      // (a trigger radius is a ring of the same pieces)
       ...['green', 'shield', 'low shield', 'forcefield'].map((color) => ({ color, shape: 'wall' as const })),
-      ...['green plate', 'yellow plate', 'red plate'].map((color) => ({ color, shape: 'radius' as const })),
+      ...['green', 'shield', 'low shield', 'forcefield'].map((color) => ({ color, shape: 'radius' as const })),
     ]
   }
   async select(_a: number, id: string | null) {
