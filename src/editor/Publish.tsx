@@ -6,8 +6,8 @@ import type { PublishRequest, Unpublished } from './types'
 export const recordCount = (list: Unpublished[]) => list.reduce((n, c) => n + c.items.length, 0)
 
 /**
- * Changes saved on the survey server but not published: play servers (the approval queue) only
- * see what is published. Yours first; anyone's can be published.
+ * Changes saved in the working copy but not published: publishing queues them for approval.
+ * Yours first; anyone's can be published.
  */
 export function Publish({
   backend,
@@ -33,7 +33,7 @@ export function Publish({
     try {
       const r = await backend.publish(req)
       setUnpublished(r.unpublished)
-      setDone(`Published ${r.records} record${r.records === 1 ? '' : 's'}.`)
+      setDone(`Published ${r.records} record${r.records === 1 ? '' : 's'}: they wait for an admin's approval (the web UI's queue).`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -80,8 +80,8 @@ export function Publish({
           </button>
         </div>
         <p className="muted small">
-          What you do here is saved on the world editor's server as you work, so nothing is lost if the page or the game closes. Play servers only take in what is
-          published (and then approve it, or their rules do).
+          What you do here is saved in the world editor's copy of the content as you work, so nothing is lost if the page or the game closes. Publishing puts
+          your changes in the queue for an admin to approve; approved changes become part of the game's content.
         </p>
         {error && <p className="banner warn">{error}</p>}
         {done && <p className="banner">{done}</p>}

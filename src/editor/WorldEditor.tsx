@@ -9,7 +9,6 @@ import { loadJson, saveJson } from '../storage'
 import type { SurveyBackend } from './backend'
 import type { ContentBackend, Kinds } from './content'
 import { fmtPos, toDegrees } from './geometry'
-import { ImportExport } from './ImportExport'
 import { Browser } from './Browser'
 import { useWorlds } from './worlds'
 import type { Suggestion } from './Suggest'
@@ -107,7 +106,6 @@ export function WorldEditor({ backend, content, onLogout, onExpire }: { backend:
   }, [content])
   const history = useHistory(backend)
   const [error, setError] = useState('')
-  const [transfer, setTransfer] = useState(false)
   const [publishing, setPublishing] = useState(false)
   /** null: the server can't tell (older than publishing) */
   const [unpublished, setUnpublished] = useState<Unpublished[] | null>(null)
@@ -349,7 +347,6 @@ export function WorldEditor({ backend, content, onLogout, onExpire }: { backend:
               {mineUnpublished ? `Publish (${mineUnpublished})` : 'Saved · all published'}
             </button>
           )}
-          <button onClick={() => setTransfer(true)}>Import / export</button>
           <span className="muted small">{backend.label}</span>
           {onLogout && (
             <button className="ghost" onClick={onLogout}>
@@ -375,7 +372,6 @@ export function WorldEditor({ backend, content, onLogout, onExpire }: { backend:
       </div>
       <Browser ctx={ctx} worlds={worlds} />
       {publishing && unpublished && <Publish backend={backend} unpublished={unpublished} setUnpublished={setUnpublished} onClose={() => setPublishing(false)} />}
-      {transfer && <ImportExport backend={backend} playfield={state?.playfield ?? null} objects={objects} onClose={() => setTransfer(false)} onImported={() => refresh(true).catch(failed)} />}
     </div>
   )
 }

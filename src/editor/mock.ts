@@ -3,12 +3,9 @@
 
 import { SUGGESTED_TAGS, type SurveyBackend } from './backend'
 import type {
-  Bundle,
   Feature,
   FeaturesView,
   Mark,
-  MergeOptions,
-  MergeReport,
   Note,
   ObjectChanges,
   Placeable,
@@ -20,7 +17,6 @@ import type {
   RuleBody,
   EnemyName,
   Script,
-  SetInfo,
   SurveyObject,
   TagUse,
   Vec3,
@@ -30,7 +26,7 @@ import type {
   WallSettings,
   WaveRef,
 } from './types'
-import { distance, headingDifference } from './geometry'
+import { distance } from './geometry'
 
 const PLAYFIELD = 1200
 
@@ -64,7 +60,6 @@ export class MockBackend implements SurveyBackend {
   private removals = new Map<string, SurveyObject>()
   private revision = 1
   private notesData: PlayfieldNotes = { notes: [], scripts: [] }
-  private info: SetInfo = { name: 'Mock set', authors: ['mock'], comment: '' }
   private player: PlayerState = {
     account_id: 1,
     character_name: 'hosttemple',
@@ -391,58 +386,6 @@ export class MockBackend implements SurveyBackend {
     }
     return { records, unpublished: await this.unpublished() }
   }
-  async setInfo() {
-    return structuredClone(this.info)
-  }
-  async saveSetInfo(info: SetInfo) {
-    this.info = structuredClone(info)
-    return info
-  }
-  async exportSet(): Promise<Bundle> {
-    const placements = [...this.objectsById.values()].filter((o) => o.category === 'surveyed')
-    return { format: 1, info: this.info, playfields: { [PLAYFIELD]: { placements, ...structuredClone(this.notesData) } } }
-  }
-  async importSet(bundle: Bundle, options: MergeOptions, dryRun: boolean): Promise<MergeReport> {
-    const report: MergeReport = { added: [], duplicates: [], near: [], conflicts: [] }
-    const mine = [...this.objectsById.values()]
-    const adding: SurveyObject[] = []
-    for (const [pf, content] of Object.entries(bundle.playfields)) {
-      for (const raw of content.placements as SurveyObject[]) {
-        const t: SurveyObject = { ...raw, category: 'surveyed' }
-        const same = this.objectsById.get(t.id)
-        if (same) {
-          if (JSON.stringify({ ...same, updated: 0, author: '' }) === JSON.stringify({ ...t, updated: 0, author: '' })) report.duplicates.push(t.id)
-          else report.conflicts.push({ playfield: Number(pf), theirs: t.id, ours: t.id, kept: 'ours' })
-          continue
-        }
-        const near = options.take.includes(t.id)
-          ? undefined
-          : mine.find(
-              (o) =>
-                o.kind === t.kind &&
-                o.monster_data === t.monster_data &&
-                o.template === t.template &&
-                distance(o.pos, t.pos) <= options.distance &&
-                headingDifference(o.heading, t.heading) <= options.heading,
-            )
-        if (near) report.near.push({ playfield: Number(pf), theirs: t.id, ours: near.id, distance: distance(near.pos, t.pos) })
-        else {
-          report.added.push(t.id)
-          adding.push(t)
-        }
-      }
-      if (!dryRun) {
-        for (const n of content.notes) if (!this.notesData.notes.some((x) => x.id === n.id)) this.notesData.notes.push(n)
-        for (const s of content.scripts) if (!this.notesData.scripts.some((x) => x.id === s.id)) this.notesData.scripts.push(s)
-      }
-    }
-    if (!dryRun) {
-      for (const t of adding) this.objectsById.set(t.id, t)
-      this.bump()
-    }
-    return report
-  }
-
   async playfields(): Promise<PlayfieldInfo[]> {
     const objs = [...this.objectsById.values()]
     const here: PlayfieldInfo = {

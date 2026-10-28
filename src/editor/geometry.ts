@@ -4,13 +4,6 @@ export function distance(a: Vec3, b: Vec3) {
   return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2])
 }
 
-/** Degrees between two headings in radians, 0..180. */
-export function headingDifference(a: number, b: number) {
-  const tau = Math.PI * 2
-  const d = (((a - b) % tau) + tau) % tau
-  return (Math.min(d, tau - d) * 180) / Math.PI
-}
-
 /** Radians → whole degrees 0..359, as the editor shows headings. */
 export function toDegrees(rad: number) {
   return Math.round(((((rad * 180) / Math.PI) % 360) + 360) % 360)

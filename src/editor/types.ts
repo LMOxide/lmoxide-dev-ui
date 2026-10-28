@@ -236,8 +236,9 @@ export interface PlayfieldNotes {
   scripts: Script[]
 }
 
-/** One editor's changes to one feature in one playfield that aren't published yet
- * (`GET /v1/survey/unpublished`). Play servers only see what is published. */
+/** One editor's changes to one feature in one playfield (0: definitions) that aren't published
+ * yet (`GET /v1/survey/unpublished`): the content working copy's records changed since its last
+ * commit and not in the publish queue. */
 export interface Unpublished {
   playfield: number
   playfield_name: string
@@ -248,7 +249,8 @@ export interface Unpublished {
   mine: boolean
   /** "2 added, 1 changed" */
   summary: string
-  items: { kind: 'placement' | 'trigger' | 'note' | 'script' | 'smash_rule'; id: string; name: string; op: 'added' | 'changed' | 'removed'; details?: string[]; updated: number; tags?: string[] }[]
+  /** record: a definition (NPC, skill, loot ...) or anything else of the content tree */
+  items: { kind: 'placement' | 'trigger' | 'note' | 'script' | 'smash_rule' | 'record'; id: string; name: string; op: 'added' | 'changed' | 'removed'; details?: string[]; updated: number; tags?: string[] }[]
 }
 
 /** `POST /v1/survey/publish`: only the given playfield, feature, author (default: the caller;
@@ -258,38 +260,6 @@ export interface PublishRequest {
   feature?: string
   author?: string
   ids?: string[]
-}
-
-export interface SetInfo {
-  name: string
-  authors: string[]
-  comment: string
-}
-
-/** A whole set (or part of one) as one file: what Export downloads and Import reads. */
-export interface Bundle {
-  format: 1
-  info: SetInfo
-  playfields: Record<string, { placements: unknown[]; notes: Note[]; scripts: Script[] }>
-}
-
-export type Prefer = 'newer' | 'ours' | 'theirs'
-
-export interface MergeOptions {
-  /** metres */
-  distance: number
-  /** degrees */
-  heading: number
-  prefer: Prefer
-  /** their ids to take although they look like near-duplicates */
-  take: string[]
-}
-
-export interface MergeReport {
-  added: string[]
-  duplicates: string[]
-  near: { playfield: number; theirs: string; ours: string; distance: number }[]
-  conflicts: { playfield: number; theirs: string; ours: string; kept: 'ours' | 'theirs' }[]
 }
 
 /** Changes to an object; editing a guess makes it surveyed (it may get a new id). */

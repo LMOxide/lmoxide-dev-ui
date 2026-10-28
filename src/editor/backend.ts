@@ -1,10 +1,7 @@
 import { ApiError } from '../api'
 import type {
-  Bundle,
   FeaturesView,
   Mark,
-  MergeOptions,
-  MergeReport,
   Note,
   ObjectChanges,
   Placeable,
@@ -16,7 +13,6 @@ import type {
   EnemyName,
   PlayfieldNotes,
   Script,
-  SetInfo,
   SurveyObject,
   Surveyor,
   TagUse,
@@ -85,13 +81,8 @@ export interface SurveyBackend {
   put(id: string, snapshot: SurveyObject): Promise<SurveyObject>
   /** Changes not published yet (saved on the server, not seen by play servers), the caller's first. */
   unpublished(): Promise<Unpublished[]>
-  /** Publishes changes (by default all of the caller's): play servers take them in. */
+  /** Publishes changes (by default all of the caller's): they wait in the publish queue for an admin to approve. */
   publish(req: PublishRequest): Promise<{ records: number; unpublished: Unpublished[] }>
-  setInfo(): Promise<SetInfo>
-  saveSetInfo(info: SetInfo): Promise<SetInfo>
-  exportSet(playfield: number | null): Promise<Bundle>
-  /** dryRun: only the report (the preview). */
-  importSet(bundle: Bundle, options: MergeOptions, dryRun: boolean): Promise<MergeReport>
   /** Every named playfield, with how much is in it. */
   playfields(): Promise<PlayfieldInfo[]>
   /** A copy of a snapshot as a new record in any playfield (paste); nobody's selection changes. */
@@ -248,18 +239,6 @@ export class HttpBackend implements SurveyBackend {
   }
   publish(req: PublishRequest) {
     return this.call<{ records: number; unpublished: Unpublished[] }>('POST', '/publish', req)
-  }
-  setInfo() {
-    return this.call<SetInfo>('GET', '/set')
-  }
-  saveSetInfo(info: SetInfo) {
-    return this.call<SetInfo>('PUT', '/set', info)
-  }
-  exportSet(playfield: number | null) {
-    return this.call<Bundle>('GET', playfield === null ? '/export' : `/export?playfield=${playfield}`)
-  }
-  importSet(bundle: Bundle, options: MergeOptions, dryRun: boolean) {
-    return this.call<MergeReport>('POST', '/import', { bundle, options, dry_run: dryRun })
   }
   playfields() {
     return this.call<PlayfieldInfo[]>('GET', '/playfields')
