@@ -49,7 +49,7 @@ export function Publish({
         </button>
         <div className="sv-grow">
           <b>{c.playfield_name}</b> <span className="muted small">{c.feature_path || c.feature}</span>
-          {!c.mine && <span className="badge">{c.author}</span>}
+          {!c.mine && c.author && <span className="badge">{c.author}</span>}
           <div className="small muted">{c.summary}</div>
         </div>
         <button disabled={busy} onClick={() => publish({ playfield: c.playfield, feature: c.feature, author: c.author })}>
