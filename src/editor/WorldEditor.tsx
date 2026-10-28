@@ -7,6 +7,7 @@ import type { Player } from '../types'
 import { describe, useHistory, type History } from './history'
 import { loadJson, saveJson } from '../storage'
 import type { SurveyBackend } from './backend'
+import type { ContentBackend, Kinds } from './content'
 import { fmtPos, toDegrees } from './geometry'
 import { ImportExport } from './ImportExport'
 import { Browser } from './Browser'
@@ -21,6 +22,9 @@ import type { FeaturesView, WallLook, Placeable, PlayerState, PlayfieldNotes, Su
 /** The state the editor uses with nobody in game (playfield -1: no world is "here"). */
 const OFFLINE: PlayerState = { account_id: -1, character_name: '', playfield: -1, pos: [0, 0, 0], heading: 0, selected: null, hidden: [], shown_waves: {}, wearing: null, revision: 0 }
 
+/** (the browser gives the real one: it owns the tabs) */
+const noOpen = () => {}
+
 const ACCOUNT_KEY = 'lmofx.survey.account'
 /** the feature new things go into */
 const FEATURE_KEY = 'lmofx.editor.feature'
@@ -33,6 +37,12 @@ const UNPUBLISHED_MS = 5000
 /** What the panels share: the surveyor's state and the calls that change it. */
 export interface Ctx {
   backend: SurveyBackend
+  /** the content tree (records, schemas, catalogs) */
+  content: ContentBackend
+  /** its kinds and schemas (null: not loaded, or the server has no content routes) */
+  kinds: Kinds | null
+  /** opens a content record's page (the Definitions tab) */
+  openRecord: (id: string, feature?: string) => void
   account: number
   state: PlayerState
   objects: SurveyObject[]
@@ -66,7 +76,7 @@ export interface Ctx {
   upsert: (o: SurveyObject, replaced?: string) => void
 }
 
-export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBackend; onLogout?: () => void; onExpire?: () => void }) {
+export function WorldEditor({ backend, content, onLogout, onExpire }: { backend: SurveyBackend; content: ContentBackend; onLogout?: () => void; onExpire?: () => void }) {
   const [surveyors, setSurveyors] = useState<Surveyor[]>([])
   /** the signed-in login on the play server instead (it can come here with `!server editor`) */
   const [onPlay, setOnPlay] = useState<Player | null>(null)
@@ -91,6 +101,10 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
     saveJson(NEW_TAGS_KEY, t)
   }, [])
   const [markLooks, setMarkLooks] = useState<string[]>([])
+  const [kinds, setKinds] = useState<Kinds | null>(null)
+  useEffect(() => {
+    content.kinds().then(setKinds).catch(() => setKinds(null))
+  }, [content])
   const history = useHistory(backend)
   const [error, setError] = useState('')
   const [transfer, setTransfer] = useState(false)
@@ -244,9 +258,9 @@ export function WorldEditor({ backend, onLogout, onExpire }: { backend: SurveyBa
     () =>
       // nobody chosen (or online): the tree can still be read and edited, without the game
       state && account !== null
-        ? { backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, setFeatures, tags, newTags, setNewTags, markLooks, collects, history, run, setState, upsert }
-        : { backend, account: -1, state: OFFLINE, objects: [], notes: { notes: [], scripts: [] }, catalog, looks, targets, features, feature, setFeature, setFeatures, tags, newTags, setNewTags, markLooks, collects, history, run, setState, upsert },
-    [backend, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, tags, newTags, setNewTags, markLooks, collects, history, run, upsert],
+        ? { backend, content, kinds, openRecord: noOpen, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, setFeatures, tags, newTags, setNewTags, markLooks, collects, history, run, setState, upsert }
+        : { backend, content, kinds, openRecord: noOpen, account: -1, state: OFFLINE, objects: [], notes: { notes: [], scripts: [] }, catalog, looks, targets, features, feature, setFeature, setFeatures, tags, newTags, setNewTags, markLooks, collects, history, run, setState, upsert },
+    [backend, content, kinds, account, state, objects, notes, catalog, looks, targets, features, feature, setFeature, tags, newTags, setNewTags, markLooks, collects, history, run, upsert],
   )
   /** Undoes (or redoes) a step and selects what it leaves. */
   const undoRedo = useCallback(

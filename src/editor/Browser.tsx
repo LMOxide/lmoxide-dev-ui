@@ -10,6 +10,8 @@ import { cn } from '@/lib/utils'
 import { loadJson, saveJson } from '../storage'
 import { clipLabel, paste, type Clip, type Target } from './clipboard'
 import { Details, NewScript } from './Details'
+import { Definitions } from './Definitions'
+import type { RecordKey } from './content'
 import { FeatureSelect } from './Features'
 import { distance } from './geometry'
 import { Marks } from './Marks'
@@ -30,6 +32,8 @@ const TABS: [Tab, string][] = [
   ['scripts', 'Scripts'],
   ['achievements', 'Achievements'],
 ]
+/** the tree's tabs, and every content record by kind */
+type AnyTab = Tab | 'definitions'
 
 const sameSel = (a: Sel | undefined, b: Sel | null) => !!a && !!b && JSON.stringify(a) === JSON.stringify(b)
 
@@ -46,10 +50,21 @@ const NO_FILTERS: Filters = { cats: CATEGORIES, author: '', feature: '', radius:
  * The world editor's body: tabs over a tree of everything (spawns by world, scripts and their
  * waves, achievements), the selected row's details beside it.
  */
-export function Browser({ ctx, worlds }: { ctx: Ctx; worlds: Worlds }) {
+export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
+  const [tab, setTabState] = useState<AnyTab>(() => loadJson(TAB_KEY, 'spawns'))
+  const setTab = useCallback((t: AnyTab) => (setTabState(t), saveJson(TAB_KEY, t)), [])
+  /** the content record the Definitions tab shows */
+  const [record, setRecord] = useState<RecordKey | null>(null)
+  const openRecord = useCallback(
+    (id: string, feature = 'live') => {
+      setRecord({ id, feature })
+      setTab('definitions')
+    },
+    [setTab],
+  )
+  const ctx: Ctx = useMemo(() => ({ ...base, openRecord }), [base, openRecord])
   const { backend, account, state } = ctx
-  const [tab, setTabState] = useState<Tab>(() => loadJson(TAB_KEY, 'spawns'))
-  const setTab = (t: Tab) => (setTabState(t), saveJson(TAB_KEY, t))
+  const treeTab: Tab = tab === 'definitions' ? 'spawns' : tab
   const [open, setOpenState] = useState<Set<string>>(() => new Set(loadJson<string[]>(OPEN_KEY, [])))
   const setOpen = useCallback((key: string, on: boolean) => {
     setOpenState((s) => {
@@ -112,10 +127,13 @@ export function Browser({ ctx, worlds }: { ctx: Ctx; worlds: Worlds }) {
     [backend, ctx, worlds],
   )
 
-  const reveal = useCallback((key: string, t: Tab) => {
-    setTab(t)
-    setSelKey(key)
-  }, [])
+  const reveal = useCallback(
+    (key: string, t: Tab) => {
+      setTab(t)
+      setSelKey(key)
+    },
+    [setTab],
+  )
 
   /** what "New …" started (shown by the details; `n` tells repeats apart) */
   const [intent, setIntent] = useState<(Intent & { n: number; key: string }) | null>(null)
@@ -151,7 +169,7 @@ export function Browser({ ctx, worlds }: { ctx: Ctx; worlds: Worlds }) {
   )
 
   const env: Env = { ctx, worlds, targets: ctx.targets, clip, copy, paste: doPaste, pinned, keep, reveal, remove, add }
-  const full = buildTab(env, tab)
+  const full = tab === 'definitions' ? [] : buildTab(env, treeTab)
 
   // the search, the tags and "needs work" keep only what matches (and open the way to it)
   const forced = new Set<string>()
@@ -202,7 +220,7 @@ export function Browser({ ctx, worlds }: { ctx: Ctx; worlds: Worlds }) {
     }
     lastGame.current = id
     const want: Sel = { t: 'object', pf: state.playfield, id }
-    for (const t of [tab, ...TABS.map(([x]) => x).filter((x) => x !== tab)]) {
+    for (const t of [treeTab, ...TABS.map(([x]) => x).filter((x) => x !== treeTab)]) {
       const path = pathTo(buildTab(env, t), (n) => sameSel(n.sel, want))
       if (!path) continue
       if (t !== tab) setTab(t)
@@ -240,19 +258,28 @@ export function Browser({ ctx, worlds }: { ctx: Ctx; worlds: Worlds }) {
   const listed = here.filter((o) => keep(o, state.playfield))
   const hiddenCount = state.hidden.length
 
+  const tabBar = (
+    <Tabs value={tab} onValueChange={(v) => setTab(v as AnyTab)}>
+      <TabsList className="w-full">
+        {TABS.map(([t, label]) => (
+          <TabsTrigger key={t} value={t}>
+            {label}
+          </TabsTrigger>
+        ))}
+        <TabsTrigger value="definitions" disabled={!ctx.kinds} title={ctx.kinds ? 'Every content record by kind: NPCs, objects, skills, buffs, loot, items, minifigures …' : "This server doesn't edit content (no /v1/editor routes)"}>
+          Definitions
+        </TabsTrigger>
+      </TabsList>
+    </Tabs>
+  )
+
+  if (tab === 'definitions' && ctx.kinds) return <Definitions ctx={ctx} content={ctx.content} kinds={ctx.kinds} tabs={tabBar} at={record} setAt={setRecord} />
+
   return (
     <div className="flex min-h-0 flex-1 max-md:flex-col">
       <section className={cn('flex min-h-0 w-[min(30rem,42vw)] shrink-0 flex-col border-r bg-card max-md:w-full max-md:flex-1', pane !== 'tree' && 'max-md:hidden')}>
         <div className="space-y-2 border-b p-2">
-          <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
-            <TabsList className="w-full">
-              {TABS.map(([t, label]) => (
-                <TabsTrigger key={t} value={t}>
-                  {label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
+          {tabBar}
           <div className="flex gap-1">
             <div className="relative min-w-0 flex-1">
               <Input className="h-8 pr-7" placeholder="Search (name, #tag)" value={query} onChange={(e) => setQuery(e.target.value)} />

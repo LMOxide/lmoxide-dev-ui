@@ -461,10 +461,8 @@ function RuleDetail({ ctx, worlds, a, intent }: { ctx: Ctx; worlds: Worlds; a: S
           )}
         </>
       )}
-      <p className="text-xs text-muted-foreground">
-        {a.ids.length > 0 && `ids ${a.ids.join(', ')}`}
-        {rule?.author && ` · by ${rule.author}`}
-      </p>
+      {a.ids.length > 0 && <AchievementLinks ctx={ctx} ids={a.ids} />}
+      {rule?.author && <p className="text-xs text-muted-foreground">Rule by {rule.author}</p>}
       {(category || drop) &&
         (reallyDelete ? (
           <Button size="sm" variant="destructive" onClick={() => worlds.deleteRule(a.key)}>
@@ -737,4 +735,46 @@ export function Details({ ctx, worlds, sel, intent, onSelect }: { ctx: Ctx; worl
     case 'folder':
       return <FolderDetail ctx={ctx} worlds={worlds} sel={sel} intent={intent} />
   }
+}
+
+/**
+ * The client achievements an entry stands for (a minifigure achievement has a copy per
+ * minifigure): each by name and lore id, a link to its content record.
+ */
+function AchievementLinks({ ctx, ids }: { ctx: Ctx; ids: number[] }) {
+  const [entries, setEntries] = useState<{ id: number; name: string; record?: string }[] | null>(null)
+  const key = ids.join()
+  useEffect(() => {
+    let gone = false
+    ctx.content
+      .catalog('lore', { ids })
+      .then((c) => !gone && setEntries(c.entries))
+      .catch(() => !gone && setEntries([]))
+    return () => {
+      gone = true
+    }
+  }, [ctx.content, key]) // eslint-disable-line react-hooks/exhaustive-deps
+  const byId = new Map((entries ?? []).map((e) => [e.id, e]))
+  return (
+    <div className="text-xs" data-achievements>
+      <p className="text-muted-foreground">{ids.length === 1 ? 'The achievement:' : `The ${ids.length} achievements (one per minifigure):`}</p>
+      <ul className="flex flex-wrap gap-x-3 gap-y-0.5">
+        {ids.map((id) => {
+          const e = byId.get(id)
+          return (
+            <li key={id}>
+              {e?.record ? (
+                <button type="button" data-slot="plain" className="text-primary hover:underline" onClick={() => ctx.openRecord(e.record!)} title={`Open ${e.record}`}>
+                  {e.name || e.record}
+                </button>
+              ) : (
+                <span>{e?.name || (entries ? 'not in the content' : '…')}</span>
+              )}{' '}
+              <span className="text-muted-foreground">#{id}</span>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
 }

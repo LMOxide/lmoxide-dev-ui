@@ -58,7 +58,7 @@ function Box({ className, title, disabled, onOpen, children }: { className?: str
 /** An × beside a combo box's trigger. */
 function Remove({ label, onClick, className }: { label: string; onClick: () => void; className?: string }) {
   return (
-    <button type="button" aria-label={label} title={label} className={cn('inline-flex shrink-0 cursor-pointer items-center rounded-sm opacity-60 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-1', className)} onClick={onClick}>
+    <button type="button" data-slot="plain" aria-label={label} title={label} className={cn('inline-flex shrink-0 cursor-pointer items-center rounded-sm opacity-60 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-1', className)} onClick={onClick}>
       <XIcon className="size-3.5" />
     </button>
   )
@@ -188,7 +188,7 @@ export function Combobox({
     <Popover open={open} onOpenChange={(o) => (setOpen(o), o || setQuery(''))}>
       <Box className={className} title={title} disabled={disabled} onOpen={() => setOpen(true)}>
         <PopoverTrigger asChild>
-          <button type="button" role="combobox" aria-expanded={open} disabled={disabled} className="flex min-w-0 flex-1 cursor-pointer items-baseline gap-2 text-left outline-none">
+          <button type="button" data-slot="plain" role="combobox" aria-expanded={open} disabled={disabled} className="flex min-w-0 flex-1 cursor-pointer items-baseline gap-2 text-left outline-none">
             <span className={cn('truncate', !value && 'text-muted-foreground')}>{picked?.label ?? value ?? placeholder}</span>
             {picked?.detail && <span className="truncate text-xs text-muted-foreground">{picked.detail}</span>}
           </button>
@@ -266,7 +266,7 @@ export function MultiCombobox({
             </span>
           ))}
         <PopoverTrigger asChild>
-          <button type="button" role="combobox" aria-expanded={open} aria-label={label ? `${label}: choose` : 'Choose'} className="flex min-w-4 flex-1 cursor-pointer items-center justify-between gap-1 self-stretch text-left outline-none">
+          <button type="button" data-slot="plain" role="combobox" aria-expanded={open} aria-label={label ? `${label}: choose` : 'Choose'} className="flex min-w-4 flex-1 cursor-pointer items-center justify-between gap-1 self-stretch text-left outline-none">
             {everything ? <span>{all}</span> : value.length === 0 ? <span className="text-muted-foreground">{placeholder}</span> : <span />}
             <ChevronsUpDownIcon className="size-3.5 shrink-0 opacity-50" />
           </button>
@@ -283,10 +283,10 @@ export function MultiCombobox({
           free={create ? (t) => `${create}: “${t}”` : undefined}
         />
         <div className="flex gap-3 border-t px-2 py-1.5 text-xs">
-          <button type="button" data-slot="link" className="text-primary hover:underline" onClick={() => onChange([...new Set([...value, ...matching(options, query).map((o) => o.value)])])}>
+          <button type="button" data-slot="plain" className="text-primary hover:underline" onClick={() => onChange([...new Set([...value, ...matching(options, query).map((o) => o.value)])])}>
             all{query && ' shown'}
           </button>
-          <button type="button" data-slot="link" className="text-primary hover:underline" onClick={() => onChange([])}>
+          <button type="button" data-slot="plain" className="text-primary hover:underline" onClick={() => onChange([])}>
             none
           </button>
         </div>
