@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../api'
 import { ToolSwitch } from '../ToolSwitch'
-import { session } from '../tools'
+
 import type { Instances, Player } from '../types'
 import { modeName } from '../suggest'
 import { Button } from '@/components/ui/button'
@@ -197,10 +197,7 @@ export function WorldEditor({
       ? instances.instances.some((i) => i.kind === 'preview' && i.playfield === myPlayer.playfield && i.copy === myPlayer.copy)
       : // (instances not readable: a copy past the main ones in the world editor mode)
         myPlayer.mode === 'world-editor' && myPlayer.copy >= 3)
-  const canCommand = 'move' in backend || session()?.scope === 'admin'
-  const previewBlocked = !canCommand
-    ? 'Needs the admin scope (sending a command as your character)'
-    : !myPlayer
+  const previewBlocked = !myPlayer
       ? `${username ? `${username} isn't` : "You aren't"} in game: log in with the game client in the world editor mode`
       : myPlayer.mode !== 'world-editor'
         ? `${myPlayer.character_name} is in the ${modeName(myPlayer.mode ?? 'unknown')} mode: previews start from the world editor mode`
@@ -212,7 +209,7 @@ export function WorldEditor({
       if (!myPlayer) return
       const cmd = end ? '!preview end' : '!preview'
       try {
-        const r = await backend.command(myPlayer.account_id, cmd)
+        const r = await backend.preview(end)
         setMoving(r.affected > 0 ? (r.replies?.join(' · ') ?? (end ? 'back from the preview' : 'on the way to the preview')) : `${cmd} reached nobody: are you still online?`)
       } catch (e) {
         setMoving(`${cmd}: ${e instanceof Error ? e.message : String(e)}`)

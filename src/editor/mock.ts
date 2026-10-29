@@ -165,8 +165,8 @@ export class MockBackend implements SurveyBackend {
       open_world_cap: 40,
     }
   }
-  async command(_account: number, command: string): Promise<CommandResult> {
-    const c = command.trim()
+  async preview(end: boolean): Promise<CommandResult> {
+    const c = end ? '!preview end' : '!preview'
     if (c === '!preview') {
       this.previewCopy = 3
       return { affected: 1, replies: ['preview (copy 3): enemies fight, the working copy\'s spawns, walls and scripts; `!preview end` goes back'] }
@@ -176,7 +176,7 @@ export class MockBackend implements SurveyBackend {
       this.previewCopy = null
       return { affected: 1, replies: [was === null ? 'not in a preview' : 'back from the preview'] }
     }
-    return { affected: 1, replies: [`(the mock doesn't run ${c})`] }
+    return { affected: 0 }
   }
   async state() {
     return this.snapshot()

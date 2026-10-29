@@ -37,8 +37,9 @@ export interface SurveyBackend {
   players(): Promise<Player[]>
   /** The running copies of worlds (GET /v1/instances): which copies are previews. */
   instances(): Promise<Instances>
-  /** A test command as that player, as if typed in chat (`!preview`; the admin scope). */
-  command(account: number, command: string): Promise<CommandResult>
+  /** Starts (or `end`s) a preview for the signed-in editor's own character in the world editor
+   *  mode (POST /v1/survey/preview: `!preview` / `!preview end`; the moderate scope). */
+  preview(end: boolean): Promise<CommandResult>
   state(account: number): Promise<PlayerState>
   catalog(): Promise<Placeable[]>
   objects(playfield: number): Promise<{ revision: number; objects: SurveyObject[] }>
@@ -123,8 +124,9 @@ export class HttpBackend implements SurveyBackend {
   instances() {
     return this.api.instances()
   }
-  command(account: number, command: string) {
-    return this.api.command(account, command)
+  async preview(end: boolean): Promise<CommandResult> {
+    const r = await this.call<{ sent: number }>('POST', '/preview', { end })
+    return { affected: r.sent }
   }
 
   private async call<T>(method: string, path: string, body?: unknown): Promise<T> {

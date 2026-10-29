@@ -78,7 +78,7 @@ export function SignIn() {
         <p className="muted">
           The {TOOL[tool].label.toLowerCase()}: {TOOL[tool].about}.{' '}
           {tool === 'editor'
-            ? 'Needs an account with GM level 1 or more (the moderate scope); “Play this” needs the admin scope.'
+            ? 'Needs an account with GM level 1 or more (the moderate scope).'
             : 'Needs an admin account (or an API key with the admin scope) for commands.'}
         </p>
         <div className="segmented" role="tablist">
