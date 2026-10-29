@@ -63,7 +63,7 @@ function Elsewhere({ ctx, worlds, pf, what }: { ctx: Ctx; worlds: Worlds; pf: nu
   if (ctx.state.playfield < 0)
     return (
       <p className="rounded-md bg-warn-bg px-3 py-2 text-sm text-warn">
-        Nobody in game: choose a character online on the survey server, and go to <b>{worldName(worlds, pf)}</b> to {what}.
+        Nobody in game: choose a character online in the world editor mode, and go to <b>{worldName(worlds, pf)}</b> to {what}.
       </p>
     )
   return (
@@ -441,7 +441,7 @@ function RuleDetail({ ctx, worlds, a, intent }: { ctx: Ctx; worlds: Worlds; a: S
         </Field>
       )}
       {drop && (
-        <Field label="item" title="The item's template, if you know it (play servers can only drop it with one)">
+        <Field label="item" title="The item's template, if you know it (the game can only drop it with one)">
           <Input className="h-8 w-40" type="number" placeholder="template" value={rule?.item ?? ''} onChange={(e) => save({ item: e.target.value ? Number(e.target.value) : null })} />
         </Field>
       )}
@@ -457,7 +457,7 @@ function RuleDetail({ ctx, worlds, a, intent }: { ctx: Ctx; worlds: Worlds; a: S
           {ctx.state.playfield >= 0 ? (
             <PlacePanel key={intent?.add === 'trigger' ? `t${(intent as { n?: number }).n}` : 'p'} ctx={ctx} spawns={false} autoOpen={intent?.add === 'trigger'} wall={{ collect: { drop: a.key } }} />
           ) : (
-            <p className="rounded-md bg-warn-bg px-3 py-2 text-sm text-warn">Nobody in game: choose a character online on the survey server to place a trigger.</p>
+            <p className="rounded-md bg-warn-bg px-3 py-2 text-sm text-warn">Nobody in game: choose a character online in the world editor mode to place a trigger.</p>
           )}
         </>
       )}
@@ -529,7 +529,7 @@ function LocationDetail({ ctx, worlds, pf, name, intent }: { ctx: Ctx; worlds: W
       ))}
       {l.pos ? (
         <p className="rounded-md bg-secondary px-3 py-2 text-sm">
-          The client has an exploration area for it (around {fmtPos(l.pos)}): walking in discovers it on play servers. A trigger wall is only needed to change where.
+          The client has an exploration area for it (around {fmtPos(l.pos)}): walking in discovers it in the game. A trigger wall is only needed to change where.
         </p>
       ) : (
         !walls.length && <p className="rounded-md bg-warn-bg px-3 py-2 text-sm text-warn">Nothing discovers it yet: the client has no area for it, and no trigger wall does.</p>

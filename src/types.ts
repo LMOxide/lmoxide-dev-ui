@@ -27,6 +27,39 @@ export interface Player {
   playfield?: number | null
   /** where the character is now (x, y up, z); lmoxide 2026-10-27 or later */
   position?: [number, number, number] | null
+  /** which running copy of the playfield (`GET /v1/instances`); null until in play */
+  copy?: number | null
+  /** the character's game mode */
+  mode?: GameMode | null
+}
+
+export type GameMode = 'progression' | 'maxed' | 'world-editor' | (string & {})
+
+/** `GET /v1/instances` (moderate): a running copy of a world. */
+export interface Instance {
+  playfield: number
+  /** 0, 1, 2: the progression, maxed and world editor main copies; 3 and up: extra copies */
+  copy: number
+  /** the key clients know it by */
+  key: number
+  mode: GameMode
+  kind: 'main' | 'extra' | 'preview' | (string & {})
+  /** a preview's owner (character id) */
+  preview_owner?: number | null
+  /** players and the NPCs that joined the world (pets, escorts) */
+  characters: number
+  players: number
+  /** NPCs and smashables */
+  npcs: number
+}
+
+export interface Instances {
+  instances: Instance[]
+  /** the last AI tick (every copy with players), ms, and the longest in the last minute */
+  ai_tick_ms: number
+  ai_tick_max_ms: number
+  /** players an open world's copy takes before arrivals get another */
+  open_world_cap: number
 }
 
 export type TimelineType =

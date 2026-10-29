@@ -9,22 +9,20 @@ Static web pages for working on an LMOxide server from the browser, through its 
   with search and completion instead of typing them in the game chat. Background: LMOxide's
   `docs/EFFECT-BROWSER.md`.
 - **World editor** (`/editor/`): place and fix the enemies, NPCs, smashables and trigger walls
-  of each world on a survey server, and mark scripts and areas for review (LMOxide's
-  `docs/SURVEY.md`).
+  of each world as a character in the world editor mode, mark scripts and areas for review
+  (LMOxide's `docs/SURVEY.md`), and play your unpublished changes in a preview.
 
-The front page (`/`) signs in to both servers' APIs at once (the play server's and the survey
-server's; they share accounts) and opens the tool you choose. Every `lmoxide-api` serves the same
-routes, a survey server's also the world editor's `/v1/survey`: so the debugger works on either
-server (the *Play server / Survey server* switch in its header, no new sign-in), and the world
-editor needs the survey server. Sessions belong to a server's API address, not to a tool. The
-switch at the top left of each tool goes to the other, greyed out when you aren't signed in to
-its server (not running, or the account can't use it).
+One LMOxide server runs every game mode (progression, maxed and the world editor; LMOxide's
+`docs/SERVER-ARCHITECTURE.md`) behind one `lmoxide-api`. The front page (`/`) signs in to it once
+and opens the tool you choose; both tools use that one session, and the switch at the top left
+of each tool goes to the other. The debugger works on characters in any mode; the world editor's
+routes (`/v1/survey`, `/v1/editor`) need GM level 1 or more (the moderate scope).
 
 *Stay signed in* (on by default) keeps the session token, never the password, in localStorage:
 a "remember" login (`POST /v1/auth/login` with `remember`, the API's `--remember-days`, 30 by
 default) that the pages renew (`POST /v1/auth/renew`) once it is past half its life, so it
 lasts while you use the dev UI. Untick it for a tab-only session. Log out ends every session on
-its server; so do a password change and a ban.
+the server; so do a password change and a ban.
 
 ## Debugger
 
@@ -57,6 +55,7 @@ its server; so do a password change and a ban.
 | Minifigures | `!own <name>`, `!aura <0-4>`, `!collection limit\|all` |
 | Progress | `!count kills\|smashes\|builds [n] [name]`, `!defeat <boss>`, `!ach` |
 | Dialogues | `!dialog <n>` |
+| Instances | nothing: the running copies of worlds (`GET /v1/instances`, moderate scope, refreshed every 5 s while shown): world, copy, mode, kind (main, extra, preview), players and NPCs, and the AI's tick time |
 | All commands | every command with its usage |
 
 **Console** (right of the Debug view, a tab in the Effects view): a command box that completes
@@ -72,10 +71,10 @@ API gaps found along the way are in [`docs/API-PROPOSALS.md`](docs/API-PROPOSALS
 
 ## World editor
 
-For a survey server (`--mode survey`, LMOxide's `tools/survey-server.sh`): place enemies, NPCs
+For characters in the world editor mode (log in through the patcher's world editor profile): place enemies, NPCs
 and smashables where they stood on live, confirm, edit or delete the guessed content, place
 trigger walls, mark areas, scripts and waves for review, and choose what counts toward
-achievements. You edit as a character online on the survey server (*Editing as*): its position
+achievements. You edit as a character online in the world editor mode (*Editing as*): its position
 and facing place things. With nobody chosen the tree can still be browsed and edited; placing and
 showing things in game need the character.
 
@@ -147,7 +146,8 @@ Achievements/  Smash/      {achievement}/ {enemy}                 every smash ac
   editing (moves and turns typed in quick succession are one step), confirming, deleting and
   resetting, for this page's session. **Reset** on the selection: an edited or confirmed guess
   back to the guess; anything else back to how it was when the page was opened.
-- **Publish**: edits are saved on the survey server as you make them (written to disk once you pause), so a crash loses nothing, but play servers only see what you publish. The header button counts your unpublished records (`Publish (n)`, or *Saved · all published*); the dialog publishes all of yours or one playfield/feature/author group, and lists each record (`GET /v1/survey/unpublished`, `POST /v1/survey/publish`, lmoxide d07b419).
+- **Play this (preview)** (header): sends `!preview` as your own character (the signed-in login's, found in `GET /v1/players` by username; needs the admin scope): the server puts you in a private copy of the world you stand in, built from the editor's unpublished working copy, with enemies fighting. While you are in it (your copy is a `preview` in `GET /v1/instances`) the button is *End preview* (`!preview end`). Disabled, with the reason in its tooltip, when you aren't in game in the world editor mode.
+- **Publish**: edits are saved on the server as you make them (written to disk once you pause), so a crash loses nothing, but the progression and maxed modes only see what you publish. The header button counts your unpublished records (`Publish (n)`, or *Saved · all published*); the dialog publishes all of yours or one playfield/feature/author group, and lists each record (`GET /v1/survey/unpublished`, `POST /v1/survey/publish`, lmoxide d07b419).
 - **Import / export**: one file per set or playfield; importing previews duplicates,
   near-duplicates (within a distance and angle you set, each can be taken anyway) and conflicts.
 
@@ -171,13 +171,12 @@ address) forwards to `/editor/`.
 
 ```sh
 pnpm install
-pnpm dev            # http://localhost:5173: /api to http://127.0.0.1:8090, /editor-api to :8091
+pnpm dev            # http://localhost:5173: /api to http://127.0.0.1:8090
 ```
 
-In development the debugger's API base is `/api`, which Vite forwards to `LMOXIDE_API`
-(default `http://127.0.0.1:8090`, the play server's API), and the world editor's is
-`/editor-api`, forwarded to `LMOXIDE_EDITOR_API` (default `http://127.0.0.1:8091`, a survey
-server's), so no CORS setup is needed. For a backend with demo accounts
+In development the API base is `/api`, which Vite forwards to `LMOXIDE_API`
+(default `http://127.0.0.1:8090`; `tools/lan-server.sh` runs this on :5174 against its server),
+so no CORS setup is needed. For a backend with demo accounts
 run `tools/web-dev-backend.sh` in the LMOxide repo (`admin` / `admin-password`); nobody is
 online there unless a game client connects, so for commands use a real server such as
 `tools/lan-server.sh`.
@@ -192,9 +191,9 @@ LMOXIDE_API=http://192.168.1.20:8090 pnpm dev
 pnpm build          # static files in dist/
 ```
 
-`dist/` uses relative paths, so it can be served from any directory. The API base URLs are set on
-the sign-in page (*Servers…*) and kept in localStorage; without them the debugger uses port 8090
-of the page's host and the world editor port 8091. The API has to allow the app's origin (`LMOXIDE_API_CORS_ORIGINS=https://...`) unless both
+`dist/` uses relative paths, so it can be served from any directory. The API base URL is set on
+the sign-in page (*Server…*) and kept in localStorage; without it the pages use port 8090
+of the page's host. The API has to allow the app's origin (`LMOXIDE_API_CORS_ORIGINS=https://...`) unless both
 are served from one origin behind a reverse proxy (then set the base URL to e.g. `/api`).
 
 If the API is not reachable, the effect catalog can also be opened from a file
@@ -222,8 +221,7 @@ If the API is not reachable, the effect catalog can also be opened from a file
 |---|---|---|
 | localStorage, sessionStorage | `lmofx.sessions` | session tokens (or API keys) by API address: remembered ones in localStorage, the others in this tab only |
 | localStorage | `lmofx.remember` | *Stay signed in* ticked |
-| localStorage | `lmofx.apiBase`, `lmofx.editor.apiBase` | the play server's and the survey server's API base URL |
-| localStorage | `lmofx.debugger.server` | the server the debugger works on (`play`, `survey`) |
+| localStorage | `lmofx.apiBase` | the API base URL |
 | localStorage | `lmofx.player` | the player chosen to run commands as |
 | localStorage | `lmofx.view`, `lmofx.debugSection`, `lmofx.filters`, `lmofx.autoplay` | where you were, the last filters, "play on step" |
 | localStorage | `lmofx.history` | the command box history |

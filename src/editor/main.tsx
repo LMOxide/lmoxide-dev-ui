@@ -9,18 +9,18 @@ import { WorldEditor } from './WorldEditor'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import './app.css'
 
-/** /editor/?mock runs against an in-memory server; otherwise the world editor's session (sign-in page). */
+/** /editor/?mock runs against an in-memory server; otherwise the dev UI's session (sign-in page). */
 function EditorApp() {
   const mock = useMemo(() => (new URLSearchParams(window.location.search).has('mock') ? new MockBackend() : null), [])
-  const s = mock ? null : session('editor')
-  const backend = useMemo(() => mock ?? new HttpBackend(apiBase('editor'), s?.token ?? null), [mock, s?.token])
-  const content = useMemo(() => (mock ? new MockContent() : new HttpContent(apiBase('editor'), s?.token ?? null)), [mock, s?.token])
-  if (mock) return <WorldEditor backend={mock} content={content} />
+  const s = mock ? null : session()
+  const backend = useMemo(() => mock ?? new HttpBackend(apiBase(), s?.token ?? null), [mock, s?.token])
+  const content = useMemo(() => (mock ? new MockContent() : new HttpContent(apiBase(), s?.token ?? null)), [mock, s?.token])
+  if (mock) return <WorldEditor backend={mock} content={content} username="hosttemple" />
   if (!s) {
     toSignIn('editor')
     return null
   }
-  return <WorldEditor backend={backend} content={content} onLogout={() => signOut('editor')} onExpire={() => expired('editor')} />
+  return <WorldEditor backend={backend} content={content} username={s.label} onLogout={() => signOut('editor')} onExpire={() => expired('editor')} />
 }
 
 // a remembered session past half its life is renewed before anything uses its token

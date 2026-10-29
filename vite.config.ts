@@ -3,11 +3,10 @@ import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 
-// In development /api goes to the play server's lmoxide-api (tools/web-dev-backend.sh or
-// tools/lan-server.sh in the lmoxide repo) and /editor-api to a survey server's (tools/survey-server.sh),
-// so no CORS setup is needed. LMOXIDE_API and LMOXIDE_EDITOR_API point them elsewhere.
+// In development /api goes to the server's lmoxide-api (tools/web-dev-backend.sh or
+// tools/lan-server.sh in the lmoxide repo; one server runs every game mode, the world editor's
+// too), so no CORS setup is needed. LMOXIDE_API points it elsewhere.
 const apiTarget = process.env.LMOXIDE_API ?? 'http://127.0.0.1:8090'
-const editorApiTarget = process.env.LMOXIDE_EDITOR_API ?? process.env.LMOXIDE_SURVEY_API ?? 'http://127.0.0.1:8091'
 
 export default defineConfig({
   // relative asset paths: dist/ works from any directory or path on a static host
@@ -24,7 +23,6 @@ export default defineConfig({
   server: {
     proxy: {
       '^/api/': { target: apiTarget, rewrite: (p) => p.replace(/^\/api/, '') },
-      '^/editor-api/': { target: editorApiTarget, rewrite: (p) => p.replace(/^\/editor-api/, '') },
     },
   },
 })

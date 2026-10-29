@@ -1,5 +1,5 @@
 import { describe, isPackage, soundName } from './catalog'
-import type { AnimationCatalog, BccStates, Effect, Minifigure, MonsterData, Playfield, TestCatalog } from './types'
+import type { AnimationCatalog, BccStates, Effect, Minifigure, MonsterData, Player, Playfield, TestCatalog } from './types'
 
 /** One completion: what the input becomes when it is taken. */
 export interface Suggestion {
@@ -341,4 +341,15 @@ export function commandSuggestions(value: string, data: GameData): Suggestion[] 
     default:
       return []
   }
+}
+
+/** "progression", "maxed", "world editor" */
+export const modeName = (mode: string) => mode.replace(/-/g, ' ')
+
+/** "Isle of Yarr (4200) · copy 3 · maxed": where a player is, which copy, which game mode. */
+export function whereLabel(data: GameData, p: Player): string {
+  const parts = p.playfield != null ? [`${playfieldName(data, p.playfield)} (${p.playfield})`] : []
+  if (p.copy != null) parts.push(`copy ${p.copy}`)
+  if (p.mode) parts.push(modeName(p.mode))
+  return parts.join(' · ')
 }

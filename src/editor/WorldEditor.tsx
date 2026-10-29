@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../api'
 import { ToolSwitch } from '../ToolSwitch'
-import { findOn, sendAcross } from '../elsewhere'
 import { session } from '../tools'
-import type { Player } from '../types'
+import type { Instances, Player } from '../types'
+import { modeName } from '../suggest'
+import { Button } from '@/components/ui/button'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { describe, useHistory, type History } from './history'
 import { loadJson, saveJson } from '../storage'
 import type { SurveyBackend } from './backend'
@@ -75,10 +77,25 @@ export interface Ctx {
   upsert: (o: SurveyObject, replaced?: string) => void
 }
 
-export function WorldEditor({ backend, content, onLogout, onExpire }: { backend: SurveyBackend; content: ContentBackend; onLogout?: () => void; onExpire?: () => void }) {
+export function WorldEditor({
+  backend,
+  content,
+  username,
+  onLogout,
+  onExpire,
+}: {
+  backend: SurveyBackend
+  content: ContentBackend
+  /** the signed-in login (its character online is the one "Play this" previews with) */
+  username?: string | null
+  onLogout?: () => void
+  onExpire?: () => void
+}) {
   const [surveyors, setSurveyors] = useState<Surveyor[]>([])
-  /** the signed-in login on the play server instead (it can come here with `!server editor`) */
-  const [onPlay, setOnPlay] = useState<Player | null>(null)
+  /** everyone online in every mode, and the running copies (for "Play this" / "End preview") */
+  const [players, setPlayers] = useState<Player[] | null>(null)
+  const [instances, setInstances] = useState<Instances | null>(null)
+  /** the answer to the last "Play this" / "End preview" */
   const [moving, setMoving] = useState('')
   const [account, setAccount] = useState<number | null>(() => loadJson<number | null>(ACCOUNT_KEY, null))
   const [state, setState] = useState<PlayerState | null>(null)
@@ -114,7 +131,7 @@ export function WorldEditor({ backend, content, onLogout, onExpire }: { backend:
   const failed = useCallback(
     (e: unknown) => {
       if (e instanceof ApiError && e.status === 401) (onExpire ?? onLogout)?.()
-      setError(e instanceof ApiError && e.code === 'not_found' && e.message.includes('survey') ? `the API at ${backend.label} doesn't reach a survey server: log out and sign in with the world editor's API (/editor-api on the dev server, or port 8091; lmoxide tools/survey-server.sh)` : e instanceof Error ? e.message : String(e))
+      setError(e instanceof ApiError && e.code === 'not_found' && e.message.includes('survey') ? `the API at ${backend.label} has no world editor routes (/v1/survey): is it an older lmoxide-api?` : e instanceof Error ? e.message : String(e))
     },
     [onExpire, onLogout, backend],
   )
@@ -146,34 +163,67 @@ export function WorldEditor({ backend, content, onLogout, onExpire }: { backend:
     [account, backend, loadPlayfield],
   )
 
-  // who is online here, again every few seconds (a client logging in or arriving from the play
-  // server shows up without ↻)
+  // who is online, again every few seconds (a client logging in shows up without ↻)
   useEffect(() => {
-    const load = () => backend.surveyors().then(setSurveyors).catch(failed)
+    const load = () => {
+      backend.surveyors().then(setSurveyors).catch(failed)
+      backend
+        .players()
+        .then(setPlayers)
+        .catch(() => setPlayers(null))
+      backend
+        .instances()
+        .then(setInstances)
+        .catch(() => setInstances(null))
+    }
     load()
     const t = setInterval(() => document.visibilityState === 'visible' && load(), 5_000)
     return () => clearInterval(t)
   }, [backend, failed])
 
   // the signed-in login edits as its own character when nobody (or someone gone) is chosen
-  const me = session('editor')?.label?.toLowerCase() ?? null
+  const me = username?.toLowerCase() ?? null
   const mine = surveyors.find((s) => s.username.toLowerCase() === me)
   useEffect(() => {
     if (mine && !surveyors.some((s) => s.account_id === account)) setAccount(mine.account_id)
   }, [mine, surveyors, account])
 
-  // not here: maybe on the play server
-  useEffect(() => {
-    if (!me || mine) {
-      setOnPlay(null)
-      return
-    }
-    let gone = false
-    findOn('play', me).then((p) => !gone && setOnPlay(p))
-    return () => {
-      gone = true
-    }
-  }, [me, mine, surveyors])
+  // the signed-in login in game (any mode), and whether it is in its preview
+  const myPlayer = players?.find((p) => p.username.toLowerCase() === me) ?? null
+  const inPreview =
+    !!myPlayer &&
+    myPlayer.copy != null &&
+    (instances
+      ? instances.instances.some((i) => i.kind === 'preview' && i.playfield === myPlayer.playfield && i.copy === myPlayer.copy)
+      : // (instances not readable: a copy past the main ones in the world editor mode)
+        myPlayer.mode === 'world-editor' && myPlayer.copy >= 3)
+  const canCommand = 'move' in backend || session()?.scope === 'admin'
+  const previewBlocked = !canCommand
+    ? 'Needs the admin scope (sending a command as your character)'
+    : !myPlayer
+      ? `${username ? `${username} isn't` : "You aren't"} in game: log in with the game client in the world editor mode`
+      : myPlayer.mode !== 'world-editor'
+        ? `${myPlayer.character_name} is in the ${modeName(myPlayer.mode ?? 'unknown')} mode: previews start from the world editor mode`
+        : myPlayer.playfield == null
+          ? `${myPlayer.character_name} isn't in a world yet`
+          : null
+  const preview = useCallback(
+    async (end: boolean) => {
+      if (!myPlayer) return
+      const cmd = end ? '!preview end' : '!preview'
+      try {
+        const r = await backend.command(myPlayer.account_id, cmd)
+        setMoving(r.affected > 0 ? (r.replies?.join(' · ') ?? (end ? 'back from the preview' : 'on the way to the preview')) : `${cmd} reached nobody: are you still online?`)
+      } catch (e) {
+        setMoving(`${cmd}: ${e instanceof Error ? e.message : String(e)}`)
+      }
+      setTimeout(() => {
+        backend.players().then(setPlayers).catch(() => {})
+        backend.instances().then(setInstances).catch(() => {})
+      }, 1500)
+    },
+    [backend, myPlayer],
+  )
 
   useEffect(() => {
     backend.catalog().then(setCatalog).catch(failed)
@@ -300,18 +350,29 @@ export function WorldEditor({ backend, content, onLogout, onExpire }: { backend:
               ))}
             </select>
           </label>
-          <button className="ghost" onClick={() => backend.surveyors().then(setSurveyors).catch(failed)} title="Refresh the characters online on the survey server">
+          <button className="ghost" onClick={() => backend.surveyors().then(setSurveyors).catch(failed)} title="Refresh the characters online in the world editor mode">
             ↻
           </button>
-          {mine && (
-            <button
-              className="ghost"
-              onClick={() => sendAcross('survey', mine.account_id).then(setMoving)}
-              title="Go to the play server in game (!server play): same login, your play character"
-            >
-              → play server
-            </button>
-          )}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span tabIndex={previewBlocked ? 0 : -1}>
+                <Button
+                  variant={inPreview ? 'default' : 'outline'}
+                  size="sm"
+                  disabled={!!previewBlocked}
+                  onClick={() => preview(inPreview)}
+                >
+                  {inPreview ? 'End preview' : 'Play this (preview)'}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {previewBlocked ??
+                (inPreview
+                  ? `!preview end: back to the world editor (you're in your preview, copy ${myPlayer?.copy})`
+                  : '!preview: play this world as your working copy has it (unpublished changes too), enemies fighting, in a copy of your own')}
+            </TooltipContent>
+          </Tooltip>
           {state && (
             <span className="where small">
               <b>{state.playfield_name ?? `Playfield ${state.playfield}`}</b>
@@ -342,7 +403,7 @@ export function WorldEditor({ backend, content, onLogout, onExpire }: { backend:
             <button
               className={mineUnpublished ? 'primary' : ''}
               onClick={() => setPublishing(true)}
-              title="Your work is saved on the server as you go; play servers only take in what you publish"
+              title="Your work is saved on the server as you go; the progression and maxed modes only take in what you publish"
             >
               {mineUnpublished ? `Publish (${mineUnpublished})` : 'Saved · all published'}
             </button>
@@ -357,13 +418,13 @@ export function WorldEditor({ backend, content, onLogout, onExpire }: { backend:
       </header>
       <div className="banners">
         {error && <p className="banner warn">{error}</p>}
-        {account === null && !onPlay && <p className="banner warn">Nobody chosen to edit as: you can browse and edit the tree, but placing, moving to you and showing things in game need a character online on the survey server (choose it above).</p>}
-        {onPlay && (
-          <p className="banner">
-            You're on the play server ({onPlay.character_name}).{' '}
-            <button onClick={() => sendAcross('play', onPlay.account_id).then(setMoving)}>Go to the world editor server</button>
+        {account === null && (
+          <p className="banner warn">
+            Nobody chosen to edit as: you can browse and edit the tree, but placing, moving to you and showing things in game need a character online in the world editor mode (choose it above).
+            {myPlayer && myPlayer.mode !== 'world-editor' && ` You're in game in the ${modeName(myPlayer.mode ?? 'unknown')} mode: log in through the patcher's world editor profile.`}
           </p>
         )}
+        {inPreview && <p className="banner">You're playing your preview (copy {myPlayer?.copy}) in game; End preview takes you back to the world editor.</p>}
         {moving && (
           <p className="banner" onClick={() => setMoving('')}>
             {moving}

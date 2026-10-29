@@ -10,11 +10,10 @@ import { KEYS, loadJson, saveJson } from './storage'
 import { Console, type LogEntry } from './Console'
 import { Debug, type Section } from './Debug'
 import { Palette } from './Palette'
-import { playfieldName, searchSuggestions, vocabulary, type GameData } from './suggest'
-import { findOn, GAME_NAME, otherServer, sendAcross, serverLabel } from './elsewhere'
-import { apiBase as toolApiBase, expired, SERVER, serverBase, SERVERS, sessionFor, session as toolSession, setDebuggerServer, setServerBase, signOut, toolServer, toSignIn, type Server } from './tools'
+import { modeName, searchSuggestions, vocabulary, whereLabel, type GameData } from './suggest'
+import { apiBase, expired, sessionFor, session as currentSession, setApiBase, signOut, toSignIn } from './tools'
 import { ToolSwitch } from './ToolSwitch'
-import type { AnimationCatalog, BccStates, Effect, EffectCatalog, Minifigure, MonsterData, Player, Playfield, Session, TestCatalog } from './types'
+import type { AnimationCatalog, BccStates, Effect, EffectCatalog, Instances, Minifigure, MonsterData, Player, Playfield, Session, TestCatalog } from './types'
 
 /** The player chosen to preview on, remembered across visits (they may be offline now). */
 interface Chosen {
@@ -40,10 +39,10 @@ function useStored<T>(key: string, fallback: T, inSession = false): [T, (v: T | 
   return [value, set]
 }
 
-/** The debugger (/debugger/): its server's session, else to the sign-in page. */
+/** The debugger (/debugger/): the dev UI's session, else to the sign-in page. */
 export default function App() {
-  const base = toolApiBase('debugger')
-  const s = toolSession('debugger')
+  const base = apiBase()
+  const s = currentSession()
   const api = useMemo(() => new Api(base, s?.token ?? null), [base, s?.token])
   if (!s) {
     toSignIn('debugger')
@@ -52,14 +51,10 @@ export default function App() {
   return <Browser api={api} session={s} logout={() => signOut('debugger')} expire={() => expired('debugger')} />
 }
 
-/**
- * Debug the play server or the survey server (the session of each comes from the sign-in page;
- * without one, sign in again). A changed address keeps a session that address already has.
- */
-function switchServer(to: Server, base?: string) {
-  if (base !== undefined) setServerBase(to, base)
-  setDebuggerServer(to)
-  if (sessionFor(serverBase(to))) window.location.reload()
+/** Another API address: keeps a session that address already has, else signs in again. */
+function switchApi(base: string) {
+  setApiBase(base)
+  if (sessionFor(apiBase())) window.location.reload()
   else toSignIn('debugger')
 }
 
@@ -68,9 +63,9 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
   const [catalogSource, setCatalogSource] = useState('')
   const [catalogError, setCatalogError] = useState('')
   const [players, setPlayers] = useState<Player[] | null>(null)
-  /** the chosen player, offline here, online on the other server */
-  const [elsewhere, setElsewhere] = useState<Player | null>(null)
-  const [moving, setMoving] = useState('')
+  /** the running copies of worlds (null: not loaded, or not allowed) */
+  const [instances, setInstances] = useState<Instances | null>(null)
+  const [instancesError, setInstancesError] = useState('')
   const [playersError, setPlayersError] = useState('')
   const [chosen, setChosen] = useStored<Chosen | null>(KEYS.player, null)
   const [filters, setFilters] = useStored<Filters>(KEYS.filters, NO_FILTERS)
@@ -165,6 +160,24 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
     return () => clearInterval(t)
   }, [loadPlayers, tracking])
 
+  // the running copies of worlds, refreshed like the players while the Instances section shows
+  const loadInstances = useCallback(() => {
+    api
+      .instances()
+      .then((i) => {
+        setInstances(i)
+        setInstancesError('')
+      })
+      .catch((e) => setInstancesError(e instanceof ApiError && e.status === 403 ? 'needs GM level 1 or more (the moderate scope)' : failed(e)))
+  }, [api, failed])
+  const showingInstances = view === 'debug' && section === 'instances'
+  useEffect(() => {
+    if (!showingInstances) return
+    loadInstances()
+    const t = setInterval(() => document.visibilityState === 'visible' && loadInstances(), 5_000)
+    return () => clearInterval(t)
+  }, [loadInstances, showingInstances])
+
   const gameData: GameData = useMemo(
     () => ({ effects: catalog ?? [], playfields, minifigures, tests, monsters, animations, bccStates }),
     [catalog, playfields, minifigures, tests, monsters, animations, bccStates],
@@ -223,25 +236,10 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
     if (selected === null && filtered.length) setSelected(filtered[0].id)
   }, [filtered, selected])
 
-  // by account id, else by username (another server can give the same login another id)
+  // by account id, else by username (a remembered choice from an older server's accounts)
   const online =
     players?.find((p) => p.account_id === chosen?.account_id) ??
     players?.find((p) => !!chosen && p.username.toLowerCase() === chosen.username.toLowerCase())
-  const here = toolServer('debugger')
-  const there = otherServer(here)
-
-  // offline here: maybe they went to the other server (`!server`)
-  useEffect(() => {
-    if (!chosen || !players || online) {
-      setElsewhere(null)
-      return
-    }
-    let gone = false
-    findOn(there, chosen.username).then((p) => !gone && setElsewhere(p))
-    return () => {
-      gone = true
-    }
-  }, [chosen, players, online, there])
   const admin = session.scope === 'admin'
   const canSend = admin && !!chosen
 
@@ -379,7 +377,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
               )}
               {players?.map((p) => (
                 <option key={p.account_id} value={p.account_id}>
-                  {p.character_name} ({p.username}){p.gm_level < 1 ? ' — GM level 0' : ''}
+                  {p.character_name} ({p.username}){p.mode ? ` · ${modeName(p.mode)}` : ''}{p.gm_level < 1 ? ' — GM level 0' : ''}
                 </option>
               ))}
             </select>
@@ -387,17 +385,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
           <button className="ghost" onClick={loadPlayers} title="Refresh the players online">
             ↻
           </button>
-          {online?.playfield != null && <span className="muted small">in {playfieldName(gameData, online.playfield)}</span>}
-          {online && (
-            <button
-              className="ghost"
-              disabled={!canSend}
-              onClick={() => send(`!server ${GAME_NAME[there]}`)}
-              title={`Take ${online.character_name} to the ${serverLabel(there)} in game (!server ${GAME_NAME[there]}): same login, that server's character`}
-            >
-              → {serverLabel(there)}
-            </button>
-          )}
+          {online?.playfield != null && <span className="muted small">in {whereLabel(gameData, online)}</span>}
           <label className="check" title="Play each entry as you step with j/k or the arrow keys">
             <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} /> play on step
           </label>
@@ -409,25 +397,11 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
           <span className="muted small" title={api.base}>
             {session.label} · {session.scope ?? 'no scope'}
           </span>
-          <select
-            className="server"
-            value={toolServer('debugger')}
-            onChange={(e) => switchServer(e.target.value as Server)}
-            title={`The server whose characters you debug (API ${api.base}); the play server or the survey server`}
-          >
-            {SERVERS.map((sv) => (
-              <option key={sv} value={sv}>
-                {SERVER[sv].label}
-                {sessionFor(serverBase(sv)) ? '' : ' (sign in)'}
-              </option>
-            ))}
-          </select>
           <button
             className="ghost"
             onClick={() => {
-              const now = toolServer('debugger')
-              const b = window.prompt(`${SERVER[now].label} API base URL`, api.base)
-              if (b && b.trim() && b.trim() !== api.base) switchServer(now, b.trim())
+              const b = window.prompt('API base URL', api.base)
+              if (b && b.trim() && b.trim() !== api.base) switchApi(b.trim())
             }}
             title={`API: ${api.base}`}
           >
@@ -439,37 +413,13 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
         </div>
       </header>
 
-      {(!admin || playersError || (chosen && players && !online) || (online && online.gm_level < 1) || moving) && (
+      {(!admin || playersError || (chosen && players && !online) || (online && online.gm_level < 1)) && (
         <div className="banners">
           {!admin && <p className="banner warn">This login has the “{session.scope ?? 'none'}” scope: you can browse, but sending commands needs admin.</p>}
           {playersError && <p className="banner warn">Players: {playersError}</p>}
-          {chosen && players && !online && !elsewhere && (
+          {chosen && players && !online && (
             <p className="banner warn">
               {chosen.character_name} ({chosen.username}) isn't online; log in with the game client, then ↻.
-            </p>
-          )}
-          {chosen && !online && elsewhere && (
-            <p className="banner">
-              {elsewhere.character_name} ({elsewhere.username}) is on the {serverLabel(there)}.{' '}
-              <button className="ghost" onClick={() => switchServer(there)}>
-                Debug there
-              </button>{' '}
-              <button
-                className="ghost"
-                onClick={() =>
-                  sendAcross(there, elsewhere.account_id).then((m) => {
-                    setMoving(m)
-                    setTimeout(loadPlayers, 3000)
-                  })
-                }
-              >
-                Bring them to the {serverLabel(here)}
-              </button>
-            </p>
-          )}
-          {moving && (
-            <p className="banner" onClick={() => setMoving('')}>
-              {moving}
             </p>
           )}
           {online && online.gm_level < 1 && (
@@ -497,6 +447,9 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
               testsError={testsError}
               online={online}
               players={players ?? []}
+              instances={instances}
+              instancesError={instancesError}
+              loadInstances={loadInstances}
               canSend={canSend}
               send={send}
               section={section}

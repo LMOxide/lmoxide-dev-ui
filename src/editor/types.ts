@@ -155,7 +155,7 @@ export interface Placeable {
   used?: string
 }
 
-/** What a surveyor (a player online on the survey server) sees and has chosen. */
+/** What a surveyor (a player online in the world editor mode) sees and has chosen. */
 export interface PlayerState {
   account_id: number
   character_name: string

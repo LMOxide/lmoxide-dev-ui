@@ -1,4 +1,4 @@
-import type { AnimationCatalog, ParticleRef, SoundRef, BccStates, CommandResult, EffectCatalog, Minifigure, MonsterData, Player, Playfield, Scope, TestCatalog } from './types'
+import type { AnimationCatalog, Instances, ParticleRef, SoundRef, BccStates, CommandResult, EffectCatalog, Minifigure, MonsterData, Player, Playfield, Scope, TestCatalog } from './types'
 
 /** `{"error": {"code", "message"}}` from the API, or a network failure (code `network`). */
 export class ApiError extends Error {
@@ -69,6 +69,11 @@ export class Api {
   /** For an API key: there is no "who am I" for keys, so probe a read route. */
   players() {
     return this.call<Player[]>('GET', '/v1/players')
+  }
+
+  /** The running copies of worlds (moderate scope). */
+  instances() {
+    return this.call<Instances>('GET', '/v1/instances')
   }
 
   /** Whether the token has the admin scope (needed for commands): the audit log is admin-only. */

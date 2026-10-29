@@ -620,7 +620,7 @@ function discoverKids(env: Env): TNode[] {
     const rule = worlds.rules[findKey(l.playfield, l.name)]
     const target: Target = { t: 'location', pf: l.playfield, name: l.name, achievement: l.achievements.length === 1 ? String(l.achievements[0]) : null }
     const sel: Sel = { t: 'location', pf: l.playfield, name: l.name }
-    // the client's own exploration area (play servers discover it there)
+    // the client's own exploration area (the game discovers it there)
     const area: TNode[] = l.pos
       ? [{ key: `${key}/triggers/client`, label: 'exploration area', icon: MapIcon, dim: true, sel, title: "The client's exploration area: walking in discovers it", badges: <Badge className={CATEGORY_CLASS.client}>client</Badge> }]
       : []

@@ -1,9 +1,8 @@
 // The dev UI's two tools, each a page: the debugger (/debugger/) and the world editor (/editor/).
-// They talk to LMOxide servers through each server's lmoxide-api: the play server (the LAN
-// server) and a survey server (tools/survey-server.sh). Every lmoxide-api serves the same routes
-// (a survey server's also answers /v1/survey), so the debugger works on either; the world editor
-// needs the survey server. Sessions belong to a server's API (by its URL), not to a tool, so
-// switching the debugger between servers needs no new sign-in.
+// Both talk to the LMOxide server through its lmoxide-api (one server runs every game mode:
+// progression, maxed and the world editor, lmoxide docs/SERVER-ARCHITECTURE.md). One sign-in,
+// one session, used by both tools; the world editor's routes (/v1/survey, /v1/editor) need GM
+// level 1 or more (the moderate scope).
 
 import { Api } from './api'
 import { KEYS, loadJson, saveJson } from './storage'
@@ -13,23 +12,8 @@ export type Tool = 'debugger' | 'editor'
 
 export const TOOLS: Tool[] = ['debugger', 'editor']
 
-export type Server = 'play' | 'survey'
-
-export const SERVERS: Server[] = ['play', 'survey']
-
-interface ServerInfo {
-  label: string
-  /** where its API base is kept */
-  baseKey: string
-  /** the dev server's proxy path; elsewhere this port on this host */
-  devApi: string
-  port: number
-}
-
-export const SERVER: Record<Server, ServerInfo> = {
-  play: { label: 'Play server', baseKey: KEYS.apiBase, devApi: '/api', port: 8090 },
-  survey: { label: 'Survey server', baseKey: 'lmofx.editor.apiBase', devApi: '/editor-api', port: 8091 },
-}
+/** The API's port when the page isn't served by the dev server (which proxies /api to it). */
+export const API_PORT = 8090
 
 interface ToolInfo {
   label: string
@@ -43,19 +27,17 @@ export const TOOL: Record<Tool, ToolInfo> = {
   debugger: {
     label: 'Debugger',
     path: 'debugger/',
-    about: "effects, teleports, test scenarios, spawns and the other test commands, on a server's characters (the play server's or the survey server's)",
+    about: 'effects, teleports, test scenarios, spawns and the other test commands, on the characters online in any game mode',
   },
   editor: {
     label: 'World editor',
     path: 'editor/',
-    about: 'place and fix enemies, NPCs, smashables and trigger walls, and mark scripts and areas, on a survey server (lmoxide tools/survey-server.sh)',
+    about: 'place and fix enemies, NPCs, smashables and trigger walls, and mark scripts and areas, as a character in the world editor mode',
   },
 }
 
 /** Which tool was used last (the sign-in page's choice). */
 const LAST_TOOL = 'lmofx.tool'
-/** The debugger's server. */
-const DEBUGGER_SERVER = 'lmofx.debugger.server'
 /** Sessions by API base: remembered ones in localStorage, the others in this tab only. */
 const SESSIONS = 'lmofx.sessions'
 /** Whether the sign-in page's "Stay signed in" is ticked. */
@@ -78,32 +60,19 @@ export function setRememberChoice(on: boolean) {
   saveJson(REMEMBER, on)
 }
 
-function defaultBase(s: Server): string {
-  if (import.meta.env.DEV) return SERVER[s].devApi
+function defaultBase(): string {
+  if (import.meta.env.DEV) return '/api'
   const host = window.location.hostname || '127.0.0.1'
-  return `${window.location.protocol === 'https:' ? 'https:' : 'http:'}//${host}:${SERVER[s].port}`
+  return `${window.location.protocol === 'https:' ? 'https:' : 'http:'}//${host}:${API_PORT}`
 }
 
-export function serverBase(s: Server): string {
-  return loadJson(SERVER[s].baseKey, defaultBase(s))
+/** The API's base URL (both tools use it). */
+export function apiBase(): string {
+  return loadJson(KEYS.apiBase, defaultBase())
 }
 
-export function setServerBase(s: Server, base: string) {
-  saveJson(SERVER[s].baseKey, base.trim() || defaultBase(s))
-}
-
-/** The server a tool works on: the world editor always the survey server. */
-export function toolServer(t: Tool): Server {
-  if (t === 'editor') return 'survey'
-  return loadJson<string>(DEBUGGER_SERVER, 'play') === 'survey' ? 'survey' : 'play'
-}
-
-export function setDebuggerServer(s: Server) {
-  saveJson(DEBUGGER_SERVER, s)
-}
-
-export function apiBase(t: Tool): string {
-  return serverBase(toolServer(t))
+export function setApiBase(base: string) {
+  saveJson(KEYS.apiBase, base.trim() || defaultBase())
 }
 
 const norm = (base: string) => base.trim().replace(/\/+$/, '')
@@ -135,9 +104,9 @@ export function setSessionFor(base: string, s: Session | null) {
   }
 }
 
-/** The tool's session (its server's), if it hasn't expired. */
-export function session(t: Tool): Session | null {
-  return sessionFor(apiBase(t))
+/** The session (the API's), if it hasn't expired. */
+export function session(): Session | null {
+  return sessionFor(apiBase())
 }
 
 /**
@@ -173,9 +142,9 @@ export async function signOut(from: Tool) {
   window.location.href = `../?tool=${from}`
 }
 
-/** The tool's session was refused (401): forget it and sign in again. */
+/** The session was refused (401): forget it and sign in again. */
 export function expired(t: Tool) {
-  setSessionFor(apiBase(t), null)
+  setSessionFor(apiBase(), null)
   toSignIn(t)
 }
 

@@ -1,4 +1,5 @@
-import { ApiError } from '../api'
+import { Api, ApiError } from '../api'
+import type { CommandResult, Instances, Player } from '../types'
 import type {
   FeaturesView,
   Mark,
@@ -32,6 +33,12 @@ export const SUGGESTED_TAGS = ['approximate', 'todo', 'review', 'guess', 'placeh
 export interface SurveyBackend {
   readonly label: string
   surveyors(): Promise<Surveyor[]>
+  /** Everyone online in every game mode, with their copy (GET /v1/players). */
+  players(): Promise<Player[]>
+  /** The running copies of worlds (GET /v1/instances): which copies are previews. */
+  instances(): Promise<Instances>
+  /** A test command as that player, as if typed in chat (`!preview`; the admin scope). */
+  command(account: number, command: string): Promise<CommandResult>
   state(account: number): Promise<PlayerState>
   catalog(): Promise<Placeable[]>
   objects(playfield: number): Promise<{ revision: number; objects: SurveyObject[] }>
@@ -79,7 +86,7 @@ export interface SurveyBackend {
   forget(id: string): Promise<SurveyObject | null>
   /** Makes it exactly as the snapshot has it (undo and redo). */
   put(id: string, snapshot: SurveyObject): Promise<SurveyObject>
-  /** Changes not published yet (saved on the server, not seen by play servers), the caller's first. */
+  /** Changes not published yet (saved on the server, not seen by the progression and maxed modes), the caller's first. */
   unpublished(): Promise<Unpublished[]>
   /** Publishes changes (by default all of the caller's): they wait in the publish queue for an admin to approve. */
   publish(req: PublishRequest): Promise<{ records: number; unpublished: Unpublished[] }>
@@ -100,11 +107,24 @@ export class HttpBackend implements SurveyBackend {
   readonly label: string
   private readonly base: string
   private readonly token: string | null
+  /** the API's routes outside /v1/survey */
+  private readonly api: Api
 
   constructor(base: string, token: string | null) {
     this.base = base.replace(/\/+$/, '')
     this.token = token
     this.label = this.base
+    this.api = new Api(this.base, token)
+  }
+
+  players() {
+    return this.api.players()
+  }
+  instances() {
+    return this.api.instances()
+  }
+  command(account: number, command: string) {
+    return this.api.command(account, command)
   }
 
   private async call<T>(method: string, path: string, body?: unknown): Promise<T> {

@@ -1,7 +1,8 @@
-// An in-memory survey server (survey.html?mock): the page works without lmoxide, to try it and
+// An in-memory world editor server (/editor/?mock): the page works without lmoxide, to try it and
 // to build it before the server routes exist. The merge is a simplified version of the crate's.
 
 import { SUGGESTED_TAGS, type SurveyBackend } from './backend'
+import type { CommandResult, Instances, Player } from '../types'
 import type {
   Feature,
   FeaturesView,
@@ -135,6 +136,47 @@ export class MockBackend implements SurveyBackend {
 
   async surveyors() {
     return [{ account_id: 1, username: 'hosttemple', character_name: 'hosttemple', playfield: PLAYFIELD }]
+  }
+  /** the mock editor's preview copy (null: in the world editor's main copy) */
+  private previewCopy: number | null = null
+  async players(): Promise<Player[]> {
+    return [
+      {
+        account_id: 1,
+        username: 'hosttemple',
+        character_id: 1,
+        character_name: 'hosttemple',
+        gm_level: 1,
+        logged_in_at: now(),
+        playfield: PLAYFIELD,
+        position: this.player.pos,
+        copy: this.previewCopy ?? 2,
+        mode: 'world-editor',
+      },
+    ]
+  }
+  async instances(): Promise<Instances> {
+    const main = { playfield: PLAYFIELD, copy: 2, key: 0x20000 + PLAYFIELD, mode: 'world-editor', kind: 'main', preview_owner: null, characters: 40, players: 1, npcs: 40 }
+    const inPreview = this.previewCopy !== null
+    return {
+      instances: inPreview ? [{ ...main, players: 0 }, { ...main, copy: this.previewCopy!, key: 0x30000 + PLAYFIELD, kind: 'preview', preview_owner: 1, players: 1 }] : [main],
+      ai_tick_ms: 0.4,
+      ai_tick_max_ms: 1.2,
+      open_world_cap: 40,
+    }
+  }
+  async command(_account: number, command: string): Promise<CommandResult> {
+    const c = command.trim()
+    if (c === '!preview') {
+      this.previewCopy = 3
+      return { affected: 1, replies: ['preview (copy 3): enemies fight, the working copy\'s spawns, walls and scripts; `!preview end` goes back'] }
+    }
+    if (c === '!preview end') {
+      const was = this.previewCopy
+      this.previewCopy = null
+      return { affected: 1, replies: [was === null ? 'not in a preview' : 'back from the preview'] }
+    }
+    return { affected: 1, replies: [`(the mock doesn't run ${c})`] }
   }
   async state() {
     return this.snapshot()

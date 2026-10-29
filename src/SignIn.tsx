@@ -1,22 +1,6 @@
 import { useState } from 'react'
 import { Api, ApiError } from './api'
-import {
-  lastTool,
-  rememberChoice,
-  SERVER,
-  serverBase,
-  SERVERS,
-  sessionFor,
-  setLastTool,
-  setRememberChoice,
-  setServerBase,
-  setSessionFor,
-  TOOL,
-  toolServer,
-  TOOLS,
-  type Server,
-  type Tool,
-} from './tools'
+import { API_PORT, apiBase, lastTool, rememberChoice, session, setApiBase, setLastTool, setRememberChoice, setSessionFor, TOOL, TOOLS, type Tool } from './tools'
 import type { Session } from './types'
 
 function why(e: unknown): string {
@@ -25,11 +9,11 @@ function why(e: unknown): string {
   if (e.code === 'too_many_requests' || e.status === 429) return 'too many attempts, try again in a few minutes'
   if (e.code === 'unauthorized') return 'the API key is not valid'
   if (e.code === 'forbidden') return 'this key has no read scope'
-  if (e.code === 'network' || e.status === 502 || e.status === 504) return 'its server is not reachable'
+  if (e.code === 'network' || e.status === 502 || e.status === 504) return 'the server is not reachable'
   return e.message
 }
 
-/** One server's sign-in: an account login, or an API key checked against its API. */
+/** The sign-in: an account login, or an API key checked against its API. */
 async function signIn(base: string, mode: 'account' | 'key', username: string, password: string, key: string, remember: boolean): Promise<Session> {
   if (mode === 'account') {
     const r = await new Api(base, null).login(username, password, remember)
@@ -40,34 +24,23 @@ async function signIn(base: string, mode: 'account' | 'key', username: string, p
   return { token: key, scope: (await api.isAdmin()) ? 'admin' : 'read', label: 'API key', remember }
 }
 
-/** "Debugger" / "Debugger and world editor": the tools that work on a server. */
-function toolsOn(s: Server): string {
-  return TOOLS.filter((t) => t === 'debugger' || toolServer(t) === s)
-    .map((t) => TOOL[t].label.toLowerCase())
-    .join(' and ')
-}
-
 /**
- * The dev UI's front page: sign in once (to the play server's and the survey server's APIs;
- * they share accounts) and open the debugger or the world editor. Sessions belong to a server,
- * so the debugger can switch servers without signing in again; a server that can't be signed
- * in to stays unavailable (greyed out in the switchers).
+ * The dev UI's front page: sign in once (to the server's lmoxide-api) and open the debugger or
+ * the world editor; both use the same session.
  */
 export function SignIn() {
   const asked = new URLSearchParams(window.location.search).get('tool')
   const [tool, setTool] = useState<Tool>(asked === 'editor' || asked === 'debugger' ? asked : lastTool())
   const [mode, setMode] = useState<'account' | 'key'>('account')
-  const [bases, setBases] = useState<Record<Server, string>>({ play: serverBase('play'), survey: serverBase('survey') })
+  const [base, setBase] = useState(apiBase)
   const [servers, setServers] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [key, setKey] = useState('')
   const [remember, setRemember] = useState(rememberChoice)
   const [busy, setBusy] = useState(false)
-  const [errors, setErrors] = useState<Partial<Record<Server, string>>>({})
-  const signedIn = SERVERS.filter((s) => sessionFor(serverBase(s)))
-  const openable = TOOLS.filter((t) => sessionFor(serverBase(toolServer(t))))
-  const needed = toolServer(tool)
+  const [error, setError] = useState('')
+  const current = session()
 
   function open(t: Tool) {
     setLastTool(t)
@@ -77,31 +50,19 @@ export function SignIn() {
   async function submit(ev: React.FormEvent) {
     ev.preventDefault()
     setBusy(true)
-    setErrors({})
+    setError('')
     setRememberChoice(remember)
-    for (const s of SERVERS) setServerBase(s, bases[s])
-    // the same API twice (both bases pointed at one server) is signed in to once
-    const targets = [...new Set(SERVERS.map(serverBase))]
-    const results = await Promise.allSettled(targets.map((b) => signIn(b, mode, username.trim(), password, key.trim(), remember)))
-    const byBase = new Map(targets.map((b, i) => [b, results[i]]))
-    const errs: Partial<Record<Server, string>> = {}
-    for (const s of SERVERS) {
-      const r = byBase.get(serverBase(s))!
-      if (r.status === 'fulfilled') setSessionFor(serverBase(s), r.value)
-      else {
-        setSessionFor(serverBase(s), null)
-        errs[s] = why(r.reason)
-      }
+    setApiBase(base)
+    try {
+      setSessionFor(apiBase(), await signIn(apiBase(), mode, username.trim(), password, key.trim(), remember))
+      setBusy(false)
+      open(tool)
+    } catch (e) {
+      setSessionFor(apiBase(), null)
+      setBusy(false)
+      setError(why(e))
     }
-    setBusy(false)
-    if (!errs[needed]) return open(tool)
-    setErrors(errs)
   }
-
-  // one line per distinct problem: a wrong password is wrong on every server
-  const problems = new Map<string, Server[]>()
-  for (const s of SERVERS) if (errors[s]) problems.set(errors[s]!, [...(problems.get(errors[s]!) ?? []), s])
-  const everywhere = (list: Server[]) => list.length === SERVERS.length
 
   return (
     <main className="login">
@@ -115,8 +76,10 @@ export function SignIn() {
           ))}
         </div>
         <p className="muted">
-          The {TOOL[tool].label.toLowerCase()}: {TOOL[tool].about}. Needs an admin account (or an API key with the admin scope) on its server's{' '}
-          <code>lmoxide-api</code>.
+          The {TOOL[tool].label.toLowerCase()}: {TOOL[tool].about}.{' '}
+          {tool === 'editor'
+            ? 'Needs an account with GM level 1 or more (the moderate scope); “Play this” needs the admin scope.'
+            : 'Needs an admin account (or an API key with the admin scope) for commands.'}
         </p>
         <div className="segmented" role="tablist">
           <button type="button" className={mode === 'account' ? 'on' : ''} onClick={() => setMode('account')}>
@@ -147,39 +110,22 @@ export function SignIn() {
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} /> Stay signed in
         </label>
         <button type="button" className="link small" onClick={() => setServers(!servers)}>
-          {servers ? 'Hide servers' : 'Servers…'}
+          {servers ? 'Hide server' : 'Server…'}
         </button>
-        {servers &&
-          SERVERS.map((s) => (
-            <label key={s}>
-              {SERVER[s].label} API <span className="muted small">({toolsOn(s)})</span>
-              <input value={bases[s]} onChange={(e) => setBases({ ...bases, [s]: e.target.value })} placeholder={`http://server:${SERVER[s].port}`} spellCheck={false} />
-            </label>
-          ))}
-        {[...problems].map(([problem, list]) => (
-          <p key={problem} className="error">
-            {everywhere(list) ? problem[0].toUpperCase() + problem.slice(1) : `${list.map((s) => SERVER[s].label).join(', ')}: ${problem}`}.
-          </p>
-        ))}
-        {errors[needed] && openable.some((t) => t !== tool) && (
-          <p className="small">
-            Signed in to the {SERVERS.filter((s) => !errors[s]).map((s) => SERVER[s].label.toLowerCase())} only:{' '}
-            {openable
-              .filter((t) => t !== tool)
-              .map((t) => (
-                <button key={t} type="button" className="link" onClick={() => open(t)}>
-                  open the {TOOL[t].label.toLowerCase()}
-                </button>
-              ))}
-          </p>
+        {servers && (
+          <label>
+            API <span className="muted small">(lmoxide-api)</span>
+            <input value={base} onChange={(e) => setBase(e.target.value)} placeholder={`http://server:${API_PORT}`} spellCheck={false} />
+          </label>
         )}
+        {error && <p className="error">{error[0].toUpperCase() + error.slice(1)}.</p>}
         <button className="primary" disabled={busy}>
           {busy ? 'Signing in…' : `Sign in to the ${TOOL[tool].label.toLowerCase()}`}
         </button>
-        {signedIn.length > 0 && openable.length > 0 && (
+        {current && (
           <p className="small">
-            Still signed in ({sessionFor(serverBase(signedIn[0]))?.label}):{' '}
-            {openable.map((t, i) => (
+            Still signed in ({current.label}):{' '}
+            {TOOLS.map((t, i) => (
               <span key={t}>
                 {i > 0 && ' · '}
                 <button type="button" className="link" onClick={() => open(t)}>
@@ -191,8 +137,8 @@ export function SignIn() {
         )}
         <p className="muted small">
           {remember
-            ? 'Session tokens stay in this browser (localStorage) until you log out or they expire unused, and go only to the APIs above. Your password is never kept.'
-            : 'Session tokens stay in this tab (sessionStorage) and go only to the APIs above.'}
+            ? 'Session tokens stay in this browser (localStorage) until you log out or they expire unused, and go only to the API above. Your password is never kept.'
+            : 'Session tokens stay in this tab (sessionStorage) and go only to the API above.'}
         </p>
       </form>
     </main>

@@ -1,7 +1,7 @@
 import { ApiError } from '../api'
 
 // The content tree the world editor edits (lmoxide docs/WORLD-EDITOR-CONTENT.md, docs/SURVEY.md
-// "Content editing API"): a survey server's /v1/editor routes, or the mock.
+// "Content editing API"): the API's /v1/editor routes, or the mock.
 
 /** A JSON value as records hold them. */
 export type Json = null | boolean | number | string | Json[] | { [k: string]: Json }

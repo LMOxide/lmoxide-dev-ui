@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import { best, bossNames, places, playfieldName, type GameData } from './suggest'
-import type { MonsterData, Player } from './types'
+import { best, bossNames, modeName, places, playfieldName, score, type GameData } from './suggest'
+import type { Instances, MonsterData, Player } from './types'
 
-export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'animations' | 'minifigures' | 'progress' | 'dialogues' | 'commands'
+export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'animations' | 'minifigures' | 'progress' | 'dialogues' | 'instances' | 'commands'
 
 const SECTIONS: [Section, string][] = [
   ['quick', 'Quick'],
@@ -15,6 +15,7 @@ const SECTIONS: [Section, string][] = [
   ['minifigures', 'Minifigures'],
   ['progress', 'Progress'],
   ['dialogues', 'Dialogues'],
+  ['instances', 'Instances'],
   ['commands', 'All commands'],
 ]
 
@@ -54,6 +55,9 @@ export function Debug({
   testsError,
   online,
   players,
+  instances,
+  instancesError,
+  loadInstances,
   canSend,
   send,
   section,
@@ -66,6 +70,10 @@ export function Debug({
   online: Player | undefined
   /** everyone online (teleport to a player) */
   players: Player[]
+  /** `GET /v1/instances` (null: not loaded yet, or refused) */
+  instances: Instances | null
+  instancesError: string
+  loadInstances: () => void
   canSend: boolean
   send: (cmd: string) => void
   section: Section
@@ -91,7 +99,7 @@ export function Debug({
         ))}
       </nav>
       <div className="section-body">
-        {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && <Missing />}
+        {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && section !== 'instances' && <Missing />}
         {section === 'quick' && <Quick send={send} canSend={canSend} />}
         {section === 'teleport' && <Whereabouts data={data} online={online} />}
         {section === 'teleport' && <MovePanel send={send} canSend={canSend} />}
@@ -168,6 +176,9 @@ export function Debug({
               canSend={canSend}
             />
           </>
+        )}
+        {section === 'instances' && (
+          <InstanceList data={data} instances={instances} error={instancesError} reload={loadInstances} online={online} query={query} setQuery={setQuery} />
         )}
         {section === 'progress' && <Progress data={data} send={send} canSend={canSend} />}
         {section === 'dialogues' && (
@@ -741,6 +752,11 @@ function Whereabouts({ data, online }: { data: GameData; online: Player | undefi
       {online.playfield != null && (
         <>
           <span className="title">{playfieldName(data, online.playfield)}</span> <span className="muted mono">{online.playfield}</span>{' '}
+          {(online.copy != null || online.mode) && (
+            <span className="muted small">
+              {[online.copy != null && `copy ${online.copy}`, online.mode && modeName(online.mode)].filter(Boolean).join(' · ')}
+            </span>
+          )}{' '}
         </>
       )}
       {pos ? (
@@ -798,5 +814,77 @@ function MovePanel({ send, canSend }: { send: (cmd: string) => void; canSend: bo
         </button>
       </div>
     </div>
+  )
+}
+
+/** The running copies of worlds (`GET /v1/instances`, refreshed every 5 s while shown). */
+function InstanceList({
+  data,
+  instances,
+  error,
+  reload,
+  online,
+  query,
+  setQuery,
+}: {
+  data: GameData
+  instances: Instances | null
+  error: string
+  reload: () => void
+  online: Player | undefined
+  query: string
+  setQuery: (v: string) => void
+}) {
+  const list = useMemo(
+    () =>
+      (instances?.instances ?? [])
+        .filter((i) => score(query, playfieldName(data, i.playfield), String(i.playfield), i.mode, i.kind, `copy ${i.copy}`) > 0)
+        .sort((a, b) => b.players - a.players || a.playfield - b.playfield || a.copy - b.copy),
+    [instances, query, data],
+  )
+  return (
+    <>
+      <div className="chips row-gap">
+        <button className="chip" onClick={reload} title="Refresh (every 5 s while this shows)">
+          ↻
+        </button>
+        {instances && (
+          <span className="muted small">
+            {instances.instances.length} running · AI tick {instances.ai_tick_ms.toFixed(1)} ms (longest in the last minute {instances.ai_tick_max_ms.toFixed(1)} ms) · open worlds take{' '}
+            {instances.open_world_cap} players a copy
+          </span>
+        )}
+      </div>
+      {error && <p className="banner warn">Instances: {error}</p>}
+      {!instances && !error && <p className="muted small">Loading…</p>}
+      {instances && (
+        <>
+          <Filter value={query} set={setQuery} placeholder="Filter by world, mode, kind…" />
+          <ul className="plain picklist">
+            {list.map((i) => (
+              <li key={i.key}>
+                <div className="pick-main">
+                  <div>
+                    <span className="title">{playfieldName(data, i.playfield)}</span> <span className="muted mono">{i.playfield}</span>
+                    {online && online.playfield === i.playfield && online.copy === i.copy && <span className="badge play">{online.character_name} is here</span>}
+                  </div>
+                  <div className="small muted">
+                    copy {i.copy} · {modeName(i.mode)} · {i.kind}
+                    {i.preview_owner != null && <> · owner character {i.preview_owner}</>} · key <span className="mono">{i.key}</span>
+                  </div>
+                </div>
+                <span className={i.players ? 'badge' : 'badge dim'}>
+                  {i.players} player{i.players === 1 ? '' : 's'}
+                </span>
+                <span className="badge dim" title={`${i.characters} characters (players and the NPCs that joined: pets, escorts)`}>
+                  {i.npcs} NPCs
+                </span>
+              </li>
+            ))}
+          </ul>
+          {!list.length && <p className="muted small">{instances.instances.length ? 'Nothing matches the filter.' : 'No world is running.'}</p>}
+        </>
+      )}
+    </>
   )
 }
