@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { SurveyBackend } from './backend'
 import type { PublishRequest, Unpublished } from './types'
+import { download } from '../notes'
 
 /** How many records of these changes there are. */
 export const recordCount = (list: Unpublished[]) => list.reduce((n, c) => n + c.items.length, 0)
@@ -34,6 +35,21 @@ export function Publish({
       const r = await backend.publish(req)
       setUnpublished(r.unpublished)
       setDone(`Published ${r.records} record${r.records === 1 ? '' : 's'}: they wait for an admin's approval (the web UI's queue).`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+    setBusy(false)
+  }
+
+  /** Downloads everything the caller changed since the last commit (published or not). */
+  async function exportMine() {
+    setBusy(true)
+    setError('')
+    try {
+      const e = await backend.exportChanges()
+      const stamp = new Date(e.created * 1000).toISOString().slice(0, 19).replace(/[T:]/g, '-')
+      download(`world-editor-changes-${e.by || 'mine'}-${stamp}.json`, JSON.stringify(e, null, 2), 'application/json')
+      setDone(`Exported ${e.records.length} record${e.records.length === 1 ? '' : 's'} (published or not, since the content's last commit).`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
@@ -87,6 +103,9 @@ export function Publish({
         {done && <p className="banner">{done}</p>}
         <div className="sv-row">
           <h3 className="sv-grow">Yours: {recordCount(mine) || 'nothing'} unpublished</h3>
+          <button disabled={busy} onClick={exportMine} title="Download everything you changed since the content's last commit, published or not (JSON: every record before and after)">
+            Export mine
+          </button>
           <button disabled={busy || !mine.length} onClick={() => publish({})}>
             Publish all of yours
           </button>

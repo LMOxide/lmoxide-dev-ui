@@ -262,6 +262,19 @@ export interface PublishRequest {
   ids?: string[]
 }
 
+/** `GET /v1/survey/export`: everything one editor changed since the working copy's last commit,
+ * published or not, as a publish queue entry (lmoxide_content::queue::Entry, `status: exported`). */
+export interface ChangesExport {
+  seq: number
+  /** unix time */
+  created: number
+  /** whose changes */
+  by: string
+  summary: string
+  status: string
+  records: { id: string; feature: string; change: 'added' | 'changed' | 'removed'; file: string; author: string; before: unknown; after: unknown }[]
+}
+
 /** Changes to an object; editing a guess makes it surveyed (it may get a new id). */
 export interface ObjectChanges {
   /** with monster_data and template: change it into another spawn */

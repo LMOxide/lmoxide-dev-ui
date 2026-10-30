@@ -21,6 +21,7 @@ import type {
   TriggerTargets,
   PublishRequest,
   Unpublished,
+  ChangesExport,
   WallLook,
   WallSettings,
   WaveRef,
@@ -91,6 +92,8 @@ export interface SurveyBackend {
   unpublished(): Promise<Unpublished[]>
   /** Publishes changes (by default all of the caller's): they wait in the publish queue for an admin to approve. */
   publish(req: PublishRequest): Promise<{ records: number; unpublished: Unpublished[] }>
+  /** Everything the caller changed since the last commit, published or not, to download. */
+  exportChanges(): Promise<ChangesExport>
   /** Every named playfield, with how much is in it. */
   playfields(): Promise<PlayfieldInfo[]>
   /** A copy of a snapshot as a new record in any playfield (paste); nobody's selection changes. */
@@ -261,6 +264,9 @@ export class HttpBackend implements SurveyBackend {
   }
   publish(req: PublishRequest) {
     return this.call<{ records: number; unpublished: Unpublished[] }>('POST', '/publish', req)
+  }
+  exportChanges() {
+    return this.call<ChangesExport>('GET', '/export')
   }
   playfields() {
     return this.call<PlayfieldInfo[]>('GET', '/playfields')

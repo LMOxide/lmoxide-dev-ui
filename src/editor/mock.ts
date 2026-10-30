@@ -4,6 +4,7 @@
 import { SUGGESTED_TAGS, type SurveyBackend } from './backend'
 import type { CommandResult, Instances, Player } from '../types'
 import type {
+  ChangesExport,
   Feature,
   FeaturesView,
   Mark,
@@ -427,6 +428,10 @@ export class MockBackend implements SurveyBackend {
       }
     }
     return { records, unpublished: await this.unpublished() }
+  }
+  async exportChanges(): Promise<ChangesExport> {
+    const records = [...this.unpublishedItems.values()].map((i) => ({ id: i.id, feature: i.feature, change: i.op, file: `mock/${i.kind}.json`, author: 'mock', before: null, after: i.op === 'removed' ? null : { id: i.id, name: i.name } }))
+    return { seq: 0, created: Math.floor(Date.now() / 1000), by: 'mock', summary: `Pirate World: ${records.length} records`, status: 'exported', records }
   }
   async playfields(): Promise<PlayfieldInfo[]> {
     const objs = [...this.objectsById.values()]
