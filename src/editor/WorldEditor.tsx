@@ -11,6 +11,7 @@ import { loadJson, saveJson } from '../storage'
 import type { SurveyBackend } from './backend'
 import type { ContentBackend, Kinds } from './content'
 import { fmtPos, toDegrees } from './geometry'
+import { compassPoint } from '@/compass'
 import { Browser } from './Browser'
 import { useWorlds } from './worlds'
 import type { Suggestion } from './Suggest'
@@ -373,8 +374,8 @@ export function WorldEditor({
           {state && (
             <span className="where small">
               <b>{state.playfield_name ?? `Playfield ${state.playfield}`}</b>
-              <span className="mono muted" title="Your position and heading">
-                {fmtPos(state.pos)} · {toDegrees(state.heading)}°
+              <span className="mono muted" title="Your position and heading (0° along +z, 90° along +x; the game's north is 45°)">
+                {fmtPos(state.pos)} · {toDegrees(state.heading)}° {compassPoint(toDegrees(state.heading))}
               </span>
               {state.wearing && <span className="badge wave">wearing {state.wearing.name}</span>}
             </span>

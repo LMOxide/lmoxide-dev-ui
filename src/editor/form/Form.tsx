@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { compassPoint, screenAngle } from '@/compass'
 import type { CatalogEntry, Json, JsonObject, Schema, Summary } from '../content'
 import { recordLabel } from '../content'
 import type { Vec3 } from '../types'
@@ -401,11 +402,13 @@ function RotationInput({ value, onChange, env, onClear }: { value: Json; onChang
 }
 
 function HeadingDial({ rad }: { rad: number }) {
-  // (as the editor's map: 0 faces +z, up on the dial)
-  const x = 10 + 8 * Math.sin(rad)
-  const y = 10 - 8 * Math.cos(rad)
+  // (as the game's camera shows it: up is the game's north, heading 45°; 0 faces +z, up-left)
+  const a = (screenAngle((rad * 180) / Math.PI) * Math.PI) / 180
+  const x = 10 + 8 * Math.sin(a)
+  const y = 10 - 8 * Math.cos(a)
   return (
     <svg viewBox="0 0 20 20" className="size-6 text-muted-foreground" aria-hidden>
+      <title>{`${compassPoint((rad * 180) / Math.PI)} in game (up is north)`}</title>
       <circle cx="10" cy="10" r="9" fill="none" stroke="currentColor" strokeWidth="1" />
       <line x1="10" y1="10" x2={x} y2={y} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>

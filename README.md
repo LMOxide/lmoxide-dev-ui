@@ -53,7 +53,7 @@ the server; so do a password change and a ban.
 | Section | Sends |
 |---|---|
 | Quick | `!where`, `!revive`, `!smashme`, `!smash`, `!xp`, `!stars`, `!ach`, puzzles (`!mirrors`, `!plates`) |
-| Teleport | where the chosen player is (playfield and x, y, z, refreshed every second; click to copy) and which way they face (an arrow with +z up and +x right, the angle: 0° along +z, 90° along +x); by type: a playfield (`!tp <playfield>`, marks where the player is), a player online (`!goto player <name>`), any spawn or other target (`!goto <kind> <n>`: *all*, or one kind); *Move*: `!moveto x y z`, `!move dx dy dz` (y is up; ↑ 10 / 100 / 1000 m for getting out from under a map) |
+| Teleport | where the chosen player is (playfield and x, y, z, refreshed every second; click to copy) and which way they face (an arrow as the game's camera shows it: up is the game's north, heading 45°, so +z is up-left and +x up-right; the angle: 0° along +z, 90° along +x; the compass point, `src/compass.ts`); by type: a playfield (`!tp <playfield>`, marks where the player is), a player online (`!goto player <name>`), any spawn or other target (`!goto <kind> <n>`: *all*, or one kind); *Move*: `!moveto x y z`, `!move dx dy dz` (y is up; ↑ 10 / 100 / 1000 m for getting out from under a map) |
 | Test scenarios | `!test <n>` (what each sets up: place, team, spawns) |
 | Go to | `!goto <kind> <n>`: bosses, champions, enemies, NPCs, smashables, pads, collectibles, arenas, ... by name or playfield, or only where you are |
 | Spawn & loot | `!spawn <count> <name>` (enemies and smashables, 15 minutes), `!despawn [all]`, `!loot <kind>` |
