@@ -209,6 +209,10 @@ serves the dev UI under a path, redirect those there (LMOxide's `docker/Caddyfil
 
 ### Install without Node
 
+Builds write `version.json` next to `index.html` (version, git commit and its time, build time;
+the Discord bot's `/version` reads it). Docker builds have no `.git`: pass the commit as the build
+arguments `GIT_COMMIT` and `GIT_COMMIT_TIME` (the release workflow does).
+
 Every version tag publishes a build made for the API at `/api` on the same origin:
 
 | | |

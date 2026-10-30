@@ -46,6 +46,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+      # what version.json says (the Dockerfile's build arguments)
+      - run: echo "COMMIT_TIME=$(git log -1 --format=%ct)" >> "$GITHUB_ENV"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -65,6 +67,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            GIT_COMMIT_TIME=${{ env.COMMIT_TIME }}
+            APP_VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

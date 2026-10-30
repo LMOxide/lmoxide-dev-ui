@@ -11,6 +11,12 @@ WORKDIR /src
 COPY package.json pnpm-lock.yaml ./
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store pnpm install --frozen-lockfile
 COPY . .
+# what version.json says (.git isn't copied in): the release workflow and lmoxide's
+# docker-compose.build.yml pass the commit and its unix time
+ARG GIT_COMMIT=""
+ARG GIT_COMMIT_TIME=""
+ARG APP_VERSION=""
+ENV GIT_COMMIT=$GIT_COMMIT GIT_COMMIT_TIME=$GIT_COMMIT_TIME APP_VERSION=$APP_VERSION
 ARG VITE_API_URL=/api
 RUN [ -n "$VITE_API_URL" ] || unset VITE_API_URL; pnpm build
 
