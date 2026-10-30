@@ -60,8 +60,12 @@ export function setRememberChoice(on: boolean) {
   saveJson(REMEMBER, on)
 }
 
+/** The API base the build was made for (`VITE_API_URL`, e.g. `/api` behind one reverse proxy). */
+const BUILT_BASE: string | undefined = import.meta.env.VITE_API_URL || undefined
+
 function defaultBase(): string {
   if (import.meta.env.DEV) return '/api'
+  if (BUILT_BASE) return BUILT_BASE
   const host = window.location.hostname || '127.0.0.1'
   return `${window.location.protocol === 'https:' ? 'https:' : 'http:'}//${host}:${API_PORT}`
 }

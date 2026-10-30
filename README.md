@@ -192,9 +192,27 @@ pnpm build          # static files in dist/
 ```
 
 `dist/` uses relative paths, so it can be served from any directory. The API base URL is set on
-the sign-in page (*Server…*) and kept in localStorage; without it the pages use port 8090
-of the page's host. The API has to allow the app's origin (`LMOXIDE_API_CORS_ORIGINS=https://...`) unless both
-are served from one origin behind a reverse proxy (then set the base URL to e.g. `/api`).
+the sign-in page (*Server…*) and kept in localStorage. Without it the pages use `VITE_API_URL`
+from the build (`VITE_API_URL=/api pnpm build`), or else port 8090 of the page's host. The API
+has to allow the app's origin (`LMOXIDE_API_CORS_ORIGINS=https://...`) unless both are served
+from one origin behind a reverse proxy, with the API at `/api`.
+
+A request for `/debugger` or `/editor` without the slash gets a redirect. Behind a proxy that
+serves the dev UI under a path, redirect those there (LMOxide's `docker/Caddyfile` does).
+
+### Install without Node
+
+Every version tag publishes a build made for the API at `/api` on the same origin:
+
+| | |
+|---|---|
+| Image | `ghcr.io/lmoxide/lmoxide-dev-ui` (`latest` or a version): the files on port 8080 |
+| Files | `lmoxide-dev-ui-<version>.tar.gz` / `.zip` on the [Releases](https://github.com/LMOxide/lmoxide-dev-ui/releases) page |
+
+LMOxide's `docker-compose.yml` serves the image at `/dev/` on the server's host name, with
+`/api` going to the API ([HOSTING.md](https://github.com/LMOxide/lmoxide/blob/main/docs/HOSTING.md)).
+To build the image yourself: `docker build -t lmoxide-dev-ui .` (`--build-arg VITE_API_URL=...`
+for another API base).
 
 If the API is not reachable, the effect catalog can also be opened from a file
 (`data/effect_catalog.json` in the LMOxide repo) to browse without previews.

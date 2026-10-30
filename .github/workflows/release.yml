@@ -1,0 +1,82 @@
+# On a version tag (v1.2.3): the built dev UI as a release asset and the image
+# ghcr.io/lmoxide/lmoxide-dev-ui (tags 1.2.3, latest, sha-<commit>).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  IMAGE: ghcr.io/lmoxide/lmoxide-dev-ui
+
+jobs:
+  dist:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # the API at /api on the page's origin, as in the image
+      - run: pnpm build
+        env:
+          VITE_API_URL: /api
+      - name: Archive
+        run: |
+          name="lmoxide-dev-ui-${GITHUB_REF_NAME#v}"
+          mv dist "$name"
+          tar czf "$name.tar.gz" "$name"
+          (cd "$name" && zip -qr "../$name.zip" .)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: lmoxide-dev-ui-*.*
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [dist, image]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: lmoxide-dev-ui-*.*
+          generate_release_notes: true
