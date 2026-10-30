@@ -53,8 +53,25 @@ function Filter({ value, set, placeholder }: { value: string; set: (v: string) =
   )
 }
 
-function More({ total }: { total: number }) {
-  return total > SHOWN ? <p className="muted small">{total - SHOWN} more: narrow the filter.</p> : null
+function More({ total, limit, setLimit }: { total: number; limit: number; setLimit: (n: number) => void }) {
+  if (total <= limit) return null
+  return (
+    <p className="muted small">
+      {total - limit} more: narrow the filter, or{' '}
+      <button className="link" onClick={() => setLimit(limit + SHOWN)}>
+        view {Math.min(SHOWN, total - limit)} more
+      </button>
+      {total - limit > SHOWN && (
+        <>
+          {' '}
+          ·{' '}
+          <button className="link" onClick={() => setLimit(Infinity)}>
+            view all
+          </button>
+        </>
+      )}
+    </p>
+  )
 }
 
 function Missing() {
@@ -274,6 +291,13 @@ function PickList<T>({
   canSend: boolean
 }) {
   const shown = useMemo(() => (query.trim() ? best(items, query, fields, Infinity) : items), [items, query, fields])
+  // how many rows to draw; back to one page whenever the filter changes
+  const [limit, setLimit] = useState(SHOWN)
+  const [limitFor, setLimitFor] = useState(query)
+  if (limitFor !== query) {
+    setLimitFor(query)
+    setLimit(SHOWN)
+  }
   return (
     <>
       <Filter value={query} set={setQuery} placeholder={placeholder} />
@@ -281,7 +305,7 @@ function PickList<T>({
         {shown.length} of {items.length}
       </p>
       <ul className="plain picklist">
-        {shown.slice(0, SHOWN).map((t) => (
+        {shown.slice(0, limit).map((t) => (
           <li key={itemKey(t)}>
             <div className="pick-main">{render(t)}</div>
             {actions(t).map(([cmd, label]) => (
@@ -292,7 +316,7 @@ function PickList<T>({
           </li>
         ))}
       </ul>
-      <More total={shown.length} />
+      <More total={shown.length} limit={limit} setLimit={setLimit} />
     </>
   )
 }
