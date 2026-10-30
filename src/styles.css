@@ -1049,3 +1049,92 @@ form.inline.wrap {
   margin-left: 0.5em;
   vertical-align: middle;
 }
+
+/* the position dock: bottom right, above the status bar, on every view */
+.position-dock {
+  position: fixed;
+  right: 16px;
+  bottom: 36px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  max-width: calc(100vw - 32px);
+}
+.position-dock-bar {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.15);
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+.position-dock-bar button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+.position-dock-copy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.position-dock-copy .pf {
+  color: var(--text-2);
+  max-width: 14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.position-dock-copy .state {
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.position-dock-gear {
+  border-left: 1px solid var(--border) !important;
+  font-family: ui-monospace, monospace;
+}
+.position-dock-gear.on {
+  background: var(--selected) !important;
+}
+.position-dock.flash-ok .position-dock-bar {
+  border-color: var(--ok);
+}
+.position-dock.flash-ok .state {
+  color: var(--ok);
+}
+.position-dock.flash-failed .state,
+.position-dock.flash-none .state {
+  color: var(--error);
+}
+.position-dock-menu {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.15);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.position-dock-menu fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.position-dock-menu p {
+  margin: 8px 0 0;
+}
+.position-dock-menu .preview {
+  white-space: pre;
+}
+.position-dock-copy .heading {
+  margin-left: 0.4em;
+}

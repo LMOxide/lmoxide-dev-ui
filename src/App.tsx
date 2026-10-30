@@ -13,6 +13,7 @@ import { Palette } from './Palette'
 import { modeName, searchSuggestions, vocabulary, whereLabel, type GameData } from './suggest'
 import { apiBase, expired, sessionFor, session as currentSession, setApiBase, signOut, toSignIn } from './tools'
 import { ToolSwitch } from './ToolSwitch'
+import { PositionDock, usePositionCopy } from './PositionCopy'
 import type { AnimationCatalog, BccStates, Effect, EffectCatalog, Instances, Minifigure, MonsterData, Player, Playfield, Session, TestCatalog } from './types'
 
 /** The player chosen to preview on, remembered across visits (they may be offline now). */
@@ -163,8 +164,8 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
       .catch((e) => setPlayersError(failed(e)))
   }, [api, failed, seesEveryone])
 
-  // every second while the Teleport section shows the player's coordinates
-  const tracking = view === 'debug' && section === 'teleport'
+  // every second: the position dock (bottom right) always shows the player's coordinates
+  const tracking = !!chosen
   useEffect(() => {
     loadPlayers()
     const t = setInterval(() => document.visibilityState === 'visible' && loadPlayers(), tracking ? 1_000 : 5_000)
@@ -251,6 +252,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
   const online =
     players?.find((p) => p.account_id === chosen?.account_id) ??
     players?.find((p) => !!chosen && p.username.toLowerCase() === chosen.username.toLowerCase())
+  const positionCopy = usePositionCopy(online)
   const admin = session.scope === 'admin'
   // without admin, commands go to one's own character: choose it
   useEffect(() => {
@@ -491,6 +493,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
               setSection={setSection}
               fillCommand={(c) => focusConsole(c)}
               showEffect={(id) => showEffect(id)}
+              positionCopy={positionCopy}
             />
           </div>
           <div className={`right${narrowPane === 'console' ? '' : ' narrow-hidden'}`}>
@@ -605,9 +608,11 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
         />
       )}
 
+      <PositionDock data={gameData} online={online} pc={positionCopy} />
+
       <footer className="status">
         <span className="keys">
-          <kbd>Ctrl K</kbd> search all · <kbd>:</kbd> command
+          <kbd>Ctrl K</kbd> search all · <kbd>:</kbd> command · <kbd>Ctrl Shift C</kbd> copy position
           {view === 'effects' && (
             <>
               {' '}

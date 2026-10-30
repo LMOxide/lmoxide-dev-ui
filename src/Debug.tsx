@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { best, bossNames, modeName, places, playfieldName, score, type GameData } from './suggest'
 import type { Instances, MonsterData, Player } from './types'
 import { compassPoint, UP_HEADING, screenAngle } from './compass'
+import type { PositionCopy } from './PositionCopy'
 
 export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'animations' | 'minifigures' | 'progress' | 'dialogues' | 'instances' | 'commands'
 
@@ -82,6 +83,7 @@ export function Debug({
   setSection,
   fillCommand,
   showEffect,
+  positionCopy,
 }: {
   data: GameData
   testsError: string
@@ -103,6 +105,8 @@ export function Debug({
   fillCommand: (cmd: string) => void
   /** shows an effect package in the effect view */
   showEffect: (id: number) => void
+  /** the coordinates in the chosen copy format (shared with the dock bottom right) */
+  positionCopy: PositionCopy
 }) {
   const [q, setQ] = useState<Record<string, string>>({})
   const query = q[section] ?? ''
@@ -126,7 +130,7 @@ export function Debug({
       <div className="section-body">
         {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && section !== 'instances' && <Missing />}
         {section === 'quick' && <Quick send={send} canSend={canSend} may={may} />}
-        {section === 'teleport' && <Whereabouts data={data} online={online} />}
+        {section === 'teleport' && <Whereabouts data={data} online={online} pc={positionCopy} />}
         {section === 'teleport' && <MovePanel send={send} canSend={canSend} />}
         {section === 'teleport' && <TeleportTo data={data} players={players} online={online} query={query} setQuery={setQuery} send={send} canSend={canSend} />}
         {section === 'scenarios' && (
@@ -761,16 +765,10 @@ function Progress({ data, send, canSend }: { data: GameData; send: (c: string) =
 }
 
 /** Where the chosen player is now (the players list, refreshed every second here). */
-function Whereabouts({ data, online }: { data: GameData; online: Player | undefined }) {
-  const [copied, setCopied] = useState(false)
+function Whereabouts({ data, online, pc }: { data: GameData; online: Player | undefined; pc: PositionCopy }) {
   if (!online) return <p className="muted small">Choose a player online to see where they are.</p>
   const pos = online.position
-  const text = pos ? pos.map((v) => v.toFixed(1)).join(' ') : ''
-  const copy = () =>
-    navigator.clipboard?.writeText(text).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1200)
-    })
+  const { copy, copied } = pc
   return (
     <p className="whereabouts">
       <span className="muted small">You are at</span>{' '}
@@ -786,8 +784,8 @@ function Whereabouts({ data, online }: { data: GameData; online: Player | undefi
       )}
       {pos ? (
         <>
-          <button className="chip mono" onClick={copy} title="x, y (up), z — click to copy">
-            {copied ? 'copied' : `(${pos.map((v) => v.toFixed(1)).join(', ')})`}
+          <button className="chip mono" onClick={copy} title="x, y (up), z — click to copy (format: bottom right; Ctrl+Shift+C)">
+            {copied === 'ok' ? '✓ copied' : `(${pos.map((v) => v.toFixed(1)).join(', ')})`}
           </button>
           {online.heading != null && <Heading degrees={online.heading} />}
         </>
@@ -800,7 +798,7 @@ function Whereabouts({ data, online }: { data: GameData; online: Player | undefi
 
 /** Which way the player faces: an arrow as the game's camera shows it (up is north-east, heading
  * 45°; north, +z, up-left) and the angle (0° along +z, 90° along +x). */
-function Heading({ degrees }: { degrees: number }) {
+export function Heading({ degrees, compact = false }: { degrees: number; /** the arrow and angle only */ compact?: boolean }) {
   const d = ((Math.round(degrees) % 360) + 360) % 360
   const toward = ['+z', '+x+z', '+x', '+x−z', '−z', '−x−z', '−x', '−x+z'][Math.round(d / 45) % 8]
   return (
@@ -810,7 +808,8 @@ function Heading({ degrees }: { degrees: number }) {
         <path d="M0 -9 L0 -7" stroke="currentColor" strokeOpacity="0.6" />
         <path d="M0 -7 L4 4 L0 1.5 L-4 4 Z" fill="currentColor" transform={`rotate(${screenAngle(d)})`} />
       </svg>{' '}
-      <span className="mono">{d}°</span> <span className="muted small">toward {toward} ({compassPoint(d)})</span>
+      <span className="mono">{d}°</span>
+      {!compact && <span className="muted small">toward {toward} ({compassPoint(d)})</span>}
     </span>
   )
 }

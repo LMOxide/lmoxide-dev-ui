@@ -46,4 +46,5 @@ export const KEYS = {
   fxAt: 'lmofx.fxAt',
   view: 'lmofx.view',
   debugSection: 'lmofx.debugSection',
+  coordFormat: 'lmofx.coordFormat',
 } as const
