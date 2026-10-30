@@ -1138,3 +1138,7 @@ form.inline.wrap {
 .position-dock-copy .heading {
   margin-left: 0.4em;
 }
+.position-dock-menu .decimals {
+  width: 4em;
+  margin-left: 4px;
+}

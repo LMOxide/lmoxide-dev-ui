@@ -10,10 +10,14 @@ export interface CoordFormat {
   sep: Separator
   /** the heading after z */
   rotation: boolean
+  /** decimal places for every value */
+  decimals: number
 }
 
 /** Tab separated with the rotation: pastes into a spreadsheet as four cells. */
-const DEFAULT_FORMAT: CoordFormat = { sep: 'tab', rotation: true }
+const DEFAULT_FORMAT: CoordFormat = { sep: 'tab', rotation: true, decimals: 1 }
+
+const MAX_DECIMALS = 6
 
 const SEPARATORS: [Separator, string, string][] = [
   ['tab', 'Tab separated', '\t'],
@@ -23,8 +27,12 @@ const SEPARATORS: [Separator, string, string][] = [
 
 /** x y z (and r, the heading in degrees) as copied. */
 export function formatPosition(pos: [number, number, number], heading: number | null | undefined, f: CoordFormat): string {
-  const parts = pos.map((v) => v.toFixed(1))
-  if (f.rotation && heading != null) parts.push(String(((Math.round(heading) % 360) + 360) % 360))
+  const parts = pos.map((v) => v.toFixed(f.decimals))
+  if (f.rotation && heading != null) {
+    // 359.96 at 1 decimal is 0.0, not 360.0
+    const step = 10 ** f.decimals
+    parts.push(((((Math.round(heading * step) / step) % 360) + 360) % 360).toFixed(f.decimals))
+  }
   return parts.join(SEPARATORS.find(([s]) => s === f.sep)![2])
 }
 
@@ -90,6 +98,20 @@ export function PositionDock({ data, online, pc }: { data: GameData; online: Pla
               </label>
             ))}
             <label>
+              Decimal places{' '}
+              <input
+                type="number"
+                className="decimals"
+                min={0}
+                max={MAX_DECIMALS}
+                value={format.decimals}
+                onChange={(e) => {
+                  const n = Math.round(Number(e.target.value))
+                  if (Number.isFinite(n)) setFormat({ ...format, decimals: Math.min(MAX_DECIMALS, Math.max(0, n)) })
+                }}
+              />
+            </label>
+            <label>
               <input type="checkbox" checked={format.rotation} onChange={(e) => setFormat({ ...format, rotation: e.target.checked })} /> With rotation
             </label>
           </fieldset>
@@ -120,7 +142,7 @@ export function PositionDock({ data, online, pc }: { data: GameData; online: Pla
           <span className="mono">
             {pos ? (
               <>
-                {pos.map((v) => v.toFixed(1)).join(', ')}
+                {pos.map((v) => v.toFixed(format.decimals)).join(', ')}
                 {online?.heading != null && <Heading degrees={online.heading} compact />}
               </>
             ) : (
