@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { best, bossNames, modeName, places, playfieldName, score, type GameData } from './suggest'
 import type { Instances, MonsterData, Player } from './types'
-import { compassPoint, NORTH_HEADING, screenAngle } from './compass'
+import { compassPoint, UP_HEADING, screenAngle } from './compass'
 
 export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'animations' | 'minifigures' | 'progress' | 'dialogues' | 'instances' | 'commands'
 
@@ -798,13 +798,13 @@ function Whereabouts({ data, online }: { data: GameData; online: Player | undefi
   )
 }
 
-/** Which way the player faces: an arrow as the game's camera shows it (up is the game's north,
- * heading 45°; +z up-left, +x up-right) and the angle (0° along +z, 90° along +x). */
+/** Which way the player faces: an arrow as the game's camera shows it (up is north-east, heading
+ * 45°; north, +z, up-left) and the angle (0° along +z, 90° along +x). */
 function Heading({ degrees }: { degrees: number }) {
   const d = ((Math.round(degrees) % 360) + 360) % 360
   const toward = ['+z', '+x+z', '+x', '+x−z', '−z', '−x−z', '−x', '−x+z'][Math.round(d / 45) % 8]
   return (
-    <span className="heading" title={`facing ${d}° (0° along +z, 90° along +x): toward ${toward}, ${compassPoint(d)} in game (the arrow as the game's camera shows it: up is north, heading ${NORTH_HEADING}°)`}>
+    <span className="heading" title={`facing ${d}° (0° along +z, 90° along +x): toward ${toward}, ${compassPoint(d)} in game (the arrow as the game's camera shows it: up is north-east, heading ${UP_HEADING}°)`}>
       <svg viewBox="-10 -10 20 20" width="18" height="18" aria-hidden="true">
         <circle r="9" fill="none" stroke="currentColor" strokeOpacity="0.35" />
         <path d="M0 -9 L0 -7" stroke="currentColor" strokeOpacity="0.6" />
