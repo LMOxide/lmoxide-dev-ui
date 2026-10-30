@@ -71,6 +71,16 @@ export class Api {
     return this.call<Player[]>('GET', '/v1/players')
   }
 
+  /** The account's own characters online (any account; no read scope needed). */
+  myPlayers() {
+    return this.call<Player[]>('GET', '/v1/me/players')
+  }
+
+  /** The logged-in account (its GM level). */
+  me() {
+    return this.call<{ username: string; gm_level: number }>('GET', '/v1/me')
+  }
+
   /** The running copies of worlds (moderate scope). */
   instances() {
     return this.call<Instances>('GET', '/v1/instances')
@@ -133,6 +143,11 @@ export class Api {
   /** A test command run as that player, as if typed in chat; `replies` are its chat answers. */
   command(accountId: number, command: string) {
     return this.call<CommandResult>('POST', `/v1/players/${accountId}/command`, { command })
+  }
+
+  /** A test command run as one's own character (any account; the game checks the GM level). */
+  myCommand(command: string) {
+    return this.call<CommandResult>('POST', '/v1/me/command', { command })
   }
 }
 

@@ -16,7 +16,14 @@ One LMOxide server runs every game mode (progression, maxed and the world editor
 `docs/SERVER-ARCHITECTURE.md`) behind one `lmoxide-api`. The front page (`/`) signs in to it once
 and opens the tool you choose; both tools use that one session, and the switch at the top left
 of each tool goes to the other. The debugger works on characters in any mode; the world editor's
-routes (`/v1/survey`, `/v1/editor`) need GM level 1 or more (the moderate scope).
+routes (`/v1/survey`, `/v1/editor`) need a contributor (GM level 2 or more).
+
+Who gets what (LMOxide's `docs/SECURITY.md` "Access levels"): **alpha testers** (GM level 1) use
+the debugger on their own character, with the sections their commands allow (Quick, Teleport,
+Test scenarios, Go to, Looks & state, Animations, Minifigures, Progress, Dialogues; through
+`/v1/me/players` and `/v1/me/command`); **contributors** (2) get every command, the Effects
+view and the world editor; **moderators** (3) the Instances section; **admins** (4) can send
+commands to any player online. Each command's level comes from `GET /v1/catalog/test-commands`.
 
 *Stay signed in* (on by default) keeps the session token, never the password, in localStorage:
 a "remember" login (`POST /v1/auth/login` with `remember`, the API's `--remember-days`, 30 by
@@ -46,7 +53,7 @@ the server; so do a password change and a ban.
 | Section | Sends |
 |---|---|
 | Quick | `!where`, `!revive`, `!smashme`, `!smash`, `!xp`, `!stars`, `!ach`, puzzles (`!mirrors`, `!plates`) |
-| Teleport | where the chosen player is (playfield and x, y, z, refreshed every second; click to copy); by type: a playfield (`!tp <playfield>`, marks where the player is), a player online (`!goto player <name>`), any spawn or other target (`!goto <kind> <n>`: *all*, or one kind); *Move*: `!moveto x y z`, `!move dx dy dz` (y is up; ↑ 10 / 100 / 1000 m for getting out from under a map) |
+| Teleport | where the chosen player is (playfield and x, y, z, refreshed every second; click to copy) and which way they face (an arrow with +z up and +x right, the angle: 0° along +z, 90° along +x); by type: a playfield (`!tp <playfield>`, marks where the player is), a player online (`!goto player <name>`), any spawn or other target (`!goto <kind> <n>`: *all*, or one kind); *Move*: `!moveto x y z`, `!move dx dy dz` (y is up; ↑ 10 / 100 / 1000 m for getting out from under a map) |
 | Test scenarios | `!test <n>` (what each sets up: place, team, spawns) |
 | Go to | `!goto <kind> <n>`: bosses, champions, enemies, NPCs, smashables, pads, collectibles, arenas, ... by name or playfield, or only where you are |
 | Spawn & loot | `!spawn <count> <name>` (enemies and smashables, 15 minutes), `!despawn [all]`, `!loot <kind>` |
@@ -146,7 +153,7 @@ Achievements/  Smash/      {achievement}/ {enemy}                 every smash ac
   editing (moves and turns typed in quick succession are one step), confirming, deleting and
   resetting, for this page's session. **Reset** on the selection: an edited or confirmed guess
   back to the guess; anything else back to how it was when the page was opened.
-- **Play this (preview)** (header): asks the server for a preview for your own character (`POST /v1/survey/preview`, the signed-in login's character in the world editor mode; GM level 1 is enough): the server puts you in a private copy of the world you stand in, built from the editor's unpublished working copy, with enemies fighting. While you are in it (your copy is a `preview` in `GET /v1/instances`) the button is *End preview* (`!preview end`). Disabled, with the reason in its tooltip, when you aren't in game in the world editor mode.
+- **Play this (preview)** (header): asks the server for a preview for your own character (`POST /v1/survey/preview`, the signed-in login's character in the world editor mode; a contributor's level is enough): the server puts you in a private copy of the world you stand in, built from the editor's unpublished working copy, with enemies fighting. While you are in it (your copy is a `preview` in `GET /v1/instances`) the button is *End preview* (`!preview end`). Disabled, with the reason in its tooltip, when you aren't in game in the world editor mode.
 - **Publish**: edits are saved on the server as you make them (written to disk once you pause), so a crash loses nothing, but the progression and maxed modes only see what you publish. The header button counts your unpublished records (`Publish (n)`, or *Saved · all published*); the dialog publishes all of yours or one playfield/feature/author group, and lists each record (`GET /v1/survey/unpublished`, `POST /v1/survey/publish`, lmoxide d07b419).
 - **Import / export**: one file per set or playfield; importing previews duplicates,
   near-duplicates (within a distance and angle you set, each can be taken anyway) and conflicts.
@@ -162,10 +169,10 @@ address) forwards to `/editor/`.
   character states, sounds) and started with `--client-dir` for the ♪ buttons. Older ones work
   with less: without the catalogs the pickers fall back to number boxes, before `2c668c5`
   without the Debug pickers and command replies.
-- An admin account (log in with it) or an API key with the admin scope. Read scope is enough to
-  browse; commands need admin.
-- A running game server with a logged-in client whose account has GM level 1 or more (test
-  commands are refused otherwise; the answer says so).
+- An account with GM level 1 or more (commands to your own character), an admin account
+  (commands to anyone) or an API key with the admin scope. Read scope is enough to browse.
+- A running game server with a logged-in client (test commands above the account's level are
+  refused; the answer says so).
 
 ## Develop
 
@@ -182,7 +189,7 @@ online there unless a game client connects, so for commands use a real server su
 `tools/lan-server.sh`.
 
 ```sh
-LMOXIDE_API=http://192.168.1.20:8090 pnpm dev
+LMOXIDE_API=http://lmo.example.org:8090 pnpm dev
 ```
 
 ## Build and deploy

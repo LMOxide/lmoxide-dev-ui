@@ -19,6 +19,21 @@ const SECTIONS: [Section, string][] = [
   ['commands', 'All commands'],
 ]
 
+/** A command each section is about: the section shows when that one may run (alpha testers
+ * have some sections, contributors all). */
+const SECTION_COMMAND: Partial<Record<Section, string>> = {
+  quick: '!where',
+  teleport: '!tp',
+  scenarios: '!test',
+  targets: '!goto',
+  spawn: '!spawn',
+  looks: '!skin',
+  animations: '!anim',
+  minifigures: '!own',
+  progress: '!count',
+  dialogues: '!dialog',
+}
+
 /** Shown at most per list; the filter narrows it. */
 const SHOWN = 300
 
@@ -59,6 +74,8 @@ export function Debug({
   instancesError,
   loadInstances,
   canSend,
+  may,
+  moderator,
   send,
   section,
   setSection,
@@ -75,6 +92,10 @@ export function Debug({
   instancesError: string
   loadInstances: () => void
   canSend: boolean
+  /** whether a command may run for the chosen player (its GM level) */
+  may: (cmd: string) => boolean
+  /** the Instances section (moderate scope) */
+  moderator: boolean
   send: (cmd: string) => void
   section: Section
   setSection: (s: Section) => void
@@ -88,11 +109,14 @@ export function Debug({
   const pf = (id: number) => playfieldName(data, id)
   const tests = data.tests
   const here = online?.playfield ?? null
+  const sections = SECTIONS.filter(([s]) => (s === 'instances' ? moderator : !SECTION_COMMAND[s] || may(SECTION_COMMAND[s])))
+  // a remembered section this account doesn't have: the first one
+  if (!sections.some(([s]) => s === section)) section = sections[0][0]
 
   return (
     <div className="debug">
       <nav className="sections" aria-label="Debug sections">
-        {SECTIONS.map(([s, label]) => (
+        {sections.map(([s, label]) => (
           <button key={s} className={s === section ? 'on' : ''} onClick={() => setSection(s)}>
             {label}
           </button>
@@ -100,7 +124,7 @@ export function Debug({
       </nav>
       <div className="section-body">
         {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && section !== 'instances' && <Missing />}
-        {section === 'quick' && <Quick send={send} canSend={canSend} />}
+        {section === 'quick' && <Quick send={send} canSend={canSend} may={may} />}
         {section === 'teleport' && <Whereabouts data={data} online={online} />}
         {section === 'teleport' && <MovePanel send={send} canSend={canSend} />}
         {section === 'teleport' && <TeleportTo data={data} players={players} online={online} query={query} setQuery={setQuery} send={send} canSend={canSend} />}
@@ -141,17 +165,17 @@ export function Debug({
             <div className="chips row-gap">
               <span className="muted small">Aura</span>
               {['none', 'Disciple', 'Master', 'Grandmaster', 'Superachiever'].map((a, i) => (
-                <button key={a} className="chip" disabled={!canSend} onClick={() => send(`!aura ${i}`)}>
+                <button key={a} className="chip" disabled={!canSend || !may('!aura')} onClick={() => send(`!aura ${i}`)}>
                   {i} {a}
                 </button>
               ))}
             </div>
             <div className="chips row-gap">
               <span className="muted small">Collection</span>
-              <button className="chip" disabled={!canSend} onClick={() => send('!collection limit')} title="own only the team and the members' minifigures">
+              <button className="chip" disabled={!canSend || !may('!collection')} onClick={() => send('!collection limit')} title="own only the team and the members' minifigures">
                 limit
               </button>
-              <button className="chip" disabled={!canSend} onClick={() => send('!collection all')} title="own every minifigure (relog to see it)">
+              <button className="chip" disabled={!canSend || !may('!collection')} onClick={() => send('!collection all')} title="own every minifigure (relog to see it)">
                 all
               </button>
               <button className="chip" disabled={!canSend} onClick={() => send('!own')}>
@@ -203,7 +227,7 @@ export function Debug({
           <>
             <Filter value={query} set={setQuery} placeholder="Filter commands…" />
             <ul className="plain picklist">
-              {(tests?.commands ?? []).filter((c) => !query || (c.usage + ' ' + c.about).toLowerCase().includes(query.toLowerCase())).map((c) => (
+              {(tests?.commands ?? []).filter((c) => may(c.usage) && (!query || (c.usage + ' ' + c.about).toLowerCase().includes(query.toLowerCase()))).map((c) => (
                 <li key={c.usage}>
                   <div className="pick-main">
                     <code>{c.usage}</code>
@@ -268,11 +292,11 @@ function PickList<T>({
   )
 }
 
-function Quick({ send, canSend }: { send: (cmd: string) => void; canSend: boolean }) {
+function Quick({ send, canSend, may }: { send: (cmd: string) => void; canSend: boolean; may: (cmd: string) => boolean }) {
   const [xp, setXp] = useState('1000')
   const [stars, setStars] = useState('100')
   const b = (cmd: string, label: string, title?: string) => (
-    <button disabled={!canSend} onClick={() => send(cmd)} title={title ?? cmd}>
+    <button disabled={!canSend || !may(cmd)} onClick={() => send(cmd)} title={title ?? cmd}>
       {label}
     </button>
   )
@@ -760,13 +784,32 @@ function Whereabouts({ data, online }: { data: GameData; online: Player | undefi
         </>
       )}
       {pos ? (
-        <button className="chip mono" onClick={copy} title="x, y (up), z — click to copy">
-          {copied ? 'copied' : `(${pos.map((v) => v.toFixed(1)).join(', ')})`}
-        </button>
+        <>
+          <button className="chip mono" onClick={copy} title="x, y (up), z — click to copy">
+            {copied ? 'copied' : `(${pos.map((v) => v.toFixed(1)).join(', ')})`}
+          </button>
+          {online.heading != null && <Heading degrees={online.heading} />}
+        </>
       ) : (
         <span className="muted small">{online.playfield == null ? 'not in play yet' : 'no position (server older than 2026-10-27)'}</span>
       )}
     </p>
+  )
+}
+
+/** Which way the player faces: an arrow on the x/z plane (+z up, +x right, as seen from above)
+ * and the angle (0° along +z, 90° along +x). */
+function Heading({ degrees }: { degrees: number }) {
+  const d = ((Math.round(degrees) % 360) + 360) % 360
+  const toward = ['+z', '+x+z', '+x', '+x−z', '−z', '−x−z', '−x', '−x+z'][Math.round(d / 45) % 8]
+  return (
+    <span className="heading" title={`facing ${d}° (0° along +z, 90° along +x): toward ${toward}`}>
+      <svg viewBox="-10 -10 20 20" width="18" height="18" aria-hidden="true">
+        <circle r="9" fill="none" stroke="currentColor" strokeOpacity="0.35" />
+        <path d="M0 -7 L4 4 L0 1.5 L-4 4 Z" fill="currentColor" transform={`rotate(${d})`} />
+      </svg>{' '}
+      <span className="mono">{d}°</span> <span className="muted small">toward {toward}</span>
+    </span>
   )
 }
 

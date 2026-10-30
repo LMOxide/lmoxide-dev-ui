@@ -1041,3 +1041,11 @@ form.inline.wrap {
 .multi-list li {
   padding: 2px 4px;
 }
+
+.heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25em;
+  margin-left: 0.5em;
+  vertical-align: middle;
+}

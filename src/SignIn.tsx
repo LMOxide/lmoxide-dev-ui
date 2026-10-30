@@ -78,8 +78,8 @@ export function SignIn() {
         <p className="muted">
           The {TOOL[tool].label.toLowerCase()}: {TOOL[tool].about}.{' '}
           {tool === 'editor'
-            ? 'Needs an account with GM level 1 or more (the moderate scope).'
-            : 'Needs an admin account (or an API key with the admin scope) for commands.'}
+            ? 'Needs a contributor account (GM level 2 or more).'
+            : 'Alpha testers (GM level 1) send the testers’ commands to their own character, contributors (2) every command; admins any player’s.'}
         </p>
         <div className="segmented" role="tablist">
           <button type="button" className={mode === 'account' ? 'on' : ''} onClick={() => setMode('account')}>

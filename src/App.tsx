@@ -90,6 +90,8 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
   const [bccStates, setBccStates] = useState<BccStates | null>(null)
   const [fxAt, setFxAt] = useStored<FxAt>(KEYS.fxAt, '')
   const [testsError, setTestsError] = useState('')
+  /** the signed-in account's GM level (null: an API key, or not known yet) */
+  const [myLevel, setMyLevel] = useState<number | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const consoleRef = useRef<HTMLInputElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -102,7 +104,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
       if (e instanceof ApiError) {
         if (e.code === 'game_server_unavailable') return 'the game server is down'
         if (e.code === 'no_control') return 'the API runs without a game server connection'
-        if (e.code === 'forbidden') return 'not allowed (commands need the admin scope)'
+        if (e.code === 'forbidden') return 'not allowed here'
         return e.message
       }
       return String(e)
@@ -142,15 +144,24 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
 
   useEffect(loadGameData, [loadGameData])
 
-  const loadPlayers = useCallback(() => {
+  useEffect(() => {
+    if (session.expires_at === undefined) return // an API key: no account
     api
-      .players()
+      .me()
+      .then((m) => setMyLevel(m.gm_level))
+      .catch(() => {})
+  }, [api, session.expires_at])
+
+  // admins and moderators see everyone online; other accounts their own characters
+  const seesEveryone = session.scope !== null
+  const loadPlayers = useCallback(() => {
+    ;(seesEveryone ? api.players() : api.myPlayers())
       .then((p) => {
         setPlayers(p)
         setPlayersError('')
       })
       .catch((e) => setPlayersError(failed(e)))
-  }, [api, failed])
+  }, [api, failed, seesEveryone])
 
   // every second while the Teleport section shows the player's coordinates
   const tracking = view === 'debug' && section === 'teleport'
@@ -168,7 +179,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
         setInstances(i)
         setInstancesError('')
       })
-      .catch((e) => setInstancesError(e instanceof ApiError && e.status === 403 ? 'needs GM level 1 or more (the moderate scope)' : failed(e)))
+      .catch((e) => setInstancesError(e instanceof ApiError && e.status === 403 ? 'needs a moderator (GM level 3 or more; the moderate scope)' : failed(e)))
   }, [api, failed])
   const showingInstances = view === 'debug' && section === 'instances'
   useEffect(() => {
@@ -241,16 +252,36 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
     players?.find((p) => p.account_id === chosen?.account_id) ??
     players?.find((p) => !!chosen && p.username.toLowerCase() === chosen.username.toLowerCase())
   const admin = session.scope === 'admin'
-  const canSend = admin && !!chosen
+  // without admin, commands go to one's own character: choose it
+  useEffect(() => {
+    if (admin || !players?.length || online) return
+    const p = players[0]
+    setChosen({ account_id: p.account_id, username: p.username, character_name: p.character_name })
+  }, [admin, players, online, setChosen])
+  /** What the player commands go to may run: their GM level against each command's
+   * (`GET /v1/catalog/test-commands`); without levels in the catalog, everything. */
+  const level = online?.gm_level ?? myLevel
+  const commandLevels = useMemo(() => new Map((tests?.commands ?? []).map((c) => [c.usage.split(/\s/)[0].toLowerCase(), c.gm_level ?? 0])), [tests])
+  const may = useCallback(
+    (command: string) => level === null || level >= (commandLevels.get(command.split(/\s/)[0].toLowerCase()) ?? 0),
+    [level, commandLevels],
+  )
+  const canSend = !!chosen && (admin || (!!online && online.account_id === chosen.account_id))
+  const canFx = canSend && may('!fx')
 
   const send = useCallback(
     async (command: string) => {
       if (!chosen) return
       const id = ++logId.current
+      if (!may(command)) {
+        const needs = commandLevels.get(command.split(/\s/)[0].toLowerCase())
+        setLog((l) => [{ id, at: Date.now(), command, player: chosen.character_name || chosen.username, status: 'error' as const, message: `needs GM level ${needs}` }, ...l].slice(0, 200))
+        return
+      }
       setLog((l) => [{ id, at: Date.now(), command, player: chosen.character_name || chosen.username, status: 'pending' as const }, ...l].slice(0, 200))
       const update = (patch: Partial<LogEntry>) => setLog((l) => l.map((x) => (x.id === id ? { ...x, ...patch } : x)))
       try {
-        const r = await api.command(online?.account_id ?? chosen.account_id, command)
+        const r = admin ? await api.command(online?.account_id ?? chosen.account_id, command) : await api.myCommand(command)
         if (r.affected > 0) {
           update({ status: 'ok', replies: r.replies })
           const fx = /^!fx\s+(\d+)/.exec(command)
@@ -261,7 +292,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
         update({ status: 'error', message: failed(e) })
       }
     },
-    [api, chosen, online, failed],
+    [api, chosen, online, failed, admin, may, commandLevels],
   )
 
   const setNote = useCallback(
@@ -282,9 +313,9 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
       const next = filtered[i < 0 ? 0 : Math.min(filtered.length - 1, Math.max(0, i + by))]
       setSelected(next.id)
       setTab((t) => (t === 'notes' ? 'effect' : t))
-      if (autoplay && canSend && next.kind === 'effectpackage' && next.id !== selected) send(fxCommand(next.id))
+      if (autoplay && canFx && next.kind === 'effectpackage' && next.id !== selected) send(fxCommand(next.id))
     },
-    [filtered, selected, autoplay, canSend, send, fxCommand],
+    [filtered, selected, autoplay, canFx, send, fxCommand],
   )
 
   // keyboard: j/k or arrows step through the filtered list, Enter plays, s stops, 1-9 tag
@@ -309,8 +340,8 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
       else if (e.key === 'k' || e.key === 'ArrowUp') step(-1)
       else if (e.key === 'PageDown') step(10)
       else if (e.key === 'PageUp') step(-10)
-      else if ((e.key === 'Enter' || e.key === 'p') && sel?.kind === 'effectpackage' && canSend && !el.closest('button')) send(fxCommand(sel.id))
-      else if (e.key === 's' && canSend) send('!fx stop')
+      else if ((e.key === 'Enter' || e.key === 'p') && sel?.kind === 'effectpackage' && canFx && !el.closest('button')) send(fxCommand(sel.id))
+      else if (e.key === 's' && canFx) send('!fx stop')
       else if (e.key === '/') searchRef.current?.focus()
       else if (/^[1-9]$/.test(e.key) && sel) {
         const t = tags[Number(e.key) - 1]
@@ -322,7 +353,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [step, selected, byId, canSend, send, tags, notes, setNote, view, fxCommand])
+  }, [step, selected, byId, canFx, send, tags, notes, setNote, view, fxCommand])
 
   /** Shows an entry in the effect view (clearing filters that hide it), and plays it if asked. */
   function showEffect(id: number, play = false) {
@@ -330,7 +361,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
     setFilters((f) => (filtered.some((e) => e.id === id) ? f : { ...NO_FILTERS, desc: f.desc }))
     setSelected(id)
     setTab('effect')
-    if (play && canSend && byId.get(id)?.kind === 'effectpackage') send(fxCommand(id))
+    if (play && canFx && byId.get(id)?.kind === 'effectpackage') send(fxCommand(id))
   }
 
   /** Shows the console (a tab in the effect view, always there in the debug view) and focuses it. */
@@ -369,7 +400,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
                 setChosen(p ? { account_id: p.account_id, username: p.username, character_name: p.character_name } : null)
               }}
             >
-              <option value="">{players?.length ? 'choose a player…' : 'nobody online'}</option>
+              <option value="">{players?.length ? 'choose a player…' : seesEveryone ? 'nobody online' : 'log in to the game first'}</option>
               {chosen && !online && (
                 <option value={chosen.account_id}>
                   {chosen.character_name} ({chosen.username}) — offline
@@ -389,7 +420,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
           <label className="check" title="Play each entry as you step with j/k or the arrow keys">
             <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} /> play on step
           </label>
-          <button className="ghost" disabled={!canSend} onClick={() => send('!fx stop')} title="!fx stop (s)">
+          <button className="ghost" disabled={!canFx} onClick={() => send('!fx stop')} title="!fx stop (s)">
             ■ stop
           </button>
         </div>
@@ -413,9 +444,11 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
         </div>
       </header>
 
-      {(!admin || playersError || (chosen && players && !online) || (online && online.gm_level < 1)) && (
+      {((!admin && level !== null && level < 1) || playersError || (chosen && players && !online) || (online && online.gm_level < 1)) && (
         <div className="banners">
-          {!admin && <p className="banner warn">This login has the “{session.scope ?? 'none'}” scope: you can browse, but sending commands needs admin.</p>}
+          {!admin && level !== null && level < 1 && !online && (
+            <p className="banner warn">This account has GM level {level}: you can browse, but test commands need an alpha tester (GM level 1) or more.</p>
+          )}
           {playersError && <p className="banner warn">Players: {playersError}</p>}
           {chosen && players && !online && (
             <p className="banner warn">
@@ -424,7 +457,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
           )}
           {online && online.gm_level < 1 && (
             <p className="banner warn">
-              {online.username} has GM level {online.gm_level}: test commands need GM level 1 or more (set it in the admin web UI and log in again).
+              {online.username} has GM level {online.gm_level}: test commands need an alpha tester (GM level 1) or more (set it in the admin web UI and log in again).
             </p>
           )}
         </div>
@@ -451,6 +484,8 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
               instancesError={instancesError}
               loadInstances={loadInstances}
               canSend={canSend}
+              may={may}
+              moderator={session.scope === 'moderate' || admin}
               send={send}
               section={section}
               setSection={setSection}
@@ -502,7 +537,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
                 setSelected(id)
                 setTab((t) => (t === 'notes' ? 'effect' : t))
               }}
-              onPlay={(id) => canSend && send(fxCommand(id))}
+              onPlay={(id) => canFx && send(fxCommand(id))}
             />
           </div>
           <div className="right">
@@ -525,7 +560,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
                     effect={current}
                     note={notes[current.id]}
                     tags={tags}
-                    canSend={canSend}
+                    canSend={canFx}
                     onCommand={send}
                     play={(hook) => send(fxCommand(current.id, hook))}
                     fxAt={fxAt}

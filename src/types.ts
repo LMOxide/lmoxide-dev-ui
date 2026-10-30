@@ -31,6 +31,8 @@ export interface Player {
   copy?: number | null
   /** the character's game mode */
   mode?: GameMode | null
+  /** the way it faces, degrees: 0 along +z, 90 along +x (lmoxide 2026-10-29 or later) */
+  heading?: number | null
 }
 
 export type GameMode = 'progression' | 'maxed' | 'world-editor' | (string & {})
@@ -165,7 +167,8 @@ export interface CommandResult {
 
 /** `GET /v1/catalog/test-commands`: what the test commands accept. */
 export interface TestCatalog {
-  commands: { usage: string; about: string }[]
+  /** `gm_level`: what the command needs (lmoxide 2026-10-29 or later) */
+  commands: { usage: string; about: string; gm_level?: number }[]
   kinds: { kind: string; about: string; targets: { n: number; label: string; playfield: number; pos: [number, number, number] }[] }[]
   scenarios: { n: number; label: string; about: string; team: string[]; spawn: { name: string; count: number }[] }[]
   dialogues: { n: number; npc: string; playfield: number }[]
