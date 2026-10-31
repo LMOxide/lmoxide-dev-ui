@@ -15,10 +15,10 @@ const SECTIONS: [Section, string][] = [
   ['teleport', 'Teleport'],
   ['scenarios', 'Test scenarios'],
   ['targets', 'Go to'],
-  ['spawn', 'Spawn & loot'],
+  ['spawn', 'Spawns'],
   ['looks', 'Looks & state'],
   ['animations', 'Animations'],
-  ['minifigures', 'Minifigures'],
+  ['minifigures', 'Minifigures & loot'],
   ['progress', 'Achievements'],
   ['story', 'Story'],
   ['dialogues', 'Dialogues'],
@@ -193,6 +193,14 @@ export function Debug({
         {section === 'animations' && <Animations data={data} query={query} setQuery={setQuery} send={send} canSend={canSend} showEffect={showEffect} />}
         {section === 'minifigures' && (
           <>
+            <h3>Loot bag at your feet</h3>
+            <div className="chips">
+              {(tests?.loot_kinds ?? []).map((k) => (
+                <button key={k} className="chip" disabled={!canSend} onClick={() => send(`!loot ${k}`)}>
+                  {k}
+                </button>
+              ))}
+            </div>
             <div className="chips row-gap">
               <span className="muted small">Aura</span>
               {['none', 'Disciple', 'Master', 'Grandmaster', 'Superachiever'].map((a, i) => (
@@ -614,14 +622,6 @@ function Spawn({ data, query, setQuery, send, canSend }: { data: GameData; query
   }, [data])
   return (
     <>
-      <h3>Loot bag at your feet</h3>
-      <div className="chips">
-        {(data.tests?.loot_kinds ?? []).map((k) => (
-          <button key={k} className="chip" disabled={!canSend} onClick={() => send(`!loot ${k}`)}>
-            {k}
-          </button>
-        ))}
-      </div>
       <h3>Spawn around you (15 minutes)</h3>
       <div className="chips row-gap">
         <button className="chip" disabled={!canSend} onClick={() => send('!despawn')} title="remove the test spawns within 30 m">
