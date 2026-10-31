@@ -442,10 +442,11 @@ function Quick({ send, canSend, may }: { send: (cmd: string) => void; canSend: b
     <div className="quick">
       <h3>Character</h3>
       <div className="chips">
-        {b('!where', 'Where am I?')}
         {b('!revive', 'Revive all')}
         {b('!smashme', 'Smash me')}
         {b('!smash', 'Smash nearest', 'smash the nearest smashable or defeat the nearest enemy within 15 m')}
+      </div>
+      <div className="chips quick-row">
         {b('!skin reset', 'Own look')}
         {b('!state 1', 'State normal')}
         {b('!fx stop', 'Stop effect')}
@@ -463,7 +464,7 @@ function Quick({ send, canSend, may }: { send: (cmd: string) => void; canSend: b
           Set speed ×
         </button>
       </form>
-      <div className="chips speed-presets">
+      <div className="chips quick-row">
         {b('!speed 0.5', '×0.5')}
         {b('!speed 1', 'Reset (×1)', '!speed 1: normal speed')}
         {b('!speed 2', '×2')}
@@ -481,9 +482,9 @@ function Quick({ send, canSend, may }: { send: (cmd: string) => void; canSend: b
       >
         <input value={xp} onChange={(e) => setXp(e.target.value)} inputMode="numeric" size={8} aria-label="XP" />
         <button disabled={!canSend}>+ XP</button>
-      </form>{' '}
+      </form>
       <form
-        className="inline"
+        className="inline quick-row"
         onSubmit={(e) => {
           e.preventDefault()
           if (/^\d+$/.test(stars)) send(`!stars ${stars}`)
@@ -491,8 +492,7 @@ function Quick({ send, canSend, may }: { send: (cmd: string) => void; canSend: b
       >
         <input value={stars} onChange={(e) => setStars(e.target.value)} inputMode="numeric" size={8} aria-label="Stars" />
         <button disabled={!canSend}>+ stars</button>
-      </form>{' '}
-      {b('!ach', 'Achievements')}
+      </form>
       <h3>Puzzles</h3>
       <div className="chips">
         {b('!mirrors solve', 'Mirrors: solve')}
