@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Heading } from './Heading'
 import { KEYS, loadJson, saveJson } from './storage'
 import { playfieldName, type GameData } from './suggest'
@@ -83,7 +83,7 @@ function useCopyKey(copy: () => void) {
 }
 
 /** Bottom right, always: where the chosen player is, a copy button (Ctrl+Shift+C) and the copy format. */
-export function PositionDock({ data, place, online, pc, empty = 'no player chosen' }: { data?: GameData; /** the playfield's name (else from `data`) */ place?: string; online: Whereabouts | undefined; pc: PositionCopy; /** shown with nobody */ empty?: string }) {
+export function PositionDock({ data, place, online, pc, empty = 'no player chosen', children }: { data?: GameData; /** the playfield's name (else from `data`) */ place?: string; online: Whereabouts | undefined; pc: PositionCopy; /** shown with nobody */ empty?: string; /** docked above the bar (the debugger's player and mode) */ children?: ReactNode }) {
   const { format, setFormat, text, copy, copied } = pc
   const [open, setOpen] = useState(false)
   useCopyKey(copy)
@@ -91,6 +91,7 @@ export function PositionDock({ data, place, online, pc, empty = 'no player chose
   const sepLabel = SEPARATORS.find(([s]) => s === format.sep)![1]
   return (
     <div className={`position-dock${copied ? ` flash-${copied}` : ''}`}>
+      {children}
       {open && (
         <div className="position-dock-menu" role="dialog" aria-label="Copy format">
           <fieldset>

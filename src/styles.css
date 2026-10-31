@@ -250,22 +250,6 @@ button.link.danger {
   background: var(--surface);
   flex-wrap: wrap;
 }
-.top .player {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1;
-  flex-wrap: wrap;
-}
-.top .player label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--text-2);
-}
-.top .player select {
-  max-width: 260px;
-}
 .top .who {
   display: flex;
   align-items: center;
@@ -681,12 +665,33 @@ ul.plain li {
   background: var(--selected);
   font-weight: 600;
 }
+.views {
+  flex: 1;
+  min-width: 0;
+}
+/* looks like a search box; opens the palette */
 .search-all {
-  color: var(--text-2);
+  flex: 1;
+  max-width: 640px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-left: 6px;
+  padding: 6px 10px;
+  color: var(--text-2);
+  text-align: left;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.search-all span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .search-all kbd {
-  margin-left: 4px;
+  flex: none;
 }
 .debug-panes {
   grid-template-columns: minmax(380px, 1.4fr) minmax(340px, 1fr);
@@ -1237,4 +1242,38 @@ details.group > summary::after {
 }
 .quick form.inline {
   display: flex;
+}
+
+/* the debugger's player and mode, docked above the copy bar */
+.player-dock-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 2px 10px rgb(0 0 0 / 0.15);
+  font-size: 12.5px;
+  max-width: min(640px, calc(100vw - 32px));
+}
+.player-dock-bar label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+}
+.player-dock-bar select {
+  max-width: 240px;
+}
+
+/* Effects section: play on step and stop, above the filters */
+.effects-tools {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
 }

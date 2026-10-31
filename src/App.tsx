@@ -10,7 +10,7 @@ import { KEYS, loadJson, saveJson } from './storage'
 import { Console, type LogEntry } from './Console'
 import { Debug, type Section } from './Debug'
 import { Palette } from './Palette'
-import { modeName, searchSuggestions, vocabulary, whereLabel, type GameData } from './suggest'
+import { modeName, searchSuggestions, vocabulary, type GameData } from './suggest'
 import { apiBase, expired, sessionFor, session as currentSession, setApiBase, signOut, toSignIn } from './tools'
 import { ToolSwitch } from './ToolSwitch'
 import { PositionDock, usePositionCopy } from './PositionCopy'
@@ -24,6 +24,13 @@ interface Chosen {
 }
 
 type Tab = 'effect' | 'console' | 'notes'
+
+/** The game modes `!mode` switches between (the API's name, the label). */
+const MODES: [string, string][] = [
+  ['progression', 'Progression'],
+  ['maxed', 'Maxed'],
+  ['world-editor', 'World editor'],
+]
 
 function useStored<T>(key: string, fallback: T, inSession = false): [T, (v: T | ((old: T) => T)) => void] {
   const [value, setValue] = useState<T>(() => loadJson(key, fallback, inSession))
@@ -384,46 +391,10 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
       <header className="top">
         <ToolSwitch current="debugger" />
         <nav className="views" aria-label="Views">
-          <button className="ghost search-all" onClick={() => setPalette(true)} title="Search everything (Ctrl+K)">
-            ⌕ Search all <kbd>Ctrl K</kbd>
+          <button className="search-all" onClick={() => setPalette(true)} title="Search everything (Ctrl+K)">
+            <span>⌕ Search all: effects, places, targets, commands…</span> <kbd>Ctrl K</kbd>
           </button>
         </nav>
-        <div className="player">
-          <label>
-            Player
-            <select
-              value={chosen?.account_id ?? ''}
-              onChange={(e) => {
-                const p = players?.find((x) => x.account_id === Number(e.target.value))
-                setChosen(p ? { account_id: p.account_id, username: p.username, character_name: p.character_name } : null)
-              }}
-            >
-              <option value="">{players?.length ? 'choose a player…' : seesEveryone ? 'nobody online' : 'log in to the game first'}</option>
-              {chosen && !online && (
-                <option value={chosen.account_id}>
-                  {chosen.character_name} ({chosen.username}) — offline
-                </option>
-              )}
-              {players?.map((p) => (
-                <option key={p.account_id} value={p.account_id}>
-                  {p.character_name} ({p.username}){p.mode ? ` · ${modeName(p.mode)}` : ''}{p.gm_level < 1 ? ' — GM level 0' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button className="ghost" onClick={loadPlayers} title="Refresh the players online">
-            ↻
-          </button>
-          {online?.playfield != null && <span className="muted small">in {whereLabel(gameData, online)}</span>}
-          {effectsOpen && (
-            <label className="check" title="Play each effect as you step with j/k or the arrow keys">
-              <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} /> play on step
-            </label>
-          )}
-          <button className="ghost" disabled={!canFx} onClick={() => send('!fx stop')} title="!fx stop (s)">
-            ■ stop
-          </button>
-        </div>
         <div className="who">
           <span className="muted small" title={api.base}>
             {session.label} · {session.scope ?? 'no scope'}
@@ -510,6 +481,14 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
                 </div>
               ) : (
                 <>
+                  <div className="effects-tools">
+                    <label className="check" title="Play each effect as you step with j/k or the arrow keys">
+                      <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} /> play on step
+                    </label>
+                    <button className="ghost" disabled={!canFx} onClick={() => send('!fx stop')} title="!fx stop (s)">
+                      ■ stop
+                    </button>
+                  </div>
                   <FilterPanel
                     filters={filters}
                     set={(f) => setFilters((old) => ({ ...old, ...f }))}
@@ -609,7 +588,46 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
         />
       )}
 
-      <PositionDock data={gameData} online={online} pc={positionCopy} />
+      <PositionDock data={gameData} online={online} pc={positionCopy}>
+        <div className="player-dock-bar">
+          <label>
+            Player
+            <select
+              value={chosen?.account_id ?? ''}
+              onChange={(e) => {
+                const p = players?.find((x) => x.account_id === Number(e.target.value))
+                setChosen(p ? { account_id: p.account_id, username: p.username, character_name: p.character_name } : null)
+              }}
+            >
+              <option value="">{players?.length ? 'choose a player…' : seesEveryone ? 'nobody online' : 'log in to the game first'}</option>
+              {chosen && !online && (
+                <option value={chosen.account_id}>
+                  {chosen.character_name} ({chosen.username}) — offline
+                </option>
+              )}
+              {players?.map((p) => (
+                <option key={p.account_id} value={p.account_id}>
+                  {p.character_name} ({p.username}){p.mode ? ` · ${modeName(p.mode)}` : ''}{p.gm_level < 1 ? ' — GM level 0' : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="ghost" onClick={loadPlayers} title="Refresh the players online">
+            ↻
+          </button>
+          <label title={online ? `!mode: play ${online.character_name}'s character in another game mode` : 'choose a player online first'}>
+            Mode
+            <select value={online?.mode ?? ''} disabled={!online || !canSend || !may('!mode')} onChange={(e) => send(`!mode ${e.target.value === 'world-editor' ? 'editor' : e.target.value}`)}>
+              {!online?.mode && <option value="">—</option>}
+              {MODES.map(([m, label]) => (
+                <option key={m} value={m}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </PositionDock>
 
       <footer className="status">
         <span className="keys">
