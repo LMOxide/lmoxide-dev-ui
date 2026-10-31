@@ -41,6 +41,8 @@ export interface Summary extends RecordKey {
   author?: string
   rev: number
   fields: Record<string, Json>
+  /** the other names of its look: enemies, NPCs, objects, minifigures wearing it, live's, the client's */
+  names?: string[]
   problems: number
   changed: boolean
 }

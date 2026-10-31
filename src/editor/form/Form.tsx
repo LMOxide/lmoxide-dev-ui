@@ -407,7 +407,8 @@ function refOptions(list: Summary[], world: string | null, kinds: string[]): Com
   return list.map((r) => ({
     value: r.id,
     label: recordLabel(r),
-    detail: r.id,
+    detail: r.names?.length ? `${r.id} · also ${r.names.slice(0, 3).join(', ')}` : r.id,
+    keywords: r.names?.join(' '),
     group: kinds.length > 1 ? r.kind : undefined,
     near: !!world && r.world === world,
   }))

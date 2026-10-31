@@ -149,6 +149,11 @@ export function Definitions({ ctx, content, kinds, tabs, at, setAt }: { ctx: Ctx
               onClick={() => (setAt({ id: r.id, feature: r.feature }), setPane('record'))}
             >
               <span className="min-w-0 truncate">{recordLabel(r)}</span>
+              {!!r.names?.length && (
+                <span className="min-w-0 truncate text-xs text-muted-foreground" title={`Its look is also: ${r.names.join(', ')}`}>
+                  also {r.names.join(', ')}
+                </span>
+              )}
               {r.world && !('kind' in folder && folder.kind === 'world') && <span className="shrink-0 text-xs text-muted-foreground">{r.world}</span>}
               {r.feature !== 'live' && <span className="text-xs text-muted-foreground">{r.feature}</span>}
               <span className="ml-auto flex shrink-0 items-baseline gap-2 text-xs text-muted-foreground">
