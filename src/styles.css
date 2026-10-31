@@ -1184,3 +1184,17 @@ details.group > .group-body {
   margin-left: 14px;
   padding-bottom: 6px;
 }
+
+/* done counts (n/n): all done, some, none */
+.tally {
+  font-weight: 600;
+}
+.tally.all {
+  color: var(--ok);
+}
+.tally.some {
+  color: var(--warn);
+}
+.tally.none {
+  color: var(--text-2);
+}

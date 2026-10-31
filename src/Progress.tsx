@@ -88,7 +88,7 @@ export function Achievements({ api, online, send, canSend, children }: { api: Ap
           return {
             id: r.id,
             lore: num(f.lore) ?? 0,
-            title: str(f.title) || r.name || r.id,
+            title: str(f.title) || r.name,
             text: str(f.text),
             kind: str(f.kind),
             parent: str(f.parent),
@@ -96,6 +96,7 @@ export function Achievements({ api, online, send, canSend, children }: { api: Ap
             counter,
           }
         })
+        .map((a, _, list) => (a.title ? a : { ...a, title: untitled(a.id, list.find((p) => p.id === a.parent)?.title ?? '') }))
         .sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true })),
     [records],
   )
@@ -157,6 +158,7 @@ export function Achievements({ api, online, send, canSend, children }: { api: Ap
     return (
       <>
         <span className="title">{a.title}</span> {a.lore > 0 && <span className={`badge${done ? '' : ' dim'}`}>{done ? 'done' : 'not done'}</span>}{' '}
+        <div className="muted mono" style={{ fontSize: '0.75em' }}>{a.id}</div>
         <span className="muted small">
           {a.kind}
           {a.lore > 0 && ` · [${a.lore}]`}
@@ -201,10 +203,15 @@ export function Achievements({ api, online, send, canSend, children }: { api: Ap
         open={!!kept}
         title={
           <>
-            {a.title} {a.lore > 0 && <span className={`badge${isDone(a) ? '' : ' dim'}`}>{isDone(a) ? 'done' : 'not done'}</span>} {button(a)}
+            <code className={`tally ${d === n ? 'all' : d > 0 ? 'some' : 'none'}`} title={`${d} of ${n} done`}>
+              {d}/{n}
+            </code>{' '}
+            {a.title} {button(a)}
+            <div className="muted mono" style={{ fontSize: '0.75em', fontWeight: 'normal', marginLeft: '1.1em' }}>
+              {a.id}
+            </div>
           </>
         }
-        count={`${d}/${n} done`}
       >
         {(a.text || progress(a)) && <div className="muted small">{line(a)}</div>}
         {below.map(node)}
@@ -237,6 +244,16 @@ export function Achievements({ api, online, send, canSend, children }: { api: Ap
       {children}
     </>
   )
+}
+
+/** A name for an achievement without a title (the worlds' groups): its id's words after its
+ * parent's, e.g. achievement/medieval-collectibles under Medieval World -> "Collectibles". */
+function untitled(id: string, parent: string): string {
+  const skip = new Set(parent.toLowerCase().split(/\s+/))
+  const words = id.replace(/^[^/]*\//, '').split('-')
+  while (words.length > 1 && skip.has(words[0])) words.shift()
+  const name = words.join(' ')
+  return name.charAt(0).toUpperCase() + name.slice(1)
 }
 
 // ------------------------------------------------------------------ story
