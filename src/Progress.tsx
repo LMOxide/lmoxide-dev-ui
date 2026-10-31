@@ -333,7 +333,6 @@ export function Story({ api, online, send, canSend }: { api: Api; online: Player
             title={l.name}
             count={on === 0 ? 'not started' : on > l.steps.length ? 'done' : `step ${on} of ${l.steps.length}`}
           >
-            <Group title="Story" count={`${l.steps.length} steps`} open>
             <ol className="plain picklist">
               {l.steps.map((s, i) => {
                 const state = on > i + 1 ? 'done' : on === i + 1 ? 'current' : 'later'
@@ -356,7 +355,6 @@ export function Story({ api, online, send, canSend }: { api: Api; online: Player
                 </button>
               </li>
             </ol>
-            </Group>
           </Group>
         )
       })}
