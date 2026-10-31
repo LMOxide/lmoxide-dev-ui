@@ -430,6 +430,9 @@ function PickList<T>({
 function Quick({ send, canSend, may }: { send: (cmd: string) => void; canSend: boolean; may: (cmd: string) => boolean }) {
   const [xp, setXp] = useState('1000')
   const [stars, setStars] = useState('100')
+  const [speed, setSpeed] = useState('2')
+  /** `!speed` takes 0.1 to 10 (1 normal) */
+  const speedOk = /^\d*\.?\d+$/.test(speed) && Number(speed) >= 0.1 && Number(speed) <= 10
   const b = (cmd: string, label: string, title?: string) => (
     <button disabled={!canSend || !may(cmd)} onClick={() => send(cmd)} title={title ?? cmd}>
       {label}
@@ -447,6 +450,27 @@ function Quick({ send, canSend, may }: { send: (cmd: string) => void; canSend: b
         {b('!state 1', 'State normal')}
         {b('!fx stop', 'Stop effect')}
       </div>
+      <h3>Speed</h3>
+      <form
+        className="inline"
+        onSubmit={(e) => {
+          e.preventDefault()
+          if (speedOk) send(`!speed ${speed}`)
+        }}
+      >
+        <input value={speed} onChange={(e) => setSpeed(e.target.value)} inputMode="decimal" size={5} aria-label="Speed factor" title="0.1 to 10 (1 normal)" />
+        <button disabled={!canSend || !may('!speed') || !speedOk} title={speedOk ? `!speed ${speed}` : 'a factor from 0.1 to 10'}>
+          Set speed ×
+        </button>
+      </form>
+      <div className="chips">
+        {b('!speed 1', 'Reset (×1)', '!speed 1: normal speed')}
+        {b('!speed 0.5', '×0.5')}
+        {b('!speed 2', '×2')}
+        {b('!speed 5', '×5')}
+        {b('!speed', 'Current', '!speed: show the current factor')}
+      </div>
+      <p className="muted small">Kept with the character across logins.</p>
       <h3>Progress</h3>
       <form
         className="inline"
