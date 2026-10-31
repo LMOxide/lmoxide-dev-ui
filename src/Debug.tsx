@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { best, bossNames, modeName, places, playfieldName, score, type GameData } from './suggest'
 import type { Instances, MonsterData, Player } from './types'
 import { Heading } from './Heading'
@@ -8,7 +8,7 @@ import type { Api } from './api'
 export { Heading }
 import type { PositionCopy } from './PositionCopy'
 
-export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'animations' | 'minifigures' | 'progress' | 'story' | 'dialogues' | 'instances' | 'commands'
+export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'animations' | 'effects' | 'minifigures' | 'progress' | 'story' | 'dialogues' | 'instances' | 'commands'
 
 /** The side tabs, in groups (a group without a heading: on its own at the top). */
 const SECTION_GROUPS: [string | null, [Section, string][]][] = [
@@ -32,15 +32,21 @@ const SECTION_GROUPS: [string | null, [Section, string][]][] = [
     [
       ['teleport', 'Teleport'],
       ['targets', 'Go to'],
-      ['scenarios', 'Test scenarios'],
     ],
   ],
   [
-    'World',
+    'Testing',
     [
+      ['scenarios', 'Test scenarios'],
       ['spawn', 'Spawns'],
-      ['looks', 'Looks & state'],
+    ],
+  ],
+  [
+    'Visuals',
+    [
       ['animations', 'Animations'],
+      ['effects', 'Effects'],
+      ['looks', 'Looks & state'],
     ],
   ],
   [
@@ -64,6 +70,7 @@ const SECTION_COMMAND: Partial<Record<Section, string>> = {
   spawn: '!spawn',
   looks: '!skin',
   animations: '!anim',
+  effects: '!fx',
   minifigures: '!own',
   progress: '!grant',
   story: '!story',
@@ -136,6 +143,7 @@ export function Debug({
   showEffect,
   positionCopy,
   api,
+  effects,
 }: {
   data: GameData
   testsError: string
@@ -155,8 +163,10 @@ export function Debug({
   section: Section
   setSection: (s: Section) => void
   fillCommand: (cmd: string) => void
-  /** shows an effect package in the effect view */
+  /** shows an effect package in the Effects section */
   showEffect: (id: number) => void
+  /** the Effects section's body (its filters and list; the entry shows in the right pane) */
+  effects: ReactNode
   /** the coordinates in the chosen copy format (shared with the dock bottom right) */
   positionCopy: PositionCopy
   /** the achievements and story read the chosen player's saved character */
@@ -191,8 +201,9 @@ export function Debug({
           )
         })}
       </nav>
-      <div className="section-body">
-        {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && section !== 'instances' && <Missing />}
+      <div className={`section-body${section === 'effects' ? ' effects-body' : ''}`}>
+        {section === 'effects' && effects}
+        {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && section !== 'instances' && section !== 'effects' && <Missing />}
         {section === 'quick' && <Quick send={send} canSend={canSend} may={may} />}
         {section === 'teleport' && <Whereabouts data={data} online={online} pc={positionCopy} send={send} canSend={canSend} />}
         {section === 'teleport' && <MovePanel send={send} canSend={canSend} />}

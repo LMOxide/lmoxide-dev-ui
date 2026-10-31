@@ -24,7 +24,6 @@ interface Chosen {
 }
 
 type Tab = 'effect' | 'console' | 'notes'
-type View = 'effects' | 'debug'
 
 function useStored<T>(key: string, fallback: T, inSession = false): [T, (v: T | ((old: T) => T)) => void] {
   const [value, setValue] = useState<T>(() => loadJson(key, fallback, inSession))
@@ -77,10 +76,9 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
   const [playing, setPlaying] = useState<number | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
   const [tab, setTab] = useState<Tab>('effect')
-  const [view, setView] = useStored<View>(KEYS.view, 'effects')
   const [section, setSection] = useStored<Section>(KEYS.debugSection, 'quick')
   const [consoleValue, setConsoleValue] = useState('')
-  /** narrow screens, Debug view: which pane shows */
+  /** narrow screens: which pane shows */
   const [narrowPane, setNarrowPane] = useState<'main' | 'console'>('main')
   const [palette, setPalette] = useState(false)
   const [playfields, setPlayfields] = useState<Playfield[]>([])
@@ -182,7 +180,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
       })
       .catch((e) => setInstancesError(e instanceof ApiError && e.status === 403 ? 'needs a moderator (GM level 3 or more; the moderate scope)' : failed(e)))
   }, [api, failed])
-  const showingInstances = view === 'debug' && section === 'instances'
+  const showingInstances = section === 'instances'
   useEffect(() => {
     if (!showingInstances) return
     loadInstances()
@@ -195,7 +193,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
     [catalog, playfields, minifigures, tests, monsters, animations, bccStates],
   )
 
-  /** `!fx <id> [hook]`, played where the effect view says (on me, @near, @ground). */
+  /** `!fx <id> [hook]`, played where the Effects section says (on me, @near, @ground). */
   const fxCommand = useCallback((id: number, hook?: string) => ['!fx', id, hook, fxAt].filter(Boolean).join(' '), [fxAt])
 
   // one sound at a time, from the API (GET /v1/catalog/sounds/{id})
@@ -270,6 +268,8 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
   )
   const canSend = !!chosen && (admin || (!!online && online.account_id === chosen.account_id))
   const canFx = canSend && may('!fx')
+  /** the Effects section is open (and allowed: contributors): the right pane shows the entry, the console and notes */
+  const effectsOpen = section === 'effects' && may('!fx')
 
   const send = useCallback(
     async (command: string) => {
@@ -336,7 +336,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
         focusConsole()
         return
       }
-      if (view !== 'effects') return
+      if (!effectsOpen) return
       const sel = selected === null ? undefined : byId.get(selected)
       if (e.key === 'j' || e.key === 'ArrowDown') step(1)
       else if (e.key === 'k' || e.key === 'ArrowUp') step(-1)
@@ -355,21 +355,23 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [step, selected, byId, canFx, send, tags, notes, setNote, view, fxCommand])
+  }, [step, selected, byId, canFx, send, tags, notes, setNote, effectsOpen, fxCommand])
 
-  /** Shows an entry in the effect view (clearing filters that hide it), and plays it if asked. */
+  /** Shows an entry in the Effects section (clearing filters that hide it), and plays it if asked. */
   function showEffect(id: number, play = false) {
-    setView('effects')
+    setSection('effects')
+    setNarrowPane('console')
     setFilters((f) => (filtered.some((e) => e.id === id) ? f : { ...NO_FILTERS, desc: f.desc }))
     setSelected(id)
     setTab('effect')
     if (play && canFx && byId.get(id)?.kind === 'effectpackage') send(fxCommand(id))
   }
 
-  /** Shows the console (a tab in the effect view, always there in the debug view) and focuses it. */
+  /** Shows the console (a tab beside the entry in the Effects section, else the right pane) and focuses it. */
   function focusConsole(value?: string) {
     if (value !== undefined) setConsoleValue(value)
-    if (view === 'effects') setTab('console')
+    if (effectsOpen) setTab('console')
+    setNarrowPane('console')
     setTimeout(() => consoleRef.current?.focus(), 0)
   }
 
@@ -382,12 +384,6 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
       <header className="top">
         <ToolSwitch current="debugger" />
         <nav className="views" aria-label="Views">
-          <button className={view === 'effects' ? 'on' : ''} onClick={() => setView('effects')}>
-            Effects
-          </button>
-          <button className={view === 'debug' ? 'on' : ''} onClick={() => setView('debug')}>
-            Debug
-          </button>
           <button className="ghost search-all" onClick={() => setPalette(true)} title="Search everything (Ctrl+K)">
             ⌕ Search all <kbd>Ctrl K</kbd>
           </button>
@@ -419,9 +415,11 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
             ↻
           </button>
           {online?.playfield != null && <span className="muted small">in {whereLabel(gameData, online)}</span>}
-          <label className="check" title="Play each entry as you step with j/k or the arrow keys">
-            <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} /> play on step
-          </label>
+          {effectsOpen && (
+            <label className="check" title="Play each effect as you step with j/k or the arrow keys">
+              <input type="checkbox" checked={autoplay} onChange={(e) => setAutoplay(e.target.checked)} /> play on step
+            </label>
+          )}
           <button className="ghost" disabled={!canFx} onClick={() => send('!fx stop')} title="!fx stop (s)">
             ■ stop
           </button>
@@ -465,138 +463,140 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
         </div>
       )}
 
-      {view === 'debug' ? (
-        <main className="panes debug-panes">
-          {/* narrow screens: one pane at a time */}
-          <div className="segmented narrow-tabs">
-            <button className={narrowPane === 'main' ? 'on' : ''} onClick={() => setNarrowPane('main')}>
-              Debug
-            </button>
-            <button className={narrowPane === 'console' ? 'on' : ''} onClick={() => setNarrowPane('console')}>
-              Console{log.length ? ` (${log.length})` : ''}
-            </button>
-          </div>
-          <div className={`left${narrowPane === 'main' ? '' : ' narrow-hidden'}`}>
-            <Debug
-              data={gameData}
-              testsError={testsError}
-              online={online}
-              players={players ?? []}
-              instances={instances}
-              instancesError={instancesError}
-              loadInstances={loadInstances}
-              canSend={canSend}
-              may={may}
-              moderator={session.scope === 'moderate' || admin}
-              send={send}
-              section={section}
-              setSection={setSection}
-              fillCommand={(c) => focusConsole(c)}
-              showEffect={(id) => showEffect(id)}
-              positionCopy={positionCopy}
-              api={api}
-            />
-          </div>
-          <div className={`right${narrowPane === 'console' ? '' : ' narrow-hidden'}`}>
+      <main className="panes debug-panes">
+        {/* narrow screens: one pane at a time */}
+        <div className="segmented narrow-tabs">
+          <button className={narrowPane === 'main' ? 'on' : ''} onClick={() => setNarrowPane('main')}>
+            Debug
+          </button>
+          <button className={narrowPane === 'console' ? 'on' : ''} onClick={() => setNarrowPane('console')}>
+            {effectsOpen ? 'Effect & console' : 'Console'}{log.length ? ` (${log.length})` : ''}
+          </button>
+        </div>
+        <div className={`left${narrowPane === 'main' ? '' : ' narrow-hidden'}`}>
+          <Debug
+            data={gameData}
+            testsError={testsError}
+            online={online}
+            players={players ?? []}
+            instances={instances}
+            instancesError={instancesError}
+            loadInstances={loadInstances}
+            canSend={canSend}
+            may={may}
+            moderator={session.scope === 'moderate' || admin}
+            send={send}
+            section={section}
+            setSection={setSection}
+            fillCommand={(c) => focusConsole(c)}
+            showEffect={(id) => showEffect(id)}
+            positionCopy={positionCopy}
+            api={api}
+            effects={
+              !catalog ? (
+                <div className="loading">
+                  {catalogError ? (
+                    <div className="card">
+                      <p className="error">Couldn't load the effect catalog: {catalogError}</p>
+                      <p>
+                        <button onClick={loadCatalog}>Try again</button> or{' '}
+                        <button onClick={() => fileRef.current?.click()}>open an effect_catalog.json…</button>
+                      </p>
+                      <p className="muted small">The file is <code>data/effect_catalog.json</code> in the LMOxide repo; commands still go through the API.</p>
+                    </div>
+                  ) : (
+                    <p className="muted">Loading the effect catalog (about 2 MB)…</p>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <FilterPanel
+                    filters={filters}
+                    set={(f) => setFilters((old) => ({ ...old, ...f }))}
+                    timelineTypes={timelineTypes}
+                    tags={tags}
+                    shown={filtered.length}
+                    total={catalog.length}
+                    searchRef={searchRef}
+                    suggest={suggestSearch}
+                  />
+                  <EffectList
+                    items={filtered}
+                    facts={facts}
+                    notes={notes}
+                    selected={selected}
+                    playing={playing}
+                    onSelect={(id) => {
+                      setSelected(id)
+                      setTab((t) => (t === 'notes' ? 'effect' : t))
+                    }}
+                    onPlay={(id) => canFx && send(fxCommand(id))}
+                  />
+                </>
+              )
+            }
+          />
+        </div>
+        <div className={`right${narrowPane === 'console' ? '' : ' narrow-hidden'}`}>
+          {effectsOpen ? (
+            <>
+              <nav className="tabs" role="tablist">
+                <button role="tab" aria-selected={tab === 'effect'} className={tab === 'effect' ? 'on' : ''} onClick={() => setTab('effect')}>
+                  Effect
+                </button>
+                <button role="tab" aria-selected={tab === 'console'} className={tab === 'console' ? 'on' : ''} onClick={() => setTab('console')}>
+                  Console
+                </button>
+                <button role="tab" aria-selected={tab === 'notes'} className={tab === 'notes' ? 'on' : ''} onClick={() => setTab('notes')}>
+                  Notes {noteCount > 0 && <span className="pill">{noteCount}</span>}
+                </button>
+              </nav>
+              <div className="tab-body">
+                {tab === 'effect' &&
+                  (current ? (
+                    <Detail
+                      key={current.id}
+                      effect={current}
+                      note={notes[current.id]}
+                      tags={tags}
+                      canSend={canFx}
+                      onCommand={send}
+                      play={(hook) => send(fxCommand(current.id, hook))}
+                      fxAt={fxAt}
+                      setFxAt={setFxAt}
+                      listen={listen}
+                      onNote={(n) => {
+                        for (const t of n.tags) if (!tags.includes(t)) setCustomTags((c) => [...c, t])
+                        setNote(current.id, n)
+                      }}
+                    />
+                  ) : (
+                    <p className="muted">Pick an entry on the left.</p>
+                  ))}
+                {tab === 'console' && (
+                  <Console log={log} data={gameData} canSend={canSend} onCommand={send} value={consoleValue} setValue={setConsoleValue} inputRef={consoleRef} />
+                )}
+                {tab === 'notes' && (
+                  <NotesPanel
+                    notes={notes}
+                    setNotes={setNotes}
+                    catalog={byId}
+                    apiBase={api.base}
+                    onShow={(id) => {
+                      setSelected(id)
+                      setTab('effect')
+                    }}
+                  />
+                )}
+              </div>
+            </>
+          ) : (
             <div className="tab-body">
               <Console log={log} data={gameData} canSend={canSend} onCommand={send} value={consoleValue} setValue={setConsoleValue} inputRef={consoleRef} />
             </div>
-          </div>
-        </main>
-      ) : !catalog ? (
-        <main className="loading">
-          {catalogError ? (
-            <div className="card">
-              <p className="error">Couldn't load the effect catalog: {catalogError}</p>
-              <p>
-                <button onClick={loadCatalog}>Try again</button> or{' '}
-                <button onClick={() => fileRef.current?.click()}>open an effect_catalog.json…</button>
-              </p>
-              <p className="muted small">The file is <code>data/effect_catalog.json</code> in the LMOxide repo; commands still go through the API.</p>
-            </div>
-          ) : (
-            <p className="muted">Loading the effect catalog (about 2 MB)…</p>
           )}
-        </main>
-      ) : (
-        <main className="panes">
-          <div className="left">
-            <FilterPanel
-              filters={filters}
-              set={(f) => setFilters((old) => ({ ...old, ...f }))}
-              timelineTypes={timelineTypes}
-              tags={tags}
-              shown={filtered.length}
-              total={catalog.length}
-              searchRef={searchRef}
-              suggest={suggestSearch}
-            />
-            <EffectList
-              items={filtered}
-              facts={facts}
-              notes={notes}
-              selected={selected}
-              playing={playing}
-              onSelect={(id) => {
-                setSelected(id)
-                setTab((t) => (t === 'notes' ? 'effect' : t))
-              }}
-              onPlay={(id) => canFx && send(fxCommand(id))}
-            />
-          </div>
-          <div className="right">
-            <nav className="tabs" role="tablist">
-              <button role="tab" aria-selected={tab === 'effect'} className={tab === 'effect' ? 'on' : ''} onClick={() => setTab('effect')}>
-                Effect
-              </button>
-              <button role="tab" aria-selected={tab === 'console'} className={tab === 'console' ? 'on' : ''} onClick={() => setTab('console')}>
-                Console
-              </button>
-              <button role="tab" aria-selected={tab === 'notes'} className={tab === 'notes' ? 'on' : ''} onClick={() => setTab('notes')}>
-                Notes {noteCount > 0 && <span className="pill">{noteCount}</span>}
-              </button>
-            </nav>
-            <div className="tab-body">
-              {tab === 'effect' &&
-                (current ? (
-                  <Detail
-                    key={current.id}
-                    effect={current}
-                    note={notes[current.id]}
-                    tags={tags}
-                    canSend={canFx}
-                    onCommand={send}
-                    play={(hook) => send(fxCommand(current.id, hook))}
-                    fxAt={fxAt}
-                    setFxAt={setFxAt}
-                    listen={listen}
-                    onNote={(n) => {
-                      for (const t of n.tags) if (!tags.includes(t)) setCustomTags((c) => [...c, t])
-                      setNote(current.id, n)
-                    }}
-                  />
-                ) : (
-                  <p className="muted">Pick an entry on the left.</p>
-                ))}
-              {tab === 'console' && (
-                <Console log={log} data={gameData} canSend={canSend} onCommand={send} value={consoleValue} setValue={setConsoleValue} inputRef={consoleRef} />
-              )}
-              {tab === 'notes' && (
-                <NotesPanel
-                  notes={notes}
-                  setNotes={setNotes}
-                  catalog={byId}
-                  apiBase={api.base}
-                  onShow={(id) => {
-                    setSelected(id)
-                    setTab('effect')
-                  }}
-                />
-              )}
-            </div>
-          </div>
-        </main>
-      )}
+        </div>
+      </main>
 
       {palette && (
         <Palette
@@ -614,7 +614,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
       <footer className="status">
         <span className="keys">
           <kbd>Ctrl K</kbd> search all · <kbd>:</kbd> command · <kbd>Ctrl Shift C</kbd> copy position
-          {view === 'effects' && (
+          {effectsOpen && (
             <>
               {' '}
               · <kbd>j</kbd>/<kbd>k</kbd> next/prev · <kbd>Enter</kbd> play · <kbd>s</kbd> stop · <kbd>1</kbd>–<kbd>9</kbd> tag · <kbd>/</kbd> search

@@ -1222,3 +1222,11 @@ details.group > summary::after {
 .story-mark.after {
   color: var(--text-2);
 }
+
+/* the Effects section: filters on top, the list scrolls below them */
+.section-body.effects-body {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

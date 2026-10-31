@@ -33,7 +33,12 @@ the server; so do a password change and a ban.
 
 ## Debugger
 
-**Effects** (the effect browser)
+Every tool is a section of **Debug**, grouped under headings: Quick; Progress (Achievements,
+Minifigures & loot); Campaign (Story Quests, Dialogues); Travel (Teleport, Go to); Testing (Test
+scenarios, Spawns); Visuals (Animations, Effects, Looks & state); Server (Instances, All commands).
+
+**Effects** (Visuals: the effect browser; the selected entry, the console and notes are tabs on
+the right)
 
 - lists `GET /v1/catalog/effects` (~2500 entries) with free-text search over ids, item and spell
   names, sounds, particles, Lua and timeline names (`"quoted words"`, `-exclude`), completing
@@ -48,7 +53,7 @@ the server; so do a password change and a ban.
 - notes: tags ("smash effect", "not it", your own) and free text per entry, kept in
   localStorage, exported as JSON or Markdown (and imported back from JSON).
 
-**Debug** (every test command, from `GET /v1/catalog/test-commands`)
+**The other sections** (every test command, from `GET /v1/catalog/test-commands`)
 
 | Section | Sends |
 |---|---|
@@ -65,7 +70,7 @@ the server; so do a password change and a ban.
 | Instances | nothing: the running copies of worlds (`GET /v1/instances`, moderate scope, refreshed every 5 s while shown): world, copy, mode, kind (main, extra, preview), players and NPCs, and the AI's tick time |
 | All commands | every command with its usage |
 
-**Console** (right of the Debug view, a tab in the Effects view): a command box that completes
+**Console** (the right pane; in Effects, a tab beside the entry): a command box that completes
 the command and then its arguments (`!tp yarr` → Isle of Yarr, `!goto boss mino` → Minotaur,
 `!spawn 3 cra` → Crate, `!skin`, `!own`, `!test`, `!fx`, ...), with history, and a log of what was
 sent and the server's chat answers to it.
@@ -235,7 +240,7 @@ If the API is not reachable, the effect catalog can also be opened from a file
 | `Ctrl K` / `⌘ K` | search everything |
 | `:` | the command box |
 | `↓` `↑` `Tab` `Enter` | in a box with suggestions: pick, complete, run |
-| **Effects view** | |
+| **Effects section** | |
 | `j` / `↓`, `k` / `↑` | next / previous entry in the filtered list (plays it when "play on step" is on) |
 | `PageDown` / `PageUp` | 10 entries |
 | `Enter` or `p` | play the selected entry |
