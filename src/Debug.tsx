@@ -367,7 +367,7 @@ function PickList<T>({
   items: T[]
   fields: (t: T) => string[]
   itemKey: (t: T) => string | number
-  /** collapsible groups (by name; open while filtering or when there is one) */
+  /** collapsible groups (by name; open while filtering or when there is one; a plain list when each holds one row) */
   group?: (t: T) => string
   render: (t: T) => React.ReactNode
   /** [command, button label] */
@@ -411,7 +411,10 @@ function PickList<T>({
       <p className="muted small">
         {shown.length} of {items.length}
       </p>
-      {groups ? (
+      {groups && groups.every(([, ts]) => ts.length === 1) ? (
+        // every group holds one row (each playfield in Teleport): no point nesting them
+        <ul className="plain picklist">{groups.map(([, ts]) => row(ts[0]))}</ul>
+      ) : groups ? (
         groups.map(([g, ts]) => (
           <Group key={g} title={g} count={ts.length} open={!!query.trim() || groups.length === 1}>
             <ul className="plain picklist">{ts.map(row)}</ul>
