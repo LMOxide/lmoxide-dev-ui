@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { compassPoint, screenAngle } from '@/compass'
+import { Heading } from '@/Heading'
 import type { CatalogEntry, Json, JsonObject, Schema, Summary } from '../content'
 import { recordLabel } from '../content'
 import type { Vec3 } from '../types'
@@ -392,26 +392,12 @@ function RotationInput({ value, onChange, env, onClear }: { value: Json; onChang
     <div className="flex flex-wrap items-center gap-2">
       <NumberInput className="w-24" value={toDeg(rad)} onChange={(d) => onChange(Math.round((((d ?? 0) * Math.PI) / 180) * 1000) / 1000)} />
       <span className="text-xs text-muted-foreground">degrees{quat && ' (a quaternion: editing writes a heading)'}</span>
-      <HeadingDial rad={rad} />
+      <Heading degrees={(rad * 180) / Math.PI} angle={false} />
       <Button size="xs" variant="outline" disabled={!env.here} onClick={() => env.here && onChange(Math.round(env.here.heading * 1000) / 1000)}>
         my heading
       </Button>
       {onClear && <ClearButton onClick={onClear} />}
     </div>
-  )
-}
-
-function HeadingDial({ rad }: { rad: number }) {
-  // (as the game's camera shows it: up is north-east, heading 45°; 0, north, faces +z, up-left)
-  const a = (screenAngle((rad * 180) / Math.PI) * Math.PI) / 180
-  const x = 10 + 8 * Math.sin(a)
-  const y = 10 - 8 * Math.cos(a)
-  return (
-    <svg viewBox="0 0 20 20" className="size-6 text-muted-foreground" aria-hidden>
-      <title>{`${compassPoint((rad * 180) / Math.PI)} in game (up is north-east)`}</title>
-      <circle cx="10" cy="10" r="9" fill="none" stroke="currentColor" strokeWidth="1" />
-      <line x1="10" y1="10" x2={x} y2={y} stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
   )
 }
 
@@ -473,7 +459,7 @@ function RefList({ kinds, value, onChange, env }: { kinds: string[]; value: stri
 /** A client id from a catalog: its name, the id, and its record when it has one. */
 export function ClientPicker({ catalog, value, onChange, env, onClear }: { catalog: string; value: number | null; onChange: (v: number | null) => void; env: FormEnv; onClear?: () => void }) {
   const list = useLoaded(() => env.catalog(catalog), [catalog])
-  const options = useMemo(() => (list ?? []).map((e) => ({ value: String(e.id), label: e.name || `#${e.id}`, detail: `${e.id}${e.detail ? ` · ${e.detail}` : ''}` })), [list])
+  const options = useMemo(() => (list ?? []).map((e) => ({ value: String(e.id), label: e.name || `#${e.id}`, detail: `${e.id}${e.detail ? ` · ${e.detail}` : ''}`, keywords: e.names?.join(' ') })), [list])
   const entry = list?.find((e) => e.id === value)
   return (
     <div className="flex items-center gap-1">

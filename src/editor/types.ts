@@ -151,8 +151,10 @@ export interface Placeable {
   monster_data?: number | null
   template?: number | null
   level?: number | null
-  /** where the base content uses it, e.g. "Pirate World ×12" */
+  /** where the base content uses it, e.g. "Pirate World ×12", or "client look, not spawned" */
   used?: string
+  /** its look's other names: the client's, other records and minifigures wearing it, live's */
+  names?: string[]
 }
 
 /** What a surveyor (a player online in the world editor mode) sees and has chosen. */

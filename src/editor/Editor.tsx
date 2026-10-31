@@ -9,6 +9,7 @@ import { WallFields } from './Walls'
 import type { Ctx } from './WorldEditor'
 import { editable, type Kind, type ObjectChanges, type Placeable, type SurveyObject, type Vec3, type WallSettings, type WaveRef } from './types'
 import { WaveSelect } from './WaveSelect'
+import { Heading } from '@/Heading'
 
 /** How long typing waits before the change is sent (and shown in game). */
 const SEND_MS = 150
@@ -239,6 +240,7 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
               <input className="sv-num" type="number" min={0} max={359} value={draft.heading} onChange={(e) => e.target.value !== '' && change({ heading: Number(e.target.value) })} />
               <button onClick={() => turn(5)}>+5</button>
               <button onClick={() => turn(45)}>+45</button>
+              <Heading degrees={draft.heading} angle={false} />
             </div>
           </div>
           {here && (
@@ -385,7 +387,7 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
             Recorded from the {object.category === 'client' ? 'client data' : object.category === 'demo' ? 'recorded demo session' : 'live server'}: it can only be hidden.
           </p>
           <p className="mono small">
-            {fmtPos(object.pos)} · {toDegrees(object.heading)}°
+            {fmtPos(object.pos)} · <Heading degrees={toDegrees(object.heading)} />
           </p>
           {(object.patrol?.length ?? 0) > 1 && <p className="small">Patrols a route of {object.patrol!.length} points.</p>}
         </>

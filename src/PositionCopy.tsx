@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Heading } from './Debug'
+import { Heading } from './Heading'
 import { KEYS, loadJson, saveJson } from './storage'
 import { playfieldName, type GameData } from './suggest'
 import type { Player } from './types'
@@ -37,7 +37,10 @@ export function formatPosition(pos: [number, number, number], heading: number | 
 }
 
 /** The copy format (remembered) and a copy of the player's position with a short-lived "copied" state. */
-export function usePositionCopy(online: Player | undefined) {
+/** Where someone is: a debugger player, or the world editor's own character. */
+export type Whereabouts = Pick<Player, 'position' | 'heading' | 'playfield'>
+
+export function usePositionCopy(online: Whereabouts | undefined) {
   const [format, setFormatState] = useState<CoordFormat>(() => ({ ...DEFAULT_FORMAT, ...loadJson<Partial<CoordFormat>>(KEYS.coordFormat, {}) }))
   const setFormat = (f: CoordFormat) => {
     setFormatState(f)
@@ -80,7 +83,7 @@ function useCopyKey(copy: () => void) {
 }
 
 /** Bottom right, always: where the chosen player is, a copy button (Ctrl+Shift+C) and the copy format. */
-export function PositionDock({ data, online, pc }: { data: GameData; online: Player | undefined; pc: PositionCopy }) {
+export function PositionDock({ data, place, online, pc, empty = 'no player chosen' }: { data?: GameData; /** the playfield's name (else from `data`) */ place?: string; online: Whereabouts | undefined; pc: PositionCopy; /** shown with nobody */ empty?: string }) {
   const { format, setFormat, text, copy, copied } = pc
   const [open, setOpen] = useState(false)
   useCopyKey(copy)
@@ -138,7 +141,7 @@ export function PositionDock({ data, online, pc }: { data: GameData; online: Pla
           disabled={!pos}
           title={pos ? `Copy ${sepLabel.toLowerCase()}${format.rotation ? ', with rotation' : ''} (Ctrl+Shift+C)` : 'No position to copy'}
         >
-          {online?.playfield != null && <span className="pf">{playfieldName(data, online.playfield)}</span>}
+          {(place ?? (online?.playfield != null && data ? playfieldName(data, online.playfield) : null)) && <span className="pf">{place ?? playfieldName(data!, online!.playfield!)}</span>}
           <span className="mono">
             {pos ? (
               <>
@@ -146,7 +149,7 @@ export function PositionDock({ data, online, pc }: { data: GameData; online: Pla
                 {online?.heading != null && <Heading degrees={online.heading} compact />}
               </>
             ) : (
-              <span className="muted">{!online ? 'no player chosen' : online.playfield == null ? 'not in play yet' : 'no position'}</span>
+              <span className="muted">{!online ? empty : online.playfield == null ? 'not in play yet' : 'no position'}</span>
             )}
           </span>
           <span className="state" aria-live="polite">

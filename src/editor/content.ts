@@ -120,6 +120,8 @@ export interface CatalogEntry {
   detail?: string
   /** the content record it belongs to */
   record?: string
+  /** its other names (a look: the client's, other records and minifigures wearing it, live's) */
+  names?: string[]
 }
 
 /** A loot table rolled many times (lmoxide_content::roll::simulate). */

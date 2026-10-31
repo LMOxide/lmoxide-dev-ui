@@ -11,7 +11,8 @@ import { loadJson, saveJson } from '../storage'
 import type { SurveyBackend } from './backend'
 import type { ContentBackend, Kinds } from './content'
 import { fmtPos, toDegrees } from './geometry'
-import { compassPoint } from '@/compass'
+import { Heading } from '@/Heading'
+import { PositionDock, usePositionCopy } from '../PositionCopy'
 import { Browser } from './Browser'
 import { useWorlds } from './worlds'
 import type { Suggestion } from './Suggest'
@@ -331,6 +332,12 @@ export function WorldEditor({
   }, [history, undoRedo])
 
   const mock = 'move' in backend ? (backend as unknown as MockBackend) : null
+  // the debugger's position dock, for your own character here (heading in degrees there)
+  const whereabouts = useMemo(
+    () => (state && state.playfield >= 0 ? { position: state.pos, heading: (state.heading * 180) / Math.PI, playfield: state.playfield } : undefined),
+    [state],
+  )
+  const positionCopy = usePositionCopy(whereabouts)
 
   return (
     <div className="sv">
@@ -375,7 +382,7 @@ export function WorldEditor({
             <span className="where small">
               <b>{state.playfield_name ?? `Playfield ${state.playfield}`}</b>
               <span className="mono muted" title="Your position and heading (0° along +z, 90° along +x; 0° is north, up-left in game; up is NE, 45°)">
-                {fmtPos(state.pos)} · {toDegrees(state.heading)}° {compassPoint(toDegrees(state.heading))}
+                {fmtPos(state.pos)} · <Heading degrees={toDegrees(state.heading)} compact />
               </span>
               {state.wearing && <span className="badge wave">wearing {state.wearing.name}</span>}
             </span>
@@ -430,6 +437,7 @@ export function WorldEditor({
         )}
       </div>
       <Browser ctx={ctx} worlds={worlds} />
+      <PositionDock place={state?.playfield_name ?? (whereabouts ? `Playfield ${whereabouts.playfield}` : undefined)} online={whereabouts} pc={positionCopy} empty="nobody chosen to edit as" />
       {publishing && unpublished && <Publish backend={backend} unpublished={unpublished} setUnpublished={setUnpublished} onClose={() => setPublishing(false)} />}
     </div>
   )

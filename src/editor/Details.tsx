@@ -83,8 +83,10 @@ export function spawnOptions(catalog: Placeable[]): ComboOption[] {
   return catalog.map((p) => ({
     value: placeableKey(p),
     label: p.name,
-    detail: p.used ?? (p.monster_data != null ? `look ${p.monster_data}` : p.template != null ? `template ${p.template}` : undefined),
-    keywords: `${p.kind} ${p.monster_data ?? ''} ${p.template ?? ''}`,
+    detail: [p.used ?? (p.monster_data != null ? `look ${p.monster_data}` : p.template != null ? `template ${p.template}` : undefined), p.names?.length ? `also ${p.names.slice(0, 3).join(', ')}` : undefined]
+      .filter(Boolean)
+      .join(' · ') || undefined,
+    keywords: `${p.kind} ${p.monster_data ?? ''} ${p.template ?? ''} ${p.names?.join(' ') ?? ''}`,
     group: KIND_GROUP[p.kind],
   }))
 }
