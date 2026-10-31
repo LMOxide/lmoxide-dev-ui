@@ -306,7 +306,7 @@ export function Story({ api, online, send, canSend }: { api: Api; online: Player
   return (
     <>
       <h3>
-        Story <span className="muted small">{character ? character.name : 'loading…'}</span>
+        Story quests <span className="muted small">{character ? character.name : 'loading…'}</span>
       </h3>
       <p className="muted small">
         Set here: every step before it done, it the step the player is on, everything after it not started, and the lore flags the story's conversations give up to there, so NPCs say what they would at that point (<code>!story at</code>). The worlds in the game's order: Pirate, Medieval, Space, Mythology, Dino.

@@ -10,21 +10,49 @@ import type { PositionCopy } from './PositionCopy'
 
 export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'animations' | 'minifigures' | 'progress' | 'story' | 'dialogues' | 'instances' | 'commands'
 
-const SECTIONS: [Section, string][] = [
-  ['quick', 'Quick'],
-  ['teleport', 'Teleport'],
-  ['scenarios', 'Test scenarios'],
-  ['targets', 'Go to'],
-  ['spawn', 'Spawns'],
-  ['looks', 'Looks & state'],
-  ['animations', 'Animations'],
-  ['minifigures', 'Minifigures & loot'],
-  ['progress', 'Achievements'],
-  ['story', 'Story'],
-  ['dialogues', 'Dialogues'],
-  ['instances', 'Instances'],
-  ['commands', 'All commands'],
+/** The side tabs, in groups (a group without a heading: on its own at the top). */
+const SECTION_GROUPS: [string | null, [Section, string][]][] = [
+  [null, [['quick', 'Quick']]],
+  [
+    'Progress',
+    [
+      ['progress', 'Achievements'],
+      ['minifigures', 'Minifigures & loot'],
+    ],
+  ],
+  [
+    'Campaign',
+    [
+      ['story', 'Story Quests'],
+      ['dialogues', 'Dialogues'],
+    ],
+  ],
+  [
+    'Travel',
+    [
+      ['teleport', 'Teleport'],
+      ['targets', 'Go to'],
+      ['scenarios', 'Test scenarios'],
+    ],
+  ],
+  [
+    'World',
+    [
+      ['spawn', 'Spawns'],
+      ['looks', 'Looks & state'],
+      ['animations', 'Animations'],
+    ],
+  ],
+  [
+    'Server',
+    [
+      ['instances', 'Instances'],
+      ['commands', 'All commands'],
+    ],
+  ],
 ]
+
+const SECTIONS: [Section, string][] = SECTION_GROUPS.flatMap(([, s]) => s)
 
 /** A command each section is about: the section shows when that one may run (alpha testers
  * have some sections, contributors all). */
@@ -140,18 +168,28 @@ export function Debug({
   const pf = (id: number) => playfieldName(data, id)
   const tests = data.tests
   const here = online?.playfield ?? null
-  const sections = SECTIONS.filter(([s]) => (s === 'instances' ? moderator : !SECTION_COMMAND[s] || may(SECTION_COMMAND[s])))
+  const allowed = ([s]: [Section, string]) => (s === 'instances' ? moderator : !SECTION_COMMAND[s] || may(SECTION_COMMAND[s]))
+  const sections = SECTIONS.filter(allowed)
   // a remembered section this account doesn't have: the first one
   if (!sections.some(([s]) => s === section)) section = sections[0][0]
 
   return (
     <div className="debug">
       <nav className="sections" aria-label="Debug sections">
-        {sections.map(([s, label]) => (
-          <button key={s} className={s === section ? 'on' : ''} onClick={() => setSection(s)}>
-            {label}
-          </button>
-        ))}
+        {SECTION_GROUPS.map(([heading, group]) => {
+          const shown = group.filter(allowed)
+          if (!shown.length) return null
+          return (
+            <div key={heading ?? ''} className="section-group" role="group" aria-label={heading ?? undefined}>
+              {heading && <span className="section-heading">{heading}</span>}
+              {shown.map(([s, label]) => (
+                <button key={s} className={s === section ? 'on' : ''} onClick={() => setSection(s)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )
+        })}
       </nav>
       <div className="section-body">
         {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && section !== 'instances' && <Missing />}

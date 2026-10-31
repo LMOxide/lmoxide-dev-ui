@@ -813,6 +813,22 @@ ul.plain li {
   background: var(--selected);
   font-weight: 600;
 }
+.section-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.section-group + .section-group {
+  margin-top: 8px;
+}
+.section-heading {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
 .section-body {
   flex: 1;
   overflow: auto;
@@ -907,6 +923,14 @@ form.inline.wrap {
   }
   .sections button {
     white-space: nowrap;
+  }
+  .section-group {
+    flex-direction: row;
+    align-items: center;
+  }
+  .section-group + .section-group {
+    margin-top: 0;
+    margin-left: 8px;
   }
   .debug-panes {
     grid-template-rows: auto auto;
