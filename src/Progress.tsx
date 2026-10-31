@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Api } from './api'
 import { HttpContent, type Json, type JsonObject, type Summary } from './editor/content'
 import { Group } from './Group'
-import type { Player } from './types'
+import type { Minifigure, Player } from './types'
 
 /** `send` resolves once the command has run (App.tsx), so steps can go in order. */
 type Send = (cmd: string) => unknown
@@ -38,6 +38,8 @@ export interface CharacterProgress {
   /** stat -> minifigure template (0 = the player) -> value */
   counters: Record<string, Record<string, number>>
   story?: Record<string, number>
+  /** minifigure template -> unix time obtained; null: every one owned */
+  collection?: Record<string, number> | null
 }
 
 /** Every record of a kind (the editor API), loaded once. */
@@ -258,6 +260,95 @@ function untitled(id: string, parent: string): string {
   return name.charAt(0).toUpperCase() + name.slice(1)
 }
 
+// ------------------------------------------------------------------ minifigures
+
+/** Every minifigure by series, owned or not: own one (`!own`) or a whole series. */
+export function Minifigures({ api, online, minifigures, send, canSend }: { api: Api; online: Player | undefined; minifigures: Minifigure[]; send: Send; canSend: boolean }) {
+  const { character, error, reload } = useCharacter(api, online)
+  const [q, setQ] = useState('')
+  const [status, setStatus] = useState<'all' | 'owned' | 'missing'>('all')
+  const [busy, setBusy] = useState(false)
+  // (an older server's character has no collection: nothing known)
+  const known = character !== null && character.collection !== undefined
+  const owns = (f: Minifigure) => known && (character!.collection === null || String(f.id) in character!.collection!)
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean)
+  const shown = minifigures.filter(
+    (f) =>
+      (status === 'all' || (status === 'owned') === owns(f)) &&
+      words.every((w) => `${f.name} ${f.normal_attack ?? ''} ${f.special_attack ?? ''} ${f.id}`.toLowerCase().includes(w)),
+  )
+  const series = [...new Set(minifigures.map((f) => f.series))].sort((a, b) => a - b)
+  const own = async (fs: Minifigure[]) => {
+    setBusy(true)
+    try {
+      for (const f of fs) await send(`!own ${f.name}`)
+    } finally {
+      setBusy(false)
+      reload()
+    }
+  }
+  const filtering = words.length > 0 || status !== 'all'
+  const ownButton = (fs: Minifigure[], label: string) => (
+    <button disabled={!canSend || busy || !known || fs.every(owns)} onClick={(e) => (e.preventDefault(), own(fs.filter((f) => !owns(f))))} title={fs.length === 1 ? `!own ${fs[0].name}` : `!own each one not owned (${fs.filter((f) => !owns(f)).length})`}>
+      {label}
+    </button>
+  )
+  if (!online) return <p className="muted small">Choose a player online to see their minifigures.</p>
+  const ownedCount = minifigures.filter(owns).length
+  return (
+    <>
+      <h3>
+        Minifigures{' '}
+        <span className="muted small">
+          {!character ? 'loading…' : !known ? 'the server is too old to say which are owned' : character.collection === null ? `every one owned by ${character.name}` : `${ownedCount} of ${minifigures.length} owned by ${character.name}`}
+        </span>
+      </h3>
+      {error && <p className="error small">{error}</p>}
+      <div className="inline wrap">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter minifigures (name, attacks, id)…" aria-label="Filter minifigures" />
+        <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} aria-label="Owned">
+          <option value="all">all</option>
+          <option value="owned">owned</option>
+          <option value="missing">not owned</option>
+        </select>
+      </div>
+      {series.map((n) => {
+        const all = minifigures.filter((f) => f.series === n)
+        const rows = shown.filter((f) => f.series === n)
+        if (filtering && !rows.length) return null
+        const d = all.filter(owns).length
+        return (
+          <Group
+            key={n}
+            open={filtering}
+            title={
+              <>
+                <code className={`tally ${d === all.length ? 'all' : d > 0 ? 'some' : 'none'}`} title={`${d} of ${all.length} owned`}>
+                  {d}/{all.length}
+                </code>{' '}
+                Series {n}
+                <span style={{ float: 'right', fontWeight: 'normal' }}>{ownButton(all, 'Own all')}</span>
+              </>
+            }
+          >
+            <ul className="plain picklist">
+              {rows.map((f) => (
+                <li key={f.id}>
+                  <div className="pick-main">
+                    <span className="title">{f.name}</span> {known && <span className={`badge${owns(f) ? '' : ' dim'}`}>{owns(f) ? 'owned' : 'not owned'}</span>}
+                    <div className="desc">{[f.normal_attack, f.special_attack].filter(Boolean).join(' · ')}</div>
+                  </div>
+                  {ownButton([f], 'Own')}
+                </li>
+              ))}
+            </ul>
+          </Group>
+        )
+      })}
+    </>
+  )
+}
+
 // ------------------------------------------------------------------ story
 
 /** The story lines in the game's order (by main quest id): Pirate, Medieval, Space, Mythology, Dino. */
@@ -275,6 +366,7 @@ export function Story({ api, online, send, canSend }: { api: Api; online: Player
   const { content, records, error } = useRecords(api, 'quest')
   const { character, error: charError, reload } = useCharacter(api, online)
   const [lines, setLines] = useState<Line[] | null>(null)
+  const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
   useEffect(() => {
     if (!records) return
@@ -342,38 +434,58 @@ export function Story({ api, online, send, canSend }: { api: Api; online: Player
           Show in chat
         </button>
       </p>
+      <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter story steps…" aria-label="Filter story steps" style={{ width: '100%', marginBottom: 6 }} />
       {!lines && <p className="muted small">Loading the story lines…</p>}
       {lines?.map((l, li) => {
         const on = at(l)
+        const words = q.toLowerCase().split(/\s+/).filter(Boolean)
+        const matches = (text: string) => words.every((w) => `${l.name} ${text}`.toLowerCase().includes(w))
+        const steps = l.steps.map((s, i) => ({ s, i })).filter(({ s }) => matches(s.text))
+        if (words.length && !steps.length) return null
+        const done = Math.min(Math.max(on - 1, 0), l.steps.length)
+        // where a step stands from the player's place: before it (done), it, after it
+        const mark = (i: number) => (on > i + 1 ? 'before' : on === i + 1 ? 'here' : 'after')
         return (
           <Group
             key={l.main}
-            open={on > 0 && on <= l.steps.length}
-            title={l.name}
-            count={on === 0 ? 'not started' : on > l.steps.length ? 'done' : `step ${on} of ${l.steps.length}`}
+            open={words.length > 0 || (on > 0 && on <= l.steps.length)}
+            title={
+              <>
+                <code className={`tally ${done === l.steps.length ? 'all' : done > 0 ? 'some' : 'none'}`} title={`${done} of ${l.steps.length} steps done`}>
+                  {done}/{l.steps.length}
+                </code>{' '}
+                {l.name}
+              </>
+            }
           >
-            <ol className="plain picklist">
-              {l.steps.map((s, i) => {
-                const state = on > i + 1 ? 'done' : on === i + 1 ? 'current' : 'later'
+            <ul className="plain picklist">
+              {steps.map(({ s, i }) => {
+                const m = mark(i)
                 return (
-                  <li key={s.quest} style={state === 'current' ? { outline: '2px solid var(--accent)', borderRadius: 6 } : undefined}>
+                  <li key={s.quest} style={m === 'here' ? { outline: '2px solid var(--accent)', borderRadius: 6 } : undefined}>
                     <div className="pick-main">
-                      <span className="muted small">{i + 1}.</span> <span className={state === 'later' ? 'muted' : 'title'}>{s.text}</span>{' '}
-                      <span className={`badge${state === 'done' ? '' : ' dim'}`}>{state === 'current' ? 'here' : state}</span>
+                      <span className={`story-mark ${m}`} title={m === 'before' ? 'before where you are: done' : m === 'here' ? 'where you are' : 'after where you are: not done'} aria-label={m}>
+                        {m === 'before' ? '↑' : m === 'here' ? '●' : '↓'}
+                      </span>{' '}
+                      <span className="muted small">{i + 1}.</span> <span className={m === 'after' ? 'muted' : 'title'}>{s.text}</span>
                     </div>
-                    <button disabled={!can || state === 'current'} onClick={() => setPosition(li, i + 1)}>
+                    <button disabled={!can || m === 'here'} onClick={() => setPosition(li, i + 1)}>
                       Set here
                     </button>
                   </li>
                 )
               })}
-              <li>
-                <div className="pick-main muted small">{l.name} done</div>
-                <button disabled={!can || on > l.steps.length} onClick={() => setPosition(li, l.steps.length + 1)}>
-                  Set here
-                </button>
-              </li>
-            </ol>
+              {!words.length && (
+                <li>
+                  <div className="pick-main">
+                    <span className={`story-mark ${on > l.steps.length ? 'here' : 'after'}`}>{on > l.steps.length ? '●' : '↓'}</span> <span className="muted small">{l.name} done</span>
+                  </div>
+                  <button disabled={!can || on > l.steps.length} onClick={() => setPosition(li, l.steps.length + 1)}>
+                    Set here
+                  </button>
+                </li>
+              )}
+            </ul>
           </Group>
         )
       })}

@@ -1198,3 +1198,27 @@ details.group > .group-body {
 .tally.none {
   color: var(--text-2);
 }
+
+/* a group header's floated buttons stay inside it */
+details.group > summary::after {
+  content: '';
+  display: block;
+  clear: both;
+}
+
+/* Story quests: a step before the player's place, it, after it */
+.story-mark {
+  display: inline-block;
+  width: 1.1em;
+  text-align: center;
+  font-weight: 700;
+}
+.story-mark.before {
+  color: var(--ok);
+}
+.story-mark.here {
+  color: var(--accent);
+}
+.story-mark.after {
+  color: var(--text-2);
+}

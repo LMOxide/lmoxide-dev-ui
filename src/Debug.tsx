@@ -3,7 +3,7 @@ import { best, bossNames, modeName, places, playfieldName, score, type GameData 
 import type { Instances, MonsterData, Player } from './types'
 import { Heading } from './Heading'
 import { Group } from './Group'
-import { Achievements, Story } from './Progress'
+import { Achievements, Minifigures, Story } from './Progress'
 import type { Api } from './api'
 export { Heading }
 import type { PositionCopy } from './PositionCopy'
@@ -259,24 +259,7 @@ export function Debug({
                 how many?
               </button>
             </div>
-            <PickList
-              query={query}
-              setQuery={setQuery}
-              placeholder="Filter minifigures…"
-              items={data.minifigures}
-              fields={(f) => [f.name, f.normal_attack ?? '', f.special_attack ?? '', `series ${f.series}`]}
-              group={(f) => `Series ${f.series}`}
-              itemKey={(f) => f.id}
-              render={(f) => (
-                <>
-                  <span className="title">{f.name}</span> <span className="muted small">series {f.series}</span>
-                  <div className="desc">{[f.normal_attack, f.special_attack].filter(Boolean).join(' · ')}</div>
-                </>
-              )}
-              actions={(f) => [[`!own ${f.name}`, 'Own']]}
-              send={send}
-              canSend={canSend}
-            />
+            <Minifigures api={api} online={online} minifigures={data.minifigures} send={send} canSend={canSend} />
           </>
         )}
         {section === 'instances' && (
