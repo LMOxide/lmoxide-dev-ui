@@ -494,6 +494,7 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
               fillCommand={(c) => focusConsole(c)}
               showEffect={(id) => showEffect(id)}
               positionCopy={positionCopy}
+              api={api}
             />
           </div>
           <div className={`right${narrowPane === 'console' ? '' : ' narrow-hidden'}`}>

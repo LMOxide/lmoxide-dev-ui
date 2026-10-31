@@ -1,3 +1,4 @@
+import type { CharacterProgress } from './Progress'
 import type { AnimationCatalog, Instances, ParticleRef, SoundRef, BccStates, CommandResult, EffectCatalog, Minifigure, MonsterData, Player, Playfield, Scope, TestCatalog } from './types'
 
 /** `{"error": {"code", "message"}}` from the API, or a network failure (code `network`). */
@@ -79,6 +80,11 @@ export class Api {
   /** The logged-in account (its GM level). */
   me() {
     return this.call<{ username: string; gm_level: number }>('GET', '/v1/me')
+  }
+
+  /** A saved character: achievements, counters, story (read scope). */
+  character(id: number) {
+    return this.call<CharacterProgress>('GET', `/v1/characters/${id}`)
   }
 
   /** The running copies of worlds (moderate scope). */

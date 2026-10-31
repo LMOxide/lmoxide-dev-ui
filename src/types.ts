@@ -173,7 +173,8 @@ export interface TestCatalog {
   scenarios: { n: number; label: string; about: string; team: string[]; spawn: { name: string; count: number }[] }[]
   dialogues: { n: number; npc: string; playfield: number }[]
   loot_kinds: string[]
-  spawnable: { name: string; kind: string; level: number; playfields: number[] }[]
+  /** `monster_data`: its look (0 none; servers before 2026-10-30 leave it out); no playfields: a template no world places */
+  spawnable: { name: string; kind: string; level: number; playfields: number[]; monster_data?: number }[]
   looks: { monster_data: number; names: string[]; kind: string }[]
 }
 

@@ -2,10 +2,12 @@ import { useMemo, useState } from 'react'
 import { best, bossNames, modeName, places, playfieldName, score, type GameData } from './suggest'
 import type { Instances, MonsterData, Player } from './types'
 import { Heading } from './Heading'
+import { Achievements, Story } from './Progress'
+import type { Api } from './api'
 export { Heading }
 import type { PositionCopy } from './PositionCopy'
 
-export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'animations' | 'minifigures' | 'progress' | 'dialogues' | 'instances' | 'commands'
+export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'animations' | 'minifigures' | 'progress' | 'story' | 'dialogues' | 'instances' | 'commands'
 
 const SECTIONS: [Section, string][] = [
   ['quick', 'Quick'],
@@ -16,7 +18,8 @@ const SECTIONS: [Section, string][] = [
   ['looks', 'Looks & state'],
   ['animations', 'Animations'],
   ['minifigures', 'Minifigures'],
-  ['progress', 'Progress'],
+  ['progress', 'Achievements'],
+  ['story', 'Story'],
   ['dialogues', 'Dialogues'],
   ['instances', 'Instances'],
   ['commands', 'All commands'],
@@ -33,7 +36,8 @@ const SECTION_COMMAND: Partial<Record<Section, string>> = {
   looks: '!skin',
   animations: '!anim',
   minifigures: '!own',
-  progress: '!count',
+  progress: '!grant',
+  story: '!story',
   dialogues: '!dialog',
 }
 
@@ -102,6 +106,7 @@ export function Debug({
   fillCommand,
   showEffect,
   positionCopy,
+  api,
 }: {
   data: GameData
   testsError: string
@@ -125,6 +130,8 @@ export function Debug({
   showEffect: (id: number) => void
   /** the coordinates in the chosen copy format (shared with the dock bottom right) */
   positionCopy: PositionCopy
+  /** the achievements and story read the chosen player's saved character */
+  api: Api
 }) {
   const [q, setQ] = useState<Record<string, string>>({})
   const query = q[section] ?? ''
@@ -227,7 +234,12 @@ export function Debug({
         {section === 'instances' && (
           <InstanceList data={data} instances={instances} error={instancesError} reload={loadInstances} online={online} query={query} setQuery={setQuery} />
         )}
-        {section === 'progress' && <Progress data={data} send={send} canSend={canSend} />}
+        {section === 'progress' && (
+          <Achievements api={api} online={online} send={send} canSend={canSend}>
+            <Progress data={data} send={send} canSend={canSend} />
+          </Achievements>
+        )}
+        {section === 'story' && <Story api={api} online={online} send={send} canSend={canSend} />}
         {section === 'dialogues' && (
           <PickList
             query={query}
@@ -532,6 +544,19 @@ function Spawn({ data, query, setQuery, send, canSend }: { data: GameData; query
   const [count, setCount] = useState('1')
   const n = Math.min(30, Math.max(1, Number(count) || 1))
   const pf = (id: number) => playfieldName(data, id)
+  // every name of each spawnable's look: the others wearing it, live's, the minifigures', the client's
+  const lookNames = useMemo(() => {
+    const byLook = new Map<number, Set<string>>()
+    const add = (look: number, n: string) => n && (byLook.get(look) ?? byLook.set(look, new Set()).get(look)!).add(n)
+    for (const s of data.tests?.spawnable ?? []) if (s.monster_data) add(s.monster_data, s.name)
+    for (const m of data.monsters) {
+      if (!byLook.has(m.id)) continue
+      add(m.id, m.name)
+      for (const u of m.used_by) add(m.id, u.name)
+      for (const t of m.minifigures) add(m.id, data.minifigures.find((f) => f.id === t)?.name ?? '')
+    }
+    return (s: { name: string; monster_data?: number }) => [...(s.monster_data ? (byLook.get(s.monster_data) ?? []) : [])].filter((n) => n !== s.name)
+  }, [data])
   return (
     <>
       <h3>Loot bag at your feet</h3>
@@ -559,13 +584,14 @@ function Spawn({ data, query, setQuery, send, canSend }: { data: GameData; query
         setQuery={setQuery}
         placeholder="Filter enemies and smashables…"
         items={data.tests?.spawnable ?? []}
-        fields={(s) => [s.name, s.kind, ...s.playfields.map(pf)]}
+        fields={(s) => [s.name, s.kind, ...s.playfields.map(pf), ...lookNames(s)]}
         itemKey={(s) => s.name}
         render={(s) => (
           <>
             <span className="title">{s.name}</span> <span className="badge dim">{s.kind}</span> <span className="muted small">level {s.level}</span>
             <div className="desc" title={s.playfields.map(pf).join(', ')}>
-              {places(data, s.playfields, 6)}
+              {s.playfields.length ? places(data, s.playfields, 6) : 'no world places it'}
+              {lookNames(s).length > 0 && <span className="muted small"> · look also: {lookNames(s).join(', ')}</span>}
             </div>
           </>
         )}
@@ -746,7 +772,7 @@ function Progress({ data, send, canSend }: { data: GameData; send: (c: string) =
   const bosses = bossNames(data.tests).filter((b) => b.toLowerCase().includes(q.toLowerCase()))
   return (
     <>
-      <h3>Count for achievements</h3>
+      <h3>Count toward achievements</h3>
       <form
         className="inline wrap"
         onSubmit={(e) => {
