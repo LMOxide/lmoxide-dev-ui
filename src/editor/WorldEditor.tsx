@@ -224,6 +224,19 @@ export function WorldEditor({
     [backend, myPlayer],
   )
 
+  // !mode: your character of the other game mode (the client asks to relocate; Yes goes there)
+  const switchMode = useCallback(
+    async (to: 'progression' | 'editor') => {
+      try {
+        const r = await backend.switchMode(to)
+        setMoving(r.affected > 0 ? (r.replies?.join(' · ') ?? `on the way to the ${to} mode`) : `!mode ${to} reached nobody: are you still online?`)
+      } catch (e) {
+        setMoving(`!mode ${to}: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    },
+    [backend],
+  )
+
   useEffect(() => {
     backend.catalog().then(setCatalog).catch(failed)
     backend.wallLooks().then(setLooks).catch(() => {})
@@ -378,6 +391,16 @@ export function WorldEditor({
                   : '!preview: play this world as your working copy has it (unpublished changes too), enemies fighting, in a copy of your own')}
             </TooltipContent>
           </Tooltip>
+          {myPlayer && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => switchMode(myPlayer.mode === 'world-editor' ? 'progression' : 'editor')}
+              title={`!mode: ${myPlayer.character_name} leaves for your character in the other mode; the game asks to relocate to a new server, click Yes`}
+            >
+              {myPlayer.mode === 'world-editor' ? 'Switch to Progression' : 'Switch to World Editor'}
+            </Button>
+          )}
           {state && (
             <span className="where small">
               <b>{state.playfield_name ?? `Playfield ${state.playfield}`}</b>
@@ -426,7 +449,12 @@ export function WorldEditor({
         {account === null && (
           <p className="banner warn">
             Nobody chosen to edit as: you can browse and edit the tree, but placing, moving to you and showing things in game need a character online in the world editor mode (choose it above).
-            {myPlayer && myPlayer.mode !== 'world-editor' && ` You're in game in the ${modeName(myPlayer.mode ?? 'unknown')} mode: log in through the patcher's world editor profile.`}
+            {myPlayer && myPlayer.mode !== 'world-editor' && (
+              <>
+                {` You're in game in the ${modeName(myPlayer.mode ?? 'unknown')} mode. `}
+                <button onClick={() => switchMode('editor')}>Switch to World Editor</button>
+              </>
+            )}
           </p>
         )}
         {inPreview && <p className="banner">You're playing your preview (copy {myPlayer?.copy}) in game; End preview takes you back to the world editor.</p>}

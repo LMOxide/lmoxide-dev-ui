@@ -148,7 +148,7 @@ export function Debug({
       <div className="section-body">
         {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && section !== 'instances' && <Missing />}
         {section === 'quick' && <Quick send={send} canSend={canSend} may={may} />}
-        {section === 'teleport' && <Whereabouts data={data} online={online} pc={positionCopy} />}
+        {section === 'teleport' && <Whereabouts data={data} online={online} pc={positionCopy} send={send} canSend={canSend} />}
         {section === 'teleport' && <MovePanel send={send} canSend={canSend} />}
         {section === 'teleport' && <TeleportTo data={data} players={players} online={online} query={query} setQuery={setQuery} send={send} canSend={canSend} />}
         {section === 'scenarios' && (
@@ -790,7 +790,7 @@ function Progress({ data, send, canSend }: { data: GameData; send: (c: string) =
 }
 
 /** Where the chosen player is now (the players list, refreshed every second here). */
-function Whereabouts({ data, online, pc }: { data: GameData; online: Player | undefined; pc: PositionCopy }) {
+function Whereabouts({ data, online, pc, send, canSend }: { data: GameData; online: Player | undefined; pc: PositionCopy; send: (cmd: string) => void; canSend: boolean }) {
   if (!online) return <p className="muted small">Choose a player online to see where they are.</p>
   const pos = online.position
   const { copy, copied } = pc
@@ -816,6 +816,15 @@ function Whereabouts({ data, online, pc }: { data: GameData; online: Player | un
         </>
       ) : (
         <span className="muted small">{online.playfield == null ? 'not in play yet' : 'no position (server older than 2026-10-27)'}</span>
+      )}{' '}
+      {online.mode && (
+        <button
+          disabled={!canSend}
+          onClick={() => send(online.mode === 'world-editor' ? '!mode progression' : '!mode editor')}
+          title="!mode: to this account's character in the other game mode; the game asks to relocate to a new server, Yes goes there"
+        >
+          {online.mode === 'world-editor' ? 'Switch to Progression' : 'Switch to World Editor'}
+        </button>
       )}
     </p>
   )

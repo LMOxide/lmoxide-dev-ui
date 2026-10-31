@@ -166,6 +166,9 @@ export class MockBackend implements SurveyBackend {
       open_world_cap: 40,
     }
   }
+  async switchMode(to: 'progression' | 'maxed' | 'editor'): Promise<CommandResult> {
+    return { affected: 1, replies: [`Going to the ${to} mode: when the game asks to relocate to a new server, click Yes.`] }
+  }
   async preview(end: boolean): Promise<CommandResult> {
     const c = end ? '!preview end' : '!preview'
     if (c === '!preview') {

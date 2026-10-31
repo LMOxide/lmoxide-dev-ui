@@ -41,6 +41,8 @@ export interface SurveyBackend {
   /** Starts (or `end`s) a preview for the signed-in editor's own character in the world editor
    *  mode (POST /v1/survey/preview: `!preview` / `!preview end`; the moderate scope). */
   preview(end: boolean): Promise<CommandResult>
+  /** `!mode`: your own character goes to its game mode's character (the client asks to relocate). */
+  switchMode(to: 'progression' | 'maxed' | 'editor'): Promise<CommandResult>
   state(account: number): Promise<PlayerState>
   catalog(): Promise<Placeable[]>
   objects(playfield: number): Promise<{ revision: number; objects: SurveyObject[] }>
@@ -126,6 +128,9 @@ export class HttpBackend implements SurveyBackend {
   }
   instances() {
     return this.api.instances()
+  }
+  switchMode(to: 'progression' | 'maxed' | 'editor'): Promise<CommandResult> {
+    return this.api.myCommand(`!mode ${to}`)
   }
   async preview(end: boolean): Promise<CommandResult> {
     const r = await this.call<{ sent: number }>('POST', '/preview', { end })
