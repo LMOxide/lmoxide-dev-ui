@@ -367,7 +367,7 @@ function PickList<T>({
   items: T[]
   fields: (t: T) => string[]
   itemKey: (t: T) => string | number
-  /** collapsible groups (by name; open while filtering or when there is one; a plain list when each holds one row) */
+  /** collapsible groups (by name; open while filtering or when there is one) */
   group?: (t: T) => string
   render: (t: T) => React.ReactNode
   /** [command, button label] */
@@ -411,10 +411,7 @@ function PickList<T>({
       <p className="muted small">
         {shown.length} of {items.length}
       </p>
-      {groups && groups.every(([, ts]) => ts.length === 1) ? (
-        // every group holds one row (each playfield in Teleport): no point nesting them
-        <ul className="plain picklist">{groups.map(([, ts]) => row(ts[0]))}</ul>
-      ) : groups ? (
+      {groups ? (
         groups.map(([g, ts]) => (
           <Group key={g} title={g} count={ts.length} open={!!query.trim() || groups.length === 1}>
             <ul className="plain picklist">{ts.map(row)}</ul>
@@ -531,6 +528,7 @@ function TeleportTo({
     if (type === 'playfield') {
       list = data.playfields
         .filter((p) => p.teleport !== false)
+        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }) || a.id - b.id)
         .map((p) => ({ key: `pf:${p.id}`, type, label: p.name, playfield: p.id, pos: null, cmd: `!tp ${p.id}` }))
     } else if (type === 'player') {
       list = players
@@ -563,7 +561,8 @@ function TeleportTo({
         placeholder={`Filter ${type === 'all' ? 'targets' : `${type}s`} by name or playfield…`}
         items={items}
         fields={(d) => [d.label, d.type, d.playfield === null ? '' : pf(d.playfield), d.playfield === null ? '' : String(d.playfield)]}
-        group={(d) => (d.playfield === null ? 'Anywhere' : pf(d.playfield))}
+        // playfields: one row each, so a plain list (by name) rather than a group per playfield
+        group={type === 'playfield' ? undefined : (d) => (d.playfield === null ? 'Anywhere' : pf(d.playfield))}
         itemKey={(d) => d.key}
         render={(d) => (
           <>
