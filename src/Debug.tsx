@@ -497,6 +497,8 @@ function Quick({ send, canSend, may }: { send: (cmd: string) => void; canSend: b
       <div className="chips">
         {b('!mirrors solve', 'Mirrors: solve')}
         {b('!mirrors reset', 'Mirrors: reset')}
+      </div>
+      <div className="chips quick-row">
         {b('!plates solve', 'Plates: solve')}
         {b('!plates reset', 'Plates: reset')}
       </div>
