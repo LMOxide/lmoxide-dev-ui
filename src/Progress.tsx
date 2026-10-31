@@ -206,7 +206,9 @@ export function Achievements({ api, online, send, canSend, children }: { api: Ap
             <code className={`tally ${d === n ? 'all' : d > 0 ? 'some' : 'none'}`} title={`${d} of ${n} done`}>
               {d}/{n}
             </code>{' '}
-            {a.title} {button(a)}
+            {a.title}
+            {/* on the right, as the single achievements' (a flex summary would lose its marker) */}
+            <span style={{ float: 'right', fontWeight: 'normal' }}>{button(a)}</span>
             <div className="muted mono" style={{ fontSize: '0.75em', fontWeight: 'normal', marginLeft: '1.1em' }}>
               {a.id}
             </div>
