@@ -396,11 +396,11 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
           </button>
         </nav>
         <div className="who">
-          <span className="muted small" title={api.base}>
+          <span className="muted small who-label" title={api.base}>
             {session.label} · {session.scope ?? 'no scope'}
           </span>
           <button
-            className="ghost"
+            className="ghost who-gear"
             onClick={() => {
               const b = window.prompt('API base URL', api.base)
               if (b && b.trim() && b.trim() !== api.base) switchApi(b.trim())

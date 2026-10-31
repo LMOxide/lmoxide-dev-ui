@@ -254,6 +254,23 @@ button.link.danger {
   display: flex;
   align-items: center;
   gap: 4px;
+  line-height: 1;
+}
+/* "host · scope": centred on the buttons beside it */
+.top .who-label {
+  display: inline-flex;
+  align-items: center;
+  align-self: stretch;
+  padding-right: 4px;
+}
+.top .who button {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+.top .who-gear {
+  font-size: 20px;
+  padding: 2px 8px;
 }
 .check {
   display: flex;
