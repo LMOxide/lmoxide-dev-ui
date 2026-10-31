@@ -1230,3 +1230,8 @@ details.group > summary::after {
   flex-direction: column;
   overflow: hidden;
 }
+
+/* Quick → Speed: a little air between the factor box and the presets */
+.speed-presets {
+  margin-top: 8px;
+}

@@ -463,7 +463,7 @@ function Quick({ send, canSend, may }: { send: (cmd: string) => void; canSend: b
           Set speed ×
         </button>
       </form>
-      <div className="chips">
+      <div className="chips speed-presets">
         {b('!speed 1', 'Reset (×1)', '!speed 1: normal speed')}
         {b('!speed 0.5', '×0.5')}
         {b('!speed 2', '×2')}
