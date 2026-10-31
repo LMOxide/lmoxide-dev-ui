@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Api } from './api'
 import { HttpContent, type Json, type JsonObject, type Summary } from './editor/content'
+import { Group } from './Group'
 import type { Player } from './types'
 
 /** `send` resolves once the command has run (App.tsx), so steps can go in order. */
@@ -78,7 +79,6 @@ export function Achievements({ api, online, send, canSend, children }: { api: Ap
   const { character, error: charError, reload } = useCharacter(api, online)
   const [q, setQ] = useState('')
   const [status, setStatus] = useState<Status>('all')
-  const [limit, setLimit] = useState(200)
   const all: Achievement[] = useMemo(
     () =>
       (records ?? [])
@@ -96,8 +96,7 @@ export function Achievements({ api, online, send, canSend, children }: { api: Ap
             counter,
           }
         })
-        .filter((a) => a.lore > 0)
-        .sort((a, b) => a.title.localeCompare(b.title)),
+        .sort((a, b) => a.title.localeCompare(b.title, undefined, { numeric: true })),
     [records],
   )
   const byId = useMemo(() => new Map(all.map((a) => [a.id, a])), [all])
@@ -114,30 +113,114 @@ export function Achievements({ api, online, send, canSend, children }: { api: Ap
     }
     return null
   }
+  const kids = useMemo(() => {
+    const m = new Map<string, Achievement[]>()
+    for (const a of all) if (byId.has(a.parent)) (m.get(a.parent) ?? m.set(a.parent, []).get(a.parent)!).push(a)
+    return m
+  }, [all, byId])
+  const roots = all.filter((a) => !byId.has(a.parent))
   const words = q.toLowerCase().split(/\s+/).filter(Boolean)
-  const shown = all.filter(
-    (a) =>
-      (status === 'all' || (status === 'done') === isDone(a)) &&
-      words.every((w) => `${a.title} ${a.text} ${a.kind} ${a.lore} ${byId.get(a.parent)?.title ?? ''}`.toLowerCase().includes(w)),
-  )
+  const filtering = words.length > 0 || status !== 'all'
+  const matches = (a: Achievement) =>
+    (status === 'all' || (status === 'done') === isDone(a)) &&
+    words.every((w) => `${a.title} ${a.text} ${a.kind} ${a.lore} ${byId.get(a.parent)?.title ?? ''}`.toLowerCase().includes(w))
+  // while filtering: the matches and the groups above them, open
+  const kept = useMemo(() => {
+    if (!filtering) return null
+    const keep = new Set<string>()
+    for (const a of all) {
+      if (!matches(a)) continue
+      for (let x: Achievement | undefined = a; x && !keep.has(x.id); x = byId.get(x.parent)) keep.add(x.id)
+    }
+    return keep
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [all, byId, q, status, earned, filtering])
+  /** done of all below `a` (and it) */
+  const tally = (a: Achievement): [number, number] => {
+    let [d, n] = a.lore > 0 ? [Number(isDone(a)), 1] : [0, 0]
+    for (const k of kids.get(a.id) ?? []) {
+      const [kd, kn] = tally(k)
+      d += kd
+      n += kn
+    }
+    return [d, n]
+  }
   const run = async (cmd: string) => {
     await send(cmd)
     reload()
   }
-  const doneCount = all.filter(isDone).length
+  const doneCount = all.filter((a) => a.lore > 0 && isDone(a)).length
+  const total = all.filter((a) => a.lore > 0).length
+  const line = (a: Achievement) => {
+    const done = isDone(a)
+    const p = progress(a)
+    return (
+      <>
+        <span className="title">{a.title}</span> {a.lore > 0 && <span className={`badge${done ? '' : ' dim'}`}>{done ? 'done' : 'not done'}</span>}{' '}
+        <span className="muted small">
+          {a.kind}
+          {a.lore > 0 && ` · [${a.lore}]`}
+        </span>
+        {p && (
+          <span className="muted small">
+            {' '}
+            · <progress value={p[0]} max={p[1]} style={{ width: '6em', verticalAlign: 'middle' }} /> {p[0]}/{p[1]}
+          </span>
+        )}
+        {a.text && <div className="desc">{a.text}</div>}
+      </>
+    )
+  }
+  const button = (a: Achievement) =>
+    a.lore > 0 &&
+    (isDone(a) ? (
+      <button disabled={!canSend} onClick={(e) => (e.preventDefault(), run(`!unach ${a.lore}`))} title={`!unach ${a.lore}: take it (and the "all of" ones above it) away`}>
+        Reset
+      </button>
+    ) : (
+      <button disabled={!canSend} onClick={(e) => (e.preventDefault(), run(`!grant ${a.lore}`))} title={`!grant ${a.lore}: earn it now, rewards too`}>
+        Complete
+      </button>
+    ))
+  const node = (a: Achievement): React.ReactNode => {
+    if (kept && !kept.has(a.id)) return null
+    const below = (kids.get(a.id) ?? []).filter((k) => !kept || kept.has(k.id))
+    if (!below.length)
+      return (
+        <ul key={a.id} className="plain picklist">
+          <li>
+            <div className="pick-main">{line(a)}</div>
+            {button(a)}
+          </li>
+        </ul>
+      )
+    const [d, n] = tally(a)
+    return (
+      <Group
+        key={a.id}
+        open={!!kept}
+        title={
+          <>
+            {a.title} {a.lore > 0 && <span className={`badge${isDone(a) ? '' : ' dim'}`}>{isDone(a) ? 'done' : 'not done'}</span>} {button(a)}
+          </>
+        }
+        count={`${d}/${n} done`}
+      >
+        {(a.text || progress(a)) && <div className="muted small">{line(a)}</div>}
+        {below.map(node)}
+      </Group>
+    )
+  }
   if (!online) return <p className="muted small">Choose a player online to see their achievements.</p>
   return (
     <>
       <h3>
-        Achievements{' '}
-        <span className="muted small">
-          {character ? `${doneCount} of ${all.length} done by ${character.name}` : 'loading…'}
-        </span>
+        Achievements <span className="muted small">{character ? `${doneCount} of ${total} done by ${character.name}` : 'loading…'}</span>
       </h3>
       {(error || charError) && <p className="error small">{error || charError}</p>}
       <div className="inline wrap">
-        <input value={q} onChange={(e) => (setQ(e.target.value), setLimit(200))} placeholder="Filter achievements (title, text, kind, id, group)…" aria-label="Filter achievements" />
-        <select value={status} onChange={(e) => (setStatus(e.target.value as Status), setLimit(200))} aria-label="Status">
+        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter achievements (title, text, kind, id, group)…" aria-label="Filter achievements" />
+        <select value={status} onChange={(e) => setStatus(e.target.value as Status)} aria-label="Status">
           <option value="all">all</option>
           <option value="open">not done</option>
           <option value="done">done</option>
@@ -149,43 +232,8 @@ export function Achievements({ api, online, send, canSend, children }: { api: Ap
           Reset all achievements
         </button>
       </div>
-      <ul className="plain picklist">
-        {shown.slice(0, limit).map((a) => {
-          const done = isDone(a)
-          const p = progress(a)
-          return (
-            <li key={a.id}>
-              <div className="pick-main">
-                <span className="title">{a.title}</span> <span className={`badge${done ? '' : ' dim'}`}>{done ? 'done' : 'not done'}</span>{' '}
-                <span className="muted small">
-                  {a.kind} · [{a.lore}]{byId.get(a.parent) ? ` · in ${byId.get(a.parent)!.title}` : ''}
-                </span>
-                {p && (
-                  <span className="muted small">
-                    {' '}
-                    · <progress value={p[0]} max={p[1]} style={{ width: '6em', verticalAlign: 'middle' }} /> {p[0]}/{p[1]}
-                  </span>
-                )}
-                {a.text && <div className="desc">{a.text}</div>}
-              </div>
-              {done ? (
-                <button disabled={!canSend} onClick={() => run(`!unach ${a.lore}`)} title={`!unach ${a.lore}: take it (and the "all of" ones above it) away`}>
-                  Reset
-                </button>
-              ) : (
-                <button disabled={!canSend} onClick={() => run(`!grant ${a.lore}`)} title={`!grant ${a.lore}: earn it now, rewards too`}>
-                  Complete
-                </button>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-      {shown.length > limit && (
-        <p>
-          <button onClick={() => setLimit(limit + 300)}>View more</button> <button onClick={() => setLimit(Infinity)}>View all {shown.length}</button>
-        </p>
-      )}
+      {!records && !error && <p className="muted small">Loading the achievements…</p>}
+      {roots.map(node)}
       {children}
     </>
   )
@@ -246,10 +294,8 @@ export function Story({ api, online, send, canSend }: { api: Api; online: Player
     if (!lines) return
     setBusy(true)
     try {
-      for (const [i, l] of lines.entries()) {
-        const want = i < li ? l.steps.length + 1 : i === li ? step : 0
-        if (at(l) !== want) await send(`!story quest ${l.main} ${want}`)
-      }
+      // the whole story at once, with the lore flags its conversations give up to there
+      await send(`!story at ${lines[li].main} ${step}`)
     } finally {
       setBusy(false)
       reload()
@@ -263,7 +309,7 @@ export function Story({ api, online, send, canSend }: { api: Api; online: Player
         Story <span className="muted small">{character ? character.name : 'loading…'}</span>
       </h3>
       <p className="muted small">
-        Set here: every step before it done, it the step the player is on, everything after it not started (<code>!story quest</code> per line). The lines in the game's order: Pirate, Medieval, Space, Mythology, Dino.
+        Set here: every step before it done, it the step the player is on, everything after it not started, and the lore flags the story's conversations give up to there, so NPCs say what they would at that point (<code>!story at</code>). The worlds in the game's order: Pirate, Medieval, Space, Mythology, Dino.
       </p>
       {(error || charError) && <p className="error small">{error || charError}</p>}
       <p className="inline wrap">
@@ -281,10 +327,13 @@ export function Story({ api, online, send, canSend }: { api: Api; online: Player
       {lines?.map((l, li) => {
         const on = at(l)
         return (
-          <section key={l.main}>
-            <h4>
-              {l.name} <span className="muted small">({on === 0 ? 'not started' : on > l.steps.length ? 'done' : `step ${on} of ${l.steps.length}`})</span>
-            </h4>
+          <Group
+            key={l.main}
+            open={on > 0 && on <= l.steps.length}
+            title={l.name}
+            count={on === 0 ? 'not started' : on > l.steps.length ? 'done' : `step ${on} of ${l.steps.length}`}
+          >
+            <Group title="Story" count={`${l.steps.length} steps`} open>
             <ol className="plain picklist">
               {l.steps.map((s, i) => {
                 const state = on > i + 1 ? 'done' : on === i + 1 ? 'current' : 'later'
@@ -307,7 +356,8 @@ export function Story({ api, online, send, canSend }: { api: Api; online: Player
                 </button>
               </li>
             </ol>
-          </section>
+            </Group>
+          </Group>
         )
       })}
     </>

@@ -1142,3 +1142,21 @@ form.inline.wrap {
   width: 4em;
   margin-left: 4px;
 }
+
+/* collapsible groups of long lists (Group.tsx) */
+details.group {
+  border-bottom: 1px solid var(--border);
+}
+details.group > summary {
+  cursor: pointer;
+  padding: 6px 2px;
+  font-weight: 600;
+}
+details.group > summary .badge,
+details.group > summary button {
+  font-weight: normal;
+}
+details.group > .group-body {
+  margin-left: 14px;
+  padding-bottom: 6px;
+}

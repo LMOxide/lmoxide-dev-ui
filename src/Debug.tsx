@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { best, bossNames, modeName, places, playfieldName, score, type GameData } from './suggest'
 import type { Instances, MonsterData, Player } from './types'
 import { Heading } from './Heading'
+import { Group } from './Group'
 import { Achievements, Story } from './Progress'
 import type { Api } from './api'
 export { Heading }
@@ -218,6 +219,7 @@ export function Debug({
               placeholder="Filter minifigures…"
               items={data.minifigures}
               fields={(f) => [f.name, f.normal_attack ?? '', f.special_attack ?? '', `series ${f.series}`]}
+              group={(f) => `Series ${f.series}`}
               itemKey={(f) => f.id}
               render={(f) => (
                 <>
@@ -247,6 +249,7 @@ export function Debug({
             placeholder="Filter dialogues…"
             items={tests?.dialogues ?? []}
             fields={(d) => [d.npc, pf(d.playfield)]}
+            group={(d) => pf(d.playfield)}
             itemKey={(d) => d.n}
             render={(d) => (
               <>
@@ -261,21 +264,47 @@ export function Debug({
         {section === 'commands' && (
           <>
             <Filter value={query} set={setQuery} placeholder="Filter commands…" />
-            <ul className="plain picklist">
-              {(tests?.commands ?? []).filter((c) => may(c.usage) && (!query || (c.usage + ' ' + c.about).toLowerCase().includes(query.toLowerCase()))).map((c) => (
-                <li key={c.usage}>
-                  <div className="pick-main">
-                    <code>{c.usage}</code>
-                    <div className="desc">{c.about}</div>
-                  </div>
-                  <button onClick={() => fillCommand(c.usage.split(/\s/)[0] + (/\s/.test(c.usage) ? ' ' : ''))}>Use</button>
-                </li>
-              ))}
-            </ul>
+            {groupBy(
+              (tests?.commands ?? []).filter((c) => may(c.usage) && (!query || (c.usage + ' ' + c.about).toLowerCase().includes(query.toLowerCase()))),
+              (c) => c.usage.split(/\s/)[0],
+            ).map(([base, cs]) =>
+              cs.length === 1 ? (
+                <ul key={base} className="plain picklist">
+                  <CommandRow c={cs[0]} fillCommand={fillCommand} />
+                </ul>
+              ) : (
+                <Group key={base} title={<code>{base}</code>} count={cs.length} open={!!query}>
+                  <ul className="plain picklist">
+                    {cs.map((c) => (
+                      <CommandRow key={c.usage} c={c} fillCommand={fillCommand} />
+                    ))}
+                  </ul>
+                </Group>
+              ),
+            )}
           </>
         )}
       </div>
     </div>
+  )
+}
+
+/** Items by key, in the order the keys first come. */
+function groupBy<T>(items: T[], key: (t: T) => string): [string, T[]][] {
+  const m = new Map<string, T[]>()
+  for (const t of items) (m.get(key(t)) ?? m.set(key(t), []).get(key(t))!).push(t)
+  return [...m]
+}
+
+function CommandRow({ c, fillCommand }: { c: { usage: string; about: string }; fillCommand: (cmd: string) => void }) {
+  return (
+    <li>
+      <div className="pick-main">
+        <code>{c.usage}</code>
+        <div className="desc">{c.about}</div>
+      </div>
+      <button onClick={() => fillCommand(c.usage.split(/\s/)[0] + (/\s/.test(c.usage) ? ' ' : ''))}>Use</button>
+    </li>
   )
 }
 
@@ -290,6 +319,7 @@ function PickList<T>({
   actions,
   send,
   canSend,
+  group,
 }: {
   query: string
   setQuery: (v: string) => void
@@ -297,6 +327,8 @@ function PickList<T>({
   items: T[]
   fields: (t: T) => string[]
   itemKey: (t: T) => string | number
+  /** collapsible groups (by name; open while filtering or when there is one) */
+  group?: (t: T) => string
   render: (t: T) => React.ReactNode
   /** [command, button label] */
   actions: (t: T) => [string, string][]
@@ -311,25 +343,46 @@ function PickList<T>({
     setLimitFor(query)
     setLimit(SHOWN)
   }
+  // grouped: in name order, or in the order of the best matches while filtering
+  const groups = useMemo(() => {
+    if (!group) return null
+    const m = new Map<string, T[]>()
+    for (const t of shown) {
+      const g = group(t)
+      ;(m.get(g) ?? m.set(g, []).get(g)!).push(t)
+    }
+    const entries = [...m]
+    if (!query.trim()) entries.sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true }))
+    return entries
+  }, [shown, group, query])
+  const row = (t: T) => (
+    <li key={itemKey(t)}>
+      <div className="pick-main">{render(t)}</div>
+      {actions(t).map(([cmd, label]) => (
+        <button key={cmd} disabled={!canSend} title={cmd} onClick={() => send(cmd)}>
+          {label}
+        </button>
+      ))}
+    </li>
+  )
   return (
     <>
       <Filter value={query} set={setQuery} placeholder={placeholder} />
       <p className="muted small">
         {shown.length} of {items.length}
       </p>
-      <ul className="plain picklist">
-        {shown.slice(0, limit).map((t) => (
-          <li key={itemKey(t)}>
-            <div className="pick-main">{render(t)}</div>
-            {actions(t).map(([cmd, label]) => (
-              <button key={cmd} disabled={!canSend} title={cmd} onClick={() => send(cmd)}>
-                {label}
-              </button>
-            ))}
-          </li>
-        ))}
-      </ul>
-      <More total={shown.length} limit={limit} setLimit={setLimit} />
+      {groups ? (
+        groups.map(([g, ts]) => (
+          <Group key={g} title={g} count={ts.length} open={!!query.trim() || groups.length === 1}>
+            <ul className="plain picklist">{ts.map(row)}</ul>
+          </Group>
+        ))
+      ) : (
+        <>
+          <ul className="plain picklist">{shown.slice(0, limit).map(row)}</ul>
+          <More total={shown.length} limit={limit} setLimit={setLimit} />
+        </>
+      )}
     </>
   )
 }
@@ -467,6 +520,7 @@ function TeleportTo({
         placeholder={`Filter ${type === 'all' ? 'targets' : `${type}s`} by name or playfield…`}
         items={items}
         fields={(d) => [d.label, d.type, d.playfield === null ? '' : pf(d.playfield), d.playfield === null ? '' : String(d.playfield)]}
+        group={(d) => (d.playfield === null ? 'Anywhere' : pf(d.playfield))}
         itemKey={(d) => d.key}
         render={(d) => (
           <>
@@ -521,6 +575,7 @@ function Targets({ data, query, setQuery, send, canSend, here }: { data: GameDat
           placeholder={`Filter ${k.kind} targets by name or playfield…`}
           items={items}
           fields={(t) => [t.label, pf(t.playfield)]}
+          group={(t) => pf(t.playfield)}
           itemKey={(t) => t.n}
           render={(t) => (
             <>
@@ -585,6 +640,7 @@ function Spawn({ data, query, setQuery, send, canSend }: { data: GameData; query
         placeholder="Filter enemies and smashables…"
         items={data.tests?.spawnable ?? []}
         fields={(s) => [s.name, s.kind, ...s.playfields.map(pf), ...lookNames(s)]}
+        group={(s) => (s.playfields.length ? pf(s.playfields[0]) : 'Not placed in any world')}
         itemKey={(s) => s.name}
         render={(s) => (
           <>
@@ -679,6 +735,7 @@ function Looks({ data, query, setQuery, send, canSend }: { data: GameData; query
           placeholder="Filter looks by name, designers' name or id…"
           items={looks}
           fields={(m) => [lookTitle(data, m), m.name, String(m.id), ...m.used_by.map((u) => u.kind)]}
+          group={(m) => (m.used_by[0] ? `${m.used_by[0].kind[0].toUpperCase()}${m.used_by[0].kind.slice(1)} looks` : m.minifigures.length ? 'Minifigure looks' : 'Unused looks')}
           itemKey={(m) => m.id}
           render={(m) => (
             <>
@@ -702,6 +759,7 @@ function Looks({ data, query, setQuery, send, canSend }: { data: GameData; query
           placeholder="Filter looks by name or id…"
           items={data.tests?.looks ?? []}
           fields={(l) => [...l.names, String(l.monster_data), l.kind]}
+          group={(l) => l.kind}
           itemKey={(l) => l.monster_data}
           render={(l) => (
             <>
