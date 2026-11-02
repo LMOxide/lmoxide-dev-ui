@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { ClipboardIcon, FilterIcon, ListTodoIcon, PlusIcon, XIcon } from 'lucide-react'
+import { ClipboardIcon, EyeIcon, EyeOffIcon, FilterIcon, ListTodoIcon, PlusIcon, Trash2Icon, XIcon } from 'lucide-react'
 import { Combobox, MultiCombobox } from '@/components/combobox'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -22,7 +22,7 @@ import { newId } from './NotesPanel'
 import { Tree, type Sel, type TNode } from './Tree'
 import type { Ctx } from './WorldEditor'
 import type { Worlds } from './worlds'
-import { CATEGORIES, type Category, type SurveyObject } from './types'
+import { CATEGORIES, editable, type Category, type SurveyObject } from './types'
 
 const TAB_KEY = 'lmofx.editor.tab'
 const OPEN_KEY = 'lmofx.editor.open'
@@ -94,6 +94,19 @@ export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
   /** narrow screens: the tree or the details */
   const [pane, setPane] = useState<'tree' | 'details'>('tree')
   const [note, setNote] = useState('')
+  /** the multi-selection: object id -> its world */
+  const [picked, setPicked] = useState<Map<string, number>>(() => new Map())
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const pick = useCallback((items: { o: SurveyObject; pf: number }[], on: boolean) => {
+    setPicked((m) => {
+      const n = new Map(m)
+      for (const { o, pf } of items) {
+        if (on) n.set(o.id, pf)
+        else n.delete(o.id)
+      }
+      return n
+    })
+  }, [])
 
   const keep = useCallback(
     (o: SurveyObject, pf: number) =>
@@ -175,7 +188,49 @@ export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
     [backend, ctx, worlds, reveal, setOpen],
   )
 
-  const env: Env = { ctx, worlds, targets: ctx.targets, clip, copy, paste: doPaste, pinned, keep, reveal, remove, add }
+  const pickedIds = useMemo(() => new Set(picked.keys()), [picked])
+  const env: Env = { ctx, worlds, targets: ctx.targets, clip, copy, paste: doPaste, pinned, keep, reveal, remove, add, picked: pickedIds, pick }
+
+  /** the selected objects as they are now (gone ones dropped) */
+  const pickedObjects = useMemo(() => {
+    const out: { o: SurveyObject; pf: number }[] = []
+    for (const [id, pf] of picked) {
+      const o = worlds.data[pf]?.objects.find((x) => x.id === id)
+      if (o) out.push({ o, pf })
+    }
+    return out
+  }, [picked, worlds.data])
+  // deleted or replaced objects leave the selection
+  useEffect(() => {
+    if (pickedObjects.length !== picked.size) setPicked(new Map(pickedObjects.map(({ o, pf }) => [o.id, pf])))
+  }, [pickedObjects]) // eslint-disable-line react-hooks/exhaustive-deps
+  const deletable = pickedObjects.filter(({ o }) => editable(o.category) && o.kind !== 'buildie')
+  const pickedHidden = pickedObjects.filter(({ o }) => state.hidden.includes(o.id)).length
+
+  /** Every guess the filters keep in the loaded worlds (and your world). */
+  const pickGuesses = async () => {
+    if (state.playfield >= 0) worlds.ensure(state.playfield)
+    const items: { o: SurveyObject; pf: number }[] = []
+    for (const [pf, w] of Object.entries(worlds.data)) for (const o of w.objects) if (o.category === 'guessed' && keep(o, Number(pf))) items.push({ o, pf: Number(pf) })
+    pick(items, true)
+    setNote(items.length ? `Selected ${items.length} guess${items.length === 1 ? '' : 'es'}` : 'No guesses in the loaded worlds')
+  }
+
+  const deletePicked = async () => {
+    setConfirmDelete(false)
+    const list = deletable
+    let done = 0
+    for (const { o } of list) {
+      const r = await ctx.run(() => backend.remove(o.id))
+      if (!r) break
+      ctx.history.record({ kind: 'delete', id: o.id, name: o.name, record: r.id, snapshot: o, guess: o.category === 'guessed' })
+      done++
+    }
+    for (const pf of new Set(list.map((x) => x.pf))) await worlds.reload(pf)
+    await ctx.run(async () => null, 'all')
+    pick(list.slice(0, done), false)
+    setNote(`Deleted ${done} of ${list.length}`)
+  }
   const full = tab === 'definitions' ? [] : buildTab(env, treeTab)
 
   // the search, the tags and "needs work" keep only what matches (and open the way to it)
@@ -266,6 +321,7 @@ export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
   }, [state.selected, worlds.data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function onKey(e: KeyboardEvent, n: TNode) {
+    if (e.key === 'Escape' && picked.size) return (e.preventDefault(), setPicked(new Map()))
     if (!(e.ctrlKey || e.metaKey)) return
     const k = e.key.toLowerCase()
     if (k === 'c' && n.copy) (e.preventDefault(), copy(n.copy()))
@@ -378,6 +434,11 @@ export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
             <Button size="sm" variant="outline" className="h-7" onClick={() => ctx.run(() => backend.selectNearest(account))}>
               Select nearest
             </Button>
+            {tab === 'spawns' && (
+              <Button size="sm" variant="outline" className="h-7" onClick={pickGuesses} title="Selects every guess in the loaded worlds that the filters show, to hide or delete them together (Ctrl+click a row to add or drop one)">
+                Select guesses
+              </Button>
+            )}
             <Button size="sm" variant="outline" className="h-7" disabled={!hiddenCount} onClick={() => ctx.run(() => backend.unhideAll(account))}>
               Unhide all{hiddenCount ? ` (${hiddenCount})` : ''}
             </Button>
@@ -417,6 +478,32 @@ export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
             </div>
           )}
         </div>
+        {picked.size > 0 && (
+          <div className="flex flex-wrap items-center gap-1 border-b bg-primary/5 px-2 py-1.5 text-xs">
+            <span className="mr-1 font-medium" title={`in ${new Set(pickedObjects.map((x) => x.pf)).size} world(s)`}>
+              {pickedObjects.length} selected
+            </span>
+            <Button size="sm" variant="outline" className="h-7" disabled={pickedHidden === pickedObjects.length} onClick={() => ctx.run(() => backend.hide(account, pickedObjects.map(({ o }) => o.id), true))} title="Hide them in game (only for you; Unhide all brings them back)">
+              <EyeOffIcon /> Hide
+            </Button>
+            <Button size="sm" variant="outline" className="h-7" disabled={!pickedHidden} onClick={() => ctx.run(() => backend.hide(account, pickedObjects.map(({ o }) => o.id), false))} title="Show them in game again">
+              <EyeIcon /> Show
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-destructive"
+              disabled={!deletable.length}
+              onClick={() => setConfirmDelete(true)}
+              title={deletable.length < pickedObjects.length ? 'Live, demo and client objects can only be hidden: only the guesses and surveyed ones are deleted' : 'Delete them (Undo brings them back one by one)'}
+            >
+              <Trash2Icon /> Delete{deletable.length < pickedObjects.length ? ` ${deletable.length}` : ''}…
+            </Button>
+            <Button size="sm" variant="ghost" className="ml-auto h-7" onClick={() => setPicked(new Map())} title="Clear the selection">
+              <XIcon />
+            </Button>
+          </div>
+        )}
         <Tree nodes={nodes} open={shownOpen} setOpen={setOpen} selected={selKey} onSelect={select} onKey={onKey} />
         {note && <div className="border-t px-3 py-1 text-xs text-muted-foreground">{note}</div>}
       </section>
@@ -443,6 +530,29 @@ export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
           )}
         </div>
       </section>
+      <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {deletable.length} object{deletable.length === 1 ? '' : 's'}?</DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const g = deletable.filter(({ o }) => o.category === 'guessed').length
+                const parts = [g && `${g} guess${g === 1 ? '' : 'es'} (marked wrong)`, deletable.length - g && `${deletable.length - g} surveyed`].filter(Boolean)
+                return `${parts.join(' and ')} in ${new Set(deletable.map((x) => x.pf)).size} world(s). Undo brings them back one step at a time.`
+              })()}
+              {deletable.length < pickedObjects.length && ` ${pickedObjects.length - deletable.length} live/demo/client one(s) stay selected (those can only be hidden).`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={deletePicked}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Dialog open={marks} onOpenChange={setMarks}>
         <DialogContent>
           <DialogHeader>

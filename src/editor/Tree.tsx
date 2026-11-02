@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
-import { ChevronRightIcon, EyeIcon, EyeOffIcon, type LucideIcon } from 'lucide-react'
+import { CheckIcon, ChevronRightIcon, EyeIcon, EyeOffIcon, type LucideIcon } from 'lucide-react'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuShortcut, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { cn } from '@/lib/utils'
 import type { Clip, Target } from './clipboard'
@@ -54,6 +54,9 @@ export interface TNode {
   /** shown in game? (an eye toggles it) */
   shown?: boolean
   toggleShown?: () => void
+  /** in the multi-selection (Ctrl+click toggles it) */
+  picked?: boolean
+  pick?: () => void
   /** greyed (hidden in game, recorded only) */
   dim?: boolean
   /** a hint when hovering */
@@ -169,10 +172,10 @@ const Row = memo(function Row({
       aria-expanded={folder ? isOpen : undefined}
       aria-selected={isSelected}
       title={n.title}
-      onClick={() => onSelect(n)}
+      onClick={(e) => ((e.ctrlKey || e.metaKey) && n.pick ? n.pick() : onSelect(n))}
       onDoubleClick={() => folder && toggle()}
       onContextMenu={() => onSelect(n)}
-      className={cn('group flex h-7 cursor-default items-center gap-1 pr-2 select-none hover:bg-muted', isSelected && 'bg-accent hover:bg-accent', n.dim && 'opacity-55')}
+      className={cn('group flex h-7 cursor-default items-center gap-1 pr-2 select-none hover:bg-muted', isSelected && 'bg-accent hover:bg-accent', n.picked && 'bg-primary/10', n.dim && 'opacity-55')}
       style={{ paddingLeft: 4 + depth * 14 }}
     >
       <span
@@ -185,7 +188,13 @@ const Row = memo(function Row({
       >
         {folder && <ChevronRightIcon className={cn('size-3.5 transition-transform', isOpen && 'rotate-90')} />}
       </span>
-      <Icon className="size-4 shrink-0 text-muted-foreground" />
+      {n.picked ? (
+        <span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-primary text-primary-foreground" title="Selected (Ctrl+click to unselect)">
+          <CheckIcon className="size-3" />
+        </span>
+      ) : (
+        <Icon className="size-4 shrink-0 text-muted-foreground" />
+      )}
       {n.status && (
         <span
           className={cn('size-2 shrink-0 rounded-full', n.status === 'todo' ? 'bg-amber-500' : 'bg-emerald-500')}

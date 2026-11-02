@@ -58,6 +58,9 @@ export interface Env {
   /** jumps to a row (a link to a script) */
   reveal: (key: string, tab: Tab) => void
   remove: (o: SurveyObject) => void
+  /** the multi-selection (object ids), for hiding or deleting many at once */
+  picked: Set<string>
+  pick: (items: { o: SurveyObject; pf: number }[], on: boolean) => void
   /** selects a row and starts adding to it (opens its picker, or asks for a name) */
   add: (key: string, sel: Sel, intent: Intent) => void
 }
@@ -159,10 +162,13 @@ function objectNode(env: Env, key: string, o: SurveyObject, pf: number, w: World
       : undefined,
     copy,
     target: parent,
+    picked: env.picked.has(o.id),
+    pick: () => env.pick([{ o, pf }], !env.picked.has(o.id)),
     menu: menu(
       env,
       [
         { label: 'Copy', run: () => env.copy(copy()), shortcut: 'Ctrl+C' },
+        { label: env.picked.has(o.id) ? 'Unselect' : 'Add to selection', run: () => env.pick([{ o, pf }], !env.picked.has(o.id)), shortcut: 'Ctrl+click' },
         here && { label: 'Go to it', run: () => ctx.run(() => ctx.backend.teleport(ctx.account, o.pos)), separator: true },
         here && { label: hidden ? 'Show in game' : 'Hide in game', run: () => ctx.run(() => ctx.backend.hide(ctx.account, [o.id], !hidden)) },
         editable(o.category) && o.kind !== 'buildie' && { label: o.category === 'guessed' ? 'Delete (the guess is wrong)' : 'Delete', danger: true, run: () => env.remove(o), separator: true },
@@ -170,6 +176,16 @@ function objectNode(env: Env, key: string, o: SurveyObject, pf: number, w: World
       parent,
     ),
   }
+}
+
+/** A folder's "Select its guesses" / "Select all" (adds to the multi-selection). */
+function pickItems(env: Env, list: SurveyObject[], pf: number): MenuItem[] {
+  const guesses = list.filter((o) => o.category === 'guessed')
+  const items = (l: SurveyObject[]) => l.map((o) => ({ o, pf }))
+  return [
+    { label: `Select its guesses (${guesses.length})`, run: () => env.pick(items(guesses), true), disabled: !guesses.length, separator: true },
+    { label: `Select all (${list.length})`, run: () => env.pick(items(list), true), disabled: !list.length },
+  ]
 }
 
 /** Spawns/: a folder per world that has anything in it (or was added by hand). */
@@ -206,6 +222,7 @@ function worldNode(env: Env, pf: number): TNode {
         { label: 'New spawn…', run: () => env.add(key, { t: 'world', pf }, { add: 'spawn' }), separator: true },
         { label: 'New trigger…', run: () => env.add(key, { t: 'world', pf }, { add: 'trigger' }) },
         { label: 'New script', run: () => env.add(key, { t: 'folder', kind: 'world-scripts', pf }, { add: 'name' }) },
+        ...(w ? pickItems(env, w.objects.filter((o) => env.keep(o, pf)), pf) : []),
       ],
       target,
     ),
@@ -256,7 +273,7 @@ function worldKids(env: Env, pf: number, w: WorldData, key: string): TNode[] {
       count: ownWalls.length,
       dim: !ownWalls.length,
       target,
-      menu: menu(env, [{ label: 'New trigger…', run: () => env.add(`${key}/triggers`, { t: 'folder', kind: 'world-triggers', pf }, { add: 'trigger' }) }], target),
+      menu: menu(env, [{ label: 'New trigger…', run: () => env.add(`${key}/triggers`, { t: 'folder', kind: 'world-triggers', pf }, { add: 'trigger' }) }, ...pickItems(env, ownWalls, pf)], target),
       children: ownWalls.map((o) => objectNode(env, `${key}/triggers/${o.id}`, o, pf, w, target)),
     })
   if (w.notes.notes.length)
@@ -296,7 +313,7 @@ function worldKids(env: Env, pf: number, w: WorldData, key: string): TNode[] {
       dim: !list.length,
       aside: guesses ? `${guesses} to check` : undefined,
       target,
-      menu: menu(env, [{ label: `New ${one}…`, run: () => env.add(k, sel, { add: 'spawn', kind }) }], target),
+      menu: menu(env, [{ label: `New ${one}…`, run: () => env.add(k, sel, { add: 'spawn', kind }) }, ...pickItems(env, list, pf)], target),
       children: () => list.map((o) => objectNode(env, `${k}/${o.id}`, o, pf, w, target)),
     })
   }
