@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { memo, useCallback, useEffect, useRef, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { CheckIcon, ChevronRightIcon, EyeIcon, EyeOffIcon, type LucideIcon } from 'lucide-react'
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuShortcut, ContextMenuTrigger } from '@/components/ui/context-menu'
 import { cn } from '@/lib/utils'
@@ -54,9 +54,10 @@ export interface TNode {
   /** shown in game? (an eye toggles it) */
   shown?: boolean
   toggleShown?: () => void
-  /** in the multi-selection (Ctrl+click toggles it) */
+  /** in the multi-selection */
   picked?: boolean
-  pick?: () => void
+  /** what the multi-selection holds for it (rows without one can't be multi-selected) */
+  pickItem?: PickItem
   /** greyed (hidden in game, recorded only) */
   dim?: boolean
   /** a hint when hovering */
@@ -69,11 +70,23 @@ export interface TNode {
   target?: Target
 }
 
+/** An object in the multi-selection: its id and world. */
+export interface PickItem {
+  id: string
+  pf: number
+}
+/** toggle: each flips; add: they join; replace: they become the selection */
+export type PickMode = 'toggle' | 'add' | 'replace'
+
 export const kidsOf = (n: TNode): TNode[] => (typeof n.children === 'function' ? n.children() : (n.children ?? []))
 
 /**
  * A file-system-like tree: folders open and close (remembered by the caller), a click selects,
  * a right click opens the row's menu (copy, paste, ...), arrow keys move.
+ *
+ * Multi-selection (rows with a `pickItem`), as in a file manager: Ctrl+click toggles a row,
+ * Shift+click selects the range from the last clicked row (Ctrl+Shift+click adds it), Shift+arrows
+ * extend it, Ctrl+A selects every visible row, Space toggles the current row.
  */
 export function Tree({
   nodes,
@@ -82,6 +95,8 @@ export function Tree({
   selected,
   onSelect,
   onKey,
+  pickCount = 0,
+  onPick,
 }: {
   nodes: TNode[]
   open: Set<string>
@@ -90,6 +105,9 @@ export function Tree({
   onSelect: (n: TNode) => void
   /** keys pressed on the selected row (Ctrl+C, Ctrl+V, ...) */
   onKey?: (e: KeyboardEvent, n: TNode) => void
+  /** how many are multi-selected (also in closed folders) */
+  pickCount?: number
+  onPick?: (items: PickItem[], mode: PickMode) => void
 }) {
   const box = useRef<HTMLDivElement>(null)
   // the visible rows in order, for the arrow keys
@@ -101,6 +119,44 @@ export function Tree({
     }
   }
   walk(nodes, 0)
+
+  // where a Shift range starts: the last row selected without Shift
+  const anchor = useRef<string | null>(selected)
+  const shifting = useRef(false)
+  useEffect(() => {
+    if (!shifting.current) anchor.current = selected
+    shifting.current = false
+  }, [selected])
+  const items = (rows: { n: TNode }[]) => rows.map((r) => r.n.pickItem).filter((x): x is PickItem => !!x)
+  /** the rows from the anchor to `to` */
+  const range = (to: number) => {
+    let a = flat.findIndex((r) => r.n.key === anchor.current)
+    if (a < 0) a = to
+    return flat.slice(Math.min(a, to), Math.max(a, to) + 1)
+  }
+
+  function click(e: MouseEvent, n: TNode) {
+    const i = flat.findIndex((r) => r.n.key === n.key)
+    const ctrl = e.ctrlKey || e.metaKey
+    if (onPick && e.shiftKey) {
+      onPick(items(range(i)), ctrl ? 'add' : 'replace')
+      if (n.key !== selected) ((shifting.current = true), onSelect(n))
+      return
+    }
+    if (onPick && ctrl && n.pickItem) {
+      // starting a selection: the row you were on joins it (as in a file manager)
+      const cur = flat.find((r) => r.n.key === selected)?.n.pickItem
+      if (!pickCount && cur && cur.id !== n.pickItem.id) onPick([cur], 'add')
+      onPick([n.pickItem], 'toggle')
+      anchor.current = n.key
+      return
+    }
+    onSelect(n)
+  }
+  // (a stable handler, so rows stay memoized)
+  const clickRef = useRef(click)
+  clickRef.current = click
+  const onClick = useCallback((e: MouseEvent, n: TNode) => clickRef.current(e, n), [])
 
   // the selected row scrolled into view (selected in game, or by a link)
   useEffect(() => {
@@ -117,8 +173,25 @@ export function Tree({
       if (e.defaultPrevented) return
     }
     const go = (j: number) => {
-      const r = flat[Math.max(0, Math.min(flat.length - 1, j))]
-      if (r) (e.preventDefault(), onSelect(r.n))
+      const to = Math.max(0, Math.min(flat.length - 1, j))
+      const r = flat[to]
+      if (!r) return
+      e.preventDefault()
+      if (e.shiftKey && onPick) {
+        onPick(items(range(to)), 'replace')
+        shifting.current = true
+      }
+      onSelect(r.n)
+    }
+    if (onPick && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+      e.preventDefault()
+      onPick(items(flat), 'add')
+      return
+    }
+    if (onPick && e.key === ' ' && cur?.pickItem) {
+      e.preventDefault()
+      onPick([cur.pickItem], 'toggle')
+      return
     }
     if (e.key === 'ArrowDown') go(i + 1)
     else if (e.key === 'ArrowUp') go(i - 1)
@@ -137,7 +210,7 @@ export function Tree({
   return (
     <div ref={box} role="tree" tabIndex={0} onKeyDown={keyDown} className="min-h-0 flex-1 overflow-auto py-1 text-[13px] outline-none">
       {flat.map(({ n, depth }) => (
-        <Row key={n.key} n={n} depth={depth} isOpen={open.has(n.key)} isSelected={n.key === selected} setOpen={setOpen} onSelect={onSelect} />
+        <Row key={n.key} n={n} depth={depth} isOpen={open.has(n.key)} isSelected={n.key === selected} setOpen={setOpen} onClick={onClick} />
       ))}
       {!flat.length && <p className="px-3 py-2 text-muted-foreground">Nothing here matches.</p>}
     </div>
@@ -150,14 +223,14 @@ const Row = memo(function Row({
   isOpen,
   isSelected,
   setOpen,
-  onSelect,
+  onClick,
 }: {
   n: TNode
   depth: number
   isOpen: boolean
   isSelected: boolean
   setOpen: (key: string, open: boolean) => void
-  onSelect: (n: TNode) => void
+  onClick: (e: MouseEvent, n: TNode) => void
 }) {
   const folder = !!n.children
   const toggle = () => {
@@ -172,9 +245,9 @@ const Row = memo(function Row({
       aria-expanded={folder ? isOpen : undefined}
       aria-selected={isSelected}
       title={n.title}
-      onClick={(e) => ((e.ctrlKey || e.metaKey) && n.pick ? n.pick() : onSelect(n))}
+      onClick={(e) => onClick(e, n)}
       onDoubleClick={() => folder && toggle()}
-      onContextMenu={() => onSelect(n)}
+      onContextMenu={(e) => onClick(e, n)}
       className={cn('group flex h-7 cursor-default items-center gap-1 pr-2 select-none hover:bg-muted', isSelected && 'bg-accent hover:bg-accent', n.picked && 'bg-primary/10', n.dim && 'opacity-55')}
       style={{ paddingLeft: 4 + depth * 14 }}
     >
@@ -189,7 +262,7 @@ const Row = memo(function Row({
         {folder && <ChevronRightIcon className={cn('size-3.5 transition-transform', isOpen && 'rotate-90')} />}
       </span>
       {n.picked ? (
-        <span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-primary text-primary-foreground" title="Selected (Ctrl+click to unselect)">
+        <span className="flex size-4 shrink-0 items-center justify-center rounded-sm bg-primary text-primary-foreground" title="Selected (Ctrl+click to unselect, Esc clears)">
           <CheckIcon className="size-3" />
         </span>
       ) : (

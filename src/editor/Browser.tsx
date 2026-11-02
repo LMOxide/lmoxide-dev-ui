@@ -19,7 +19,7 @@ import { Marks } from './Marks'
 import { buildTab, filterTree, worldName, type Env, type Intent, type Tab } from './nodes'
 import { newWave } from './WaveTrigger'
 import { newId } from './NotesPanel'
-import { Tree, type Sel, type TNode } from './Tree'
+import { Tree, type PickItem, type PickMode, type Sel, type TNode } from './Tree'
 import type { Ctx } from './WorldEditor'
 import type { Worlds } from './worlds'
 import { CATEGORIES, editable, type Category, type SurveyObject } from './types'
@@ -188,6 +188,17 @@ export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
     [backend, ctx, worlds, reveal, setOpen],
   )
 
+  /** the tree's clicks and keys (Ctrl/Shift+click, Shift+arrows, Ctrl+A, Space) */
+  const pickRows = useCallback((items: PickItem[], mode: PickMode) => {
+    setPicked((m) => {
+      const n = mode === 'replace' ? new Map<string, number>() : new Map(m)
+      for (const { id, pf } of items) {
+        if (mode === 'toggle' && n.has(id)) n.delete(id)
+        else n.set(id, pf)
+      }
+      return n
+    })
+  }, [])
   const pickedIds = useMemo(() => new Set(picked.keys()), [picked])
   const env: Env = { ctx, worlds, targets: ctx.targets, clip, copy, paste: doPaste, pinned, keep, reveal, remove, add, picked: pickedIds, pick }
 
@@ -435,7 +446,7 @@ export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
               Select nearest
             </Button>
             {tab === 'spawns' && (
-              <Button size="sm" variant="outline" className="h-7" onClick={pickGuesses} title="Selects every guess in the loaded worlds that the filters show, to hide or delete them together (Ctrl+click a row to add or drop one)">
+              <Button size="sm" variant="outline" className="h-7" onClick={pickGuesses} title="Selects every guess in the loaded worlds that the filters show, to hide or delete them together. In the tree: Ctrl+click toggles a row, Shift+click selects a range (Ctrl+Shift+click adds one), Shift+arrows extend, Ctrl+A selects every visible row, Space toggles, Esc clears">
                 Select guesses
               </Button>
             )}
@@ -504,7 +515,7 @@ export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
             </Button>
           </div>
         )}
-        <Tree nodes={nodes} open={shownOpen} setOpen={setOpen} selected={selKey} onSelect={select} onKey={onKey} />
+        <Tree nodes={nodes} open={shownOpen} setOpen={setOpen} selected={selKey} onSelect={select} onKey={onKey} pickCount={picked.size} onPick={pickRows} />
         {note && <div className="border-t px-3 py-1 text-xs text-muted-foreground">{note}</div>}
       </section>
       <section className={cn('min-h-0 min-w-0 flex-1 overflow-auto p-4', pane !== 'details' && 'max-md:hidden')}>

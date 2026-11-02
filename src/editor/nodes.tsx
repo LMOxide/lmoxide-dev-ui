@@ -163,7 +163,7 @@ function objectNode(env: Env, key: string, o: SurveyObject, pf: number, w: World
     copy,
     target: parent,
     picked: env.picked.has(o.id),
-    pick: () => env.pick([{ o, pf }], !env.picked.has(o.id)),
+    pickItem: { id: o.id, pf },
     menu: menu(
       env,
       [
