@@ -25,7 +25,7 @@ import type {
   TriggerTargets,
   CommitRequest,
   Committed,
-  Contribution,
+  Branch,
   Unpublished,
   WallSettings,
   WaveRef,
@@ -424,27 +424,40 @@ export class MockBackend implements SurveyBackend {
     }
     return [...groups.values()].map((g) => ({ ...g, summary: (['added', 'changed', 'removed'] as const).map((op) => [g.items.filter((i) => i.op === op).length, op] as const).filter(([n]) => n).map(([n, op]) => `${n} ${op}`).join(', ') }))
   }
-  /** the mock's commits */
-  private contributions: Contribution[] = []
+  /** the mock's branches */
+  private mockBranches = new Map<string, Branch>()
   async commit(req: CommitRequest): Promise<Committed> {
-    const records: Contribution['records'] = []
+    const records: Branch['records'] = []
     for (const [id, item] of this.unpublishedItems) {
       if ((req.feature === undefined || item.feature === req.feature) && (!req.ids || req.ids.includes(id))) {
         this.unpublishedItems.delete(id)
-        records.push({ id, feature: item.feature, change: item.op, file: `mock/${item.kind}.json`, author: 'mock', before: null, after: item.op === 'removed' ? null : { id, name: item.name } })
+        records.push({ id, feature: item.feature, change: item.op, file: `mock/${item.kind}.json`, author: 'mock', before: null, after: item.op === 'removed' ? null : { id, name: item.name }, conflict: false })
       }
     }
+    const title = req.branch?.trim() || 'changes'
+    const name = `contrib/mock/${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
     const hash = Math.random().toString(16).slice(2).padEnd(40, '0')
     const message = req.message.trim()
-    this.contributions.push({ hash, branch: 'contrib/mock', author: 'mock', by: 'mock', created: now(), subject: message.split('\n')[0], message, status: 'pending', records })
-    return { commit: hash, branch: 'contrib/mock', records: records.length, unpublished: await this.unpublished() }
+    const b: Branch = this.mockBranches.get(name) ?? { branch: name, title, author: 'mock', status: 'pending', tip: hash, base: '0'.repeat(40), updated: now(), commits: [], records: [], conflicts: 0 }
+    b.commits.push({ hash, author: 'mock', by: 'mock', created: now(), subject: message.split('\n')[0], message })
+    b.records.push(...records)
+    Object.assign(b, { tip: hash, updated: now(), status: 'pending', decision: undefined })
+    this.mockBranches.set(name, b)
+    return { commit: hash, branch: name, records: records.length, unpublished: await this.unpublished() }
   }
-  async commits() {
-    return structuredClone(this.contributions)
+  async branches() {
+    return structuredClone([...this.mockBranches.values()])
   }
-  async downloadCommits(format: 'patch' | 'bundle') {
-    const pending = this.contributions.filter((c) => c.status === 'pending')
-    return new Blob([format === 'patch' ? pending.map((c) => `From ${c.hash}\nSubject: [PATCH] ${c.subject}\n\n(mock)\n`).join('\n') : 'mock bundle'])
+  async resetBranch(branch: string, remove: boolean) {
+    const b = this.mockBranches.get(branch)
+    if (!b) throw new Error(`no branch ${branch}`)
+    if (remove) this.mockBranches.delete(branch)
+    else this.mockBranches.set(branch, { ...b, status: 'open', commits: [], records: [] })
+    return { branch: structuredClone(b), reverted: b.records.length }
+  }
+  async downloadBranch(branch: string, format: 'patch' | 'bundle') {
+    const b = this.mockBranches.get(branch)
+    return new Blob([format === 'patch' ? (b?.commits ?? []).map((c) => `From ${c.hash}\nSubject: [PATCH] ${c.subject}\n\n(mock)\n`).join('\n') : 'mock bundle'])
   }
   async exportChanges(): Promise<ChangesExport> {
     const records = [...this.unpublishedItems.values()].map((i) => ({ id: i.id, feature: i.feature, change: i.op, file: `mock/${i.kind}.json`, author: 'mock', before: null, after: i.op === 'removed' ? null : { id: i.id, name: i.name } }))

@@ -21,7 +21,7 @@ import type {
   TriggerTargets,
   CommitRequest,
   Committed,
-  Contribution,
+  Branch,
   Unpublished,
   ChangesExport,
   WallLook,
@@ -94,12 +94,14 @@ export interface SurveyBackend {
   put(id: string, snapshot: SurveyObject): Promise<SurveyObject>
   /** Changes not committed yet (saved on the server, not seen by the progression and maxed modes), the caller's first. */
   unpublished(): Promise<Unpublished[]>
-  /** Commits one editor's changes (by default all of the caller's) to their branch, with a message: for an admin to merge. */
+  /** Commits one editor's changes (by default all of the caller's) to one of their branches, with a message: for an admin to merge. */
   commit(req: CommitRequest): Promise<Committed>
-  /** The caller's commits (pending, merged, rejected with the reason), oldest first. */
-  commits(): Promise<Contribution[]>
-  /** The caller's commits not merged yet: patches (`git am`) or a git bundle. */
-  downloadCommits(format: 'patch' | 'bundle'): Promise<Blob>
+  /** The caller's branches: open ones (pending, rejected, open), then closed ones. */
+  branches(): Promise<Branch[]>
+  /** Resets (or deletes) one of the caller's branches: its records in the working copy go back to the content's. */
+  resetBranch(branch: string, remove: boolean): Promise<{ branch: Branch; reverted: number }>
+  /** A branch's unmerged commits: patches (`git am`) or a git bundle. */
+  downloadBranch(branch: string, format: 'patch' | 'bundle'): Promise<Blob>
   /** Everything the caller changed since the last commit, committed or not, to download. */
   exportChanges(): Promise<ChangesExport>
   /** Every named playfield, with how much is in it. */
@@ -276,15 +278,19 @@ export class HttpBackend implements SurveyBackend {
   commit(req: CommitRequest) {
     return this.call<Committed>('POST', '/commit', req)
   }
-  commits() {
-    return this.call<Contribution[]>('GET', '/commits')
+  branches() {
+    return this.call<Branch[]>('GET', '/branches')
   }
-  async downloadCommits(format: 'patch' | 'bundle') {
+  resetBranch(branch: string, remove: boolean) {
+    const path = '/branches/' + branch.replace(/^contrib\//, '')
+    return this.call<{ branch: Branch; reverted: number }>(remove ? 'DELETE' : 'POST', remove ? path : `${path}/reset`)
+  }
+  async downloadBranch(branch: string, format: 'patch' | 'bundle') {
     const headers: Record<string, string> = {}
     if (this.token) headers.Authorization = `Bearer ${this.token}`
     let res: Response
     try {
-      res = await fetch(`${this.base}/v1/survey/download?format=${format}`, { headers })
+      res = await fetch(`${this.base}/v1/survey/download?branch=${encodeURIComponent(branch)}&format=${format}`, { headers })
     } catch (e) {
       throw new ApiError(0, 'network', `can't reach ${this.base} (${e instanceof Error ? e.message : e})`)
     }

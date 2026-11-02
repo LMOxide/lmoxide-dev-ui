@@ -255,11 +255,14 @@ export interface Unpublished {
   items: { kind: 'placement' | 'trigger' | 'note' | 'script' | 'smash_rule' | 'record'; id: string; name: string; op: 'added' | 'changed' | 'removed'; details?: string[]; updated: number; tags?: string[] }[]
 }
 
-/** `POST /v1/survey/commit`: one commit on the author's branch (`contrib/<name>`) of the given
- * playfield's, feature's and records' changes of one author (default: the caller). */
+/** `POST /v1/survey/commit`: one commit on one of the author's branches
+ * (`contrib/<editor>/<branch>`) of the given playfield's, feature's and records' changes of
+ * one author (default: the caller). */
 export interface CommitRequest {
   /** what changed and why (the first line is the subject) */
   message: string
+  /** the branch's name: one of theirs, or a new one (default "changes") */
+  branch?: string
   playfield?: number
   feature?: string
   author?: string
@@ -274,22 +277,26 @@ export interface Committed {
   unpublished: Unpublished[]
 }
 
-/** A contributor's commit (`GET /v1/survey/commits`, lmoxide_content::contrib::Contribution). */
-export interface Contribution {
-  hash: string
+/** A contributor branch (`GET /v1/survey/branches`, lmoxide_content::contrib::Branch): reviewed
+ * as a whole; merging puts its records into the content as one commit. */
+export interface Branch {
+  /** contrib/<editor>/<name> */
   branch: string
-  /** whose changes */
+  /** the name as typed */
+  title: string
   author: string
-  /** who committed them */
-  by: string
-  /** unix time */
-  created: number
-  subject: string
-  /** the whole message */
-  message: string
-  status: 'pending' | 'merged' | 'rejected'
-  decision?: { status: string; by: string; at: number; reason?: string; merged_as?: string }
-  records: { id: string; feature: string; change: 'added' | 'changed' | 'removed'; file: string; author: string; before: unknown; after: unknown }[]
+  /** open: nothing to merge; rejected until the next commit; closed: merged, reset, deleted */
+  status: 'open' | 'pending' | 'rejected' | 'merged' | 'reset' | 'deleted'
+  tip: string
+  base: string
+  /** unix time of its last commit */
+  updated: number
+  decision?: { status: string; by: string; at: number; reason?: string; tip: string }
+  closed?: { branch: string; title: string; status: string; by: string; at: number; merged_as?: string; decision?: { by: string; at: number; reason?: string } }
+  commits: { hash: string; author: string; by: string; created: number; subject: string; message: string }[]
+  /** before: as the content has it now; conflict: the content changed it since the branch started */
+  records: { id: string; feature: string; change: 'added' | 'changed' | 'removed'; file: string; author: string; before: unknown; after: unknown; conflict: boolean; base?: unknown }[]
+  conflicts: number
 }
 
 /** `GET /v1/survey/export`: everything one editor changed since the working copy's last commit,
