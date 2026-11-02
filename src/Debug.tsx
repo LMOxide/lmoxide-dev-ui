@@ -1,4 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { getParam, setParams } from './url'
 import { best, bossNames, modeName, places, playfieldName, score, type GameData } from './suggest'
 import type { Instances, MonsterData, Player } from './types'
 import { Heading } from './Heading'
@@ -172,8 +173,10 @@ export function Debug({
   /** the achievements and story read the chosen player's saved character */
   api: Api
 }) {
-  const [q, setQ] = useState<Record<string, string>>({})
+  // (a linked search belongs to the section the link opens)
+  const [q, setQ] = useState<Record<string, string>>(() => ({ [section]: getParam('q') ?? '' }))
   const query = q[section] ?? ''
+  useEffect(() => setParams({ q: query }), [query])
   const setQuery = (v: string) => setQ((old) => ({ ...old, [section]: v }))
   const pf = (id: number) => playfieldName(data, id)
   const tests = data.tests

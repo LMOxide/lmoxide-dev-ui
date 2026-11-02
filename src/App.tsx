@@ -7,6 +7,7 @@ import { FilterPanel } from './Filters'
 import { DEFAULT_TAGS, isEmpty, type Note, type Notes } from './notes'
 import { NotesPanel } from './NotesPanel'
 import { KEYS, loadJson, saveJson } from './storage'
+import { getParam, objectParams, readObjectParams, setParams } from './url'
 import { Console, type LogEntry } from './Console'
 import { Debug, type Section } from './Debug'
 import { Palette } from './Palette'
@@ -32,8 +33,9 @@ const MODES: [string, string][] = [
   ['world-editor', 'World editor'],
 ]
 
-function useStored<T>(key: string, fallback: T, inSession = false): [T, (v: T | ((old: T) => T)) => void] {
-  const [value, setValue] = useState<T>(() => loadJson(key, fallback, inSession))
+/** A remembered value; `linked` (from the address) wins over the remembered one. */
+function useStored<T>(key: string, fallback: T, inSession = false, linked: T | null = null): [T, (v: T | ((old: T) => T)) => void] {
+  const [value, setValue] = useState<T>(() => linked ?? loadJson(key, fallback, inSession))
   const set = useCallback(
     (v: T | ((old: T) => T)) =>
       setValue((old) => {
@@ -75,15 +77,15 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
   const [instancesError, setInstancesError] = useState('')
   const [playersError, setPlayersError] = useState('')
   const [chosen, setChosen] = useStored<Chosen | null>(KEYS.player, null)
-  const [filters, setFilters] = useStored<Filters>(KEYS.filters, NO_FILTERS)
+  const [filters, setFilters] = useStored<Filters>(KEYS.filters, NO_FILTERS, false, readObjectParams('fx', NO_FILTERS))
   const [notes, setNotes] = useStored<Notes>(KEYS.notes, {})
   const [customTags, setCustomTags] = useStored<string[]>(KEYS.tags, [])
   const [autoplay, setAutoplay] = useStored(KEYS.autoplay, true)
-  const [selected, setSelected] = useState<number | null>(null)
+  const [selected, setSelected] = useState<number | null>(() => (Number(getParam('effect')) > 0 ? Number(getParam('effect')) : null))
   const [playing, setPlaying] = useState<number | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
-  const [tab, setTab] = useState<Tab>('effect')
-  const [section, setSection] = useStored<Section>(KEYS.debugSection, 'quick')
+  const [tab, setTab] = useState<Tab>(() => (['effect', 'console', 'notes'].includes(getParam('tab') ?? '') ? (getParam('tab') as Tab) : 'effect'))
+  const [section, setSection] = useStored<Section>(KEYS.debugSection, 'quick', false, getParam('section') as Section | null)
   const [consoleValue, setConsoleValue] = useState('')
   /** narrow screens: which pane shows */
   const [narrowPane, setNarrowPane] = useState<'main' | 'console'>('main')
@@ -277,6 +279,16 @@ function Browser({ api, session, logout, expire }: { api: Api; session: Session;
   const canFx = canSend && may('!fx')
   /** the Effects section is open (and allowed: contributors): the right pane shows the entry, the console and notes */
   const effectsOpen = section === 'effects' && may('!fx')
+
+  // the address names the section, and in Effects the filters, the entry and the tab beside it
+  useEffect(() => {
+    setParams({
+      section,
+      ...objectParams('fx', effectsOpen ? filters : NO_FILTERS, NO_FILTERS),
+      effect: effectsOpen && selected !== null ? String(selected) : null,
+      tab: effectsOpen && tab !== 'effect' ? tab : null,
+    })
+  }, [section, effectsOpen, filters, selected, tab])
 
   const send = useCallback(
     async (command: string) => {

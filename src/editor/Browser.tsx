@@ -8,6 +8,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { loadJson, saveJson } from '../storage'
+import { getParam, objectParams, readObjectParams, setParams } from '../url'
 import { clipLabel, paste, type Clip, type Target } from './clipboard'
 import { Details, NewScript } from './Details'
 import { Definitions } from './Definitions'
@@ -51,10 +52,16 @@ const NO_FILTERS: Filters = { cats: CATEGORIES, author: '', feature: '', radius:
  * waves, achievements), the selected row's details beside it.
  */
 export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
-  const [tab, setTabState] = useState<AnyTab>(() => loadJson(TAB_KEY, 'spawns'))
+  const [tab, setTabState] = useState<AnyTab>(() => {
+    const linked = getParam('tab')
+    return linked && [...TABS.map(([t]) => t), 'definitions'].includes(linked) ? (linked as AnyTab) : loadJson(TAB_KEY, 'spawns')
+  })
   const setTab = useCallback((t: AnyTab) => (setTabState(t), saveJson(TAB_KEY, t)), [])
   /** the content record the Definitions tab shows */
-  const [record, setRecord] = useState<RecordKey | null>(null)
+  const [record, setRecord] = useState<RecordKey | null>(() => {
+    const id = getParam('record')
+    return id ? { id, feature: getParam('record-feature') || 'live' } : null
+  })
   const openRecord = useCallback(
     (id: string, feature = 'live') => {
       setRecord({ id, feature })
@@ -76,13 +83,13 @@ export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
     })
   }, [])
   const [pinned, setPinned] = useState<number[]>(() => loadJson(PINNED_KEY, []))
-  const [selKey, setSelKey] = useState<string | null>(null)
+  const [selKey, setSelKey] = useState<string | null>(() => getParam('sel'))
   const [sel, setSel] = useState<Sel | null>(null)
   const [clip, setClip] = useState<Clip | null>(null)
-  const [query, setQuery] = useState('')
-  const [tags, setTags] = useState<string[]>([])
-  const [todo, setTodo] = useState(false)
-  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
+  const [query, setQuery] = useState(() => (getParam('tab') === 'definitions' ? '' : (getParam('q') ?? '')))
+  const [tags, setTags] = useState<string[]>(() => getParam('tags')?.split(',').filter(Boolean) ?? [])
+  const [todo, setTodo] = useState(() => getParam('todo') === '1')
+  const [filters, setFilters] = useState<Filters>(() => readObjectParams('f', NO_FILTERS) ?? NO_FILTERS)
   const [marks, setMarks] = useState(false)
   /** narrow screens: the tree or the details */
   const [pane, setPane] = useState<'tree' | 'details'>('tree')
@@ -200,15 +207,40 @@ export function Browser({ ctx: base, worlds }: { ctx: Ctx; worlds: Worlds }) {
     [account, backend, ctx, state.playfield, state.selected],
   )
 
+  // a row from the address: its world loads (shown in Spawns too), and the row shows once it's there
+  const linkedSel = useRef(selKey)
+  useEffect(() => {
+    const pf = Number(linkedSel.current?.match(/^[a-z]:(\d+)/)?.[1] ?? NaN)
+    if (Number.isNaN(pf)) return
+    worlds.ensure(pf)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   // the row keyed `selKey` (a link, a tab switch) gives its details; its folders open
   useEffect(() => {
     if (!selKey) return
     const path = pathTo(full, (n) => n.key === selKey)
     if (!path) return
+    if (selKey === linkedSel.current) {
+      linkedSel.current = null
+      setPane('details')
+    }
     for (const p of path.slice(0, -1)) if (!open.has(p.key)) setOpen(p.key, true)
     const n = path[path.length - 1]
     if (!sameSel(n.sel, sel)) setSel(n.sel ?? null)
-  }, [selKey, tab]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selKey, tab, linkedSel.current ? worlds.data : null]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // the address names the tab, the search and filters, and the chosen row (the Definitions tab writes its own)
+  useEffect(() => {
+    const inTree = tab !== 'definitions'
+    setParams({
+      tab,
+      // (Definitions keeps its own search in q)
+      ...(inTree ? { q: query } : {}),
+      tags: inTree ? tags.join(',') : null,
+      todo: inTree && todo ? '1' : null,
+      ...objectParams('f', inTree ? filters : NO_FILTERS, NO_FILTERS),
+      sel: inTree ? selKey : null,
+    })
+  }, [tab, query, tags, todo, filters, selKey])
 
   // selected in game (by attacking it, Select nearest, placing): its row in the tree
   const lastGame = useRef<string | null>(null)

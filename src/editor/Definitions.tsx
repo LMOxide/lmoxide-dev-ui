@@ -10,6 +10,7 @@ import { memo, type FormEnv } from './form/Form'
 import { emptyOf, obj, type S } from './form/schema'
 import { RecordView } from './RecordView'
 import type { Ctx } from './WorldEditor'
+import { getParam, objectParams, readObjectParams, setParams } from '../url'
 
 /** How many rows a list shows (type to narrow it). */
 const LIMIT = 300
@@ -17,6 +18,9 @@ const LIMIT = 300
 const show = (v: Json) => (typeof v === 'string' ? v : Array.isArray(v) ? `${v.length} items` : JSON.stringify(v))
 
 /** "Problems" and "Unpublished" are lists across every kind. */
+/** the filters a link can carry (each absent: any) */
+const NO_FILTERS: Pick<ListQuery, 'feature' | 'source' | 'tag' | 'author'> = { feature: undefined, source: undefined, tag: undefined, author: undefined }
+
 type Folder = { kind: string } | { problems: true } | { changed: true }
 
 /**
@@ -25,9 +29,27 @@ type Folder = { kind: string } | { problems: true } | { changed: true }
  * filters, and the chosen record's page.
  */
 export function Definitions({ ctx, content, kinds, tabs, at, setAt }: { ctx: Ctx; content: ContentBackend; kinds: Kinds; tabs: ReactNode; at: RecordKey | null; setAt: (k: RecordKey | null) => void }) {
-  const [folder, setFolder] = useState<Folder>({ kind: at ? at.id.split('/')[0] : 'npc' })
-  const [q, setQ] = useState('')
-  const [filters, setFilters] = useState<Pick<ListQuery, 'feature' | 'source' | 'tag' | 'author'>>({})
+  const [folder, setFolder] = useState<Folder>(() => {
+    const linked = getParam('kind')
+    if (linked === 'problems') return { problems: true }
+    if (linked === 'unpublished') return { changed: true }
+    return { kind: linked || (at ? at.id.split('/')[0] : 'npc') }
+  })
+  const [q, setQ] = useState(() => getParam('q') ?? '')
+  const [filters, setFilters] = useState<Pick<ListQuery, 'feature' | 'source' | 'tag' | 'author'>>(() => readObjectParams('d', NO_FILTERS) ?? {})
+
+  // the address names the list, its search and filters, and the open record
+  useEffect(() => {
+    setParams({
+      kind: 'kind' in folder ? folder.kind : 'problems' in folder ? 'problems' : 'unpublished',
+      q,
+      ...objectParams('d', filters, NO_FILTERS),
+      record: at?.id ?? null,
+      'record-feature': at && at.feature !== 'live' ? at.feature : null,
+    })
+  }, [folder, q, filters, at])
+  // (leaving the tab: none of it applies to the tree)
+  useEffect(() => () => setParams({ kind: null, ...objectParams('d', NO_FILTERS, NO_FILTERS), record: null, 'record-feature': null }), [])
   const [list, setList] = useState<{ total: number; records: Summary[] } | null>(null)
   const [error, setError] = useState('')
   /** raised by every save: lists and pickers load again */
