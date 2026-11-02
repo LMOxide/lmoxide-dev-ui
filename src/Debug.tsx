@@ -505,6 +505,11 @@ function Quick({ send, canSend, may }: { send: (cmd: string) => void; canSend: b
         {b('!plates solve', 'Plates: solve')}
         {b('!plates reset', 'Plates: reset')}
       </div>
+      <div className="chips quick-row">
+        {b('!area complete', 'Area quest: complete', '!area complete: complete the area quest you are in (or the nearest arena\'s) and open its arena gates')}
+        {b('!area reset', 'Area quest: reset', '!area reset: clear your progress and cooldown on the area quest here and put its arena back (doors, goal count)')}
+        {b('!area', 'Area quest: state', '!area: the area quest here, its arenas and their state')}
+      </div>
       <p className="muted small">The server's answer to each command appears in the console.</p>
     </div>
   )
