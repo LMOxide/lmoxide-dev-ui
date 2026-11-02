@@ -13,7 +13,9 @@ function flush() {
     else url.searchParams.set(k, v)
   }
   pending.clear()
-  const next = url.pathname + (url.searchParams.size ? `?${url.searchParams}` : '') + url.hash
+  // (a bare flag like ?mock stays bare: empty values are never written, only kept)
+  const query = url.searchParams.toString().replace(/=(?=&|$)/g, '')
+  const next = url.pathname + (query ? `?${query}` : '') + url.hash
   if (next !== window.location.pathname + window.location.search + window.location.hash) window.history.replaceState(window.history.state, '', next)
 }
 

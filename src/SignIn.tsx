@@ -44,7 +44,9 @@ export function SignIn() {
 
   function open(t: Tool) {
     setLastTool(t)
-    window.location.href = `./${TOOL[t].path}`
+    // the tool's view a link asked for (only its query string, kept for the tool it was for)
+    const view = t === asked ? new URLSearchParams(window.location.search).get('view') : null
+    window.location.href = `./${TOOL[t].path}${view?.startsWith('?') ? view : ''}`
   }
 
   async function submit(ev: React.FormEvent) {

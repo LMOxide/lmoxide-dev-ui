@@ -154,5 +154,7 @@ export function expired(t: Tool) {
 
 /** The sign-in page, from a tool's page (when it has no session). */
 export function toSignIn(t: Tool) {
-  window.location.replace(`../?tool=${t}`)
+  // (the view a link asked for comes back after signing in)
+  const view = window.location.search
+  window.location.replace(`../?tool=${t}${view ? `&view=${encodeURIComponent(view)}` : ''}`)
 }
