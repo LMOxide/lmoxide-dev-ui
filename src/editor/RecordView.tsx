@@ -178,7 +178,7 @@ export function RecordView({
           <h2 className="text-lg font-semibold">{recordLabel(draft)}</h2>
           <Badge variant="secondary">{info?.title ?? kind}</Badge>
           {at.feature !== 'live' && <Badge variant="outline">{at.feature}</Badge>}
-          {view.changed && <Badge className="bg-warn-bg text-warn">{view.committed ? 'unpublished changes' : 'new, unpublished'}</Badge>}
+          {view.changed && <Badge className="bg-warn-bg text-warn">{view.committed ? 'not merged yet' : 'new, not merged yet'}</Badge>}
           <span className={cn('ml-auto text-xs', status === 'error' ? 'text-destructive' : 'text-muted-foreground')} data-status={status}>
             {{ saved: 'saved', saving: 'saving…', unsaved: 'editing…', error: 'not saved' }[status]}
           </span>
@@ -306,7 +306,7 @@ export function RecordView({
 
       {changes.length > 0 && (
         <section className="space-y-1" data-unpublished>
-          <h3 className="text-sm font-medium">Not published yet</h3>
+          <h3 className="text-sm font-medium">Not in the content yet (uncommitted, or waiting for an admin to merge)</h3>
           <DiffTable rows={changes} />
         </section>
       )}

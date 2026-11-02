@@ -105,7 +105,7 @@ export function importJson(text: string, current: Notes): Notes {
   return next
 }
 
-export function download(name: string, text: string, type: string) {
+export function download(name: string, text: BlobPart, type: string) {
   const url = URL.createObjectURL(new Blob([text], { type }))
   const a = document.createElement('a')
   a.href = url

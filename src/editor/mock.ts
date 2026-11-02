@@ -23,7 +23,9 @@ import type {
   TagUse,
   Vec3,
   TriggerTargets,
-  PublishRequest,
+  CommitRequest,
+  Committed,
+  Contribution,
   Unpublished,
   WallSettings,
   WaveRef,
@@ -422,15 +424,27 @@ export class MockBackend implements SurveyBackend {
     }
     return [...groups.values()].map((g) => ({ ...g, summary: (['added', 'changed', 'removed'] as const).map((op) => [g.items.filter((i) => i.op === op).length, op] as const).filter(([n]) => n).map(([n, op]) => `${n} ${op}`).join(', ') }))
   }
-  async publish(req: PublishRequest) {
-    let records = 0
+  /** the mock's commits */
+  private contributions: Contribution[] = []
+  async commit(req: CommitRequest): Promise<Committed> {
+    const records: Contribution['records'] = []
     for (const [id, item] of this.unpublishedItems) {
       if ((req.feature === undefined || item.feature === req.feature) && (!req.ids || req.ids.includes(id))) {
         this.unpublishedItems.delete(id)
-        records++
+        records.push({ id, feature: item.feature, change: item.op, file: `mock/${item.kind}.json`, author: 'mock', before: null, after: item.op === 'removed' ? null : { id, name: item.name } })
       }
     }
-    return { records, unpublished: await this.unpublished() }
+    const hash = Math.random().toString(16).slice(2).padEnd(40, '0')
+    const message = req.message.trim()
+    this.contributions.push({ hash, branch: 'contrib/mock', author: 'mock', by: 'mock', created: now(), subject: message.split('\n')[0], message, status: 'pending', records })
+    return { commit: hash, branch: 'contrib/mock', records: records.length, unpublished: await this.unpublished() }
+  }
+  async commits() {
+    return structuredClone(this.contributions)
+  }
+  async downloadCommits(format: 'patch' | 'bundle') {
+    const pending = this.contributions.filter((c) => c.status === 'pending')
+    return new Blob([format === 'patch' ? pending.map((c) => `From ${c.hash}\nSubject: [PATCH] ${c.subject}\n\n(mock)\n`).join('\n') : 'mock bundle'])
   }
   async exportChanges(): Promise<ChangesExport> {
     const records = [...this.unpublishedItems.values()].map((i) => ({ id: i.id, feature: i.feature, change: i.op, file: `mock/${i.kind}.json`, author: 'mock', before: null, after: i.op === 'removed' ? null : { id: i.id, name: i.name } }))

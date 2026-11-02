@@ -10,7 +10,7 @@ Static web pages for working on an LMOxide server from the browser, through its 
   `docs/EFFECT-BROWSER.md`.
 - **World editor** (`/editor/`): place and fix the enemies, NPCs, smashables and trigger walls
   of each world as a character in the world editor mode, mark scripts and areas for review
-  (LMOxide's `docs/SURVEY.md`), and play your unpublished changes in a preview.
+  (LMOxide's `docs/SURVEY.md`), and play your uncommitted changes in a preview.
 
 One LMOxide server runs every game mode (progression, maxed and the world editor; LMOxide's
 `docs/SERVER-ARCHITECTURE.md`) behind one `lmoxide-api`. The front page (`/`) signs in to it once
@@ -132,7 +132,7 @@ Achievements/  Smash/      {achievement}/ {enemy}                 every smash ac
   that give them (a wall's *gives a collectible* action).
 - **Smash achievements**: choose the enemies (or smashables, or `@categories`) that count toward each; the minifigure
   copies of one ("Smash 50 Witches as ...") are one row. Play servers count only those enemies
-  once the rule is published and approved.
+  once the rule is committed and merged.
 - Attacking something in game (or *Select nearest*, or placing) selects its row; selecting a row
   in your world selects it in game. The eye on a row hides it in game (only for you, never
   saved); *Unhide all*. A wave's eye shows that wave (a script shows one wave at a time).
@@ -159,7 +159,7 @@ Achievements/  Smash/      {achievement}/ {enemy}                 every smash ac
   resetting, for this page's session. **Reset** on the selection: an edited or confirmed guess
   back to the guess; anything else back to how it was when the page was opened.
 - **Play this (preview)** (header): asks the server for a preview for your own character (`POST /v1/survey/preview`, the signed-in login's character in the world editor mode; a contributor's level is enough): the server puts you in a private copy of the world you stand in, built from the editor's unpublished working copy, with enemies fighting. While you are in it (your copy is a `preview` in `GET /v1/instances`) the button is *End preview* (`!preview end`). Disabled, with the reason in its tooltip, when you aren't in game in the world editor mode.
-- **Publish**: edits are saved on the server as you make them (written to disk once you pause), so a crash loses nothing, but the progression and maxed modes only see what you publish. The header button counts your unpublished records (`Publish (n)`, or *Saved · all published*); the dialog publishes all of yours or one playfield/feature/author group, and lists each record (`GET /v1/survey/unpublished`, `POST /v1/survey/publish`, lmoxide d07b419). **Export mine** (in the dialog) downloads everything you changed since the content's last commit, published or not, as JSON: a publish queue entry with every record before and after (`GET /v1/survey/export`).
+- **Commit**: edits are saved on the server as you make them (written to disk once you pause), so a crash loses nothing, but the progression and maxed modes only get what you commit and an admin merges. The header button counts your uncommitted records (`Commit (n)`, or *Saved · all committed*). The dialog takes a commit message (what you changed and why) and commits all of yours, or one playfield/feature/author group (another editor's go on their branch), to your branch `contrib/<name>` (`GET /v1/survey/unpublished`, `POST /v1/survey/commit`). **Your commits** lists them with their status (waiting, merged, rejected with the admin's reason; `GET /v1/survey/commits`), and downloads the unmerged ones as patches (`git am`) or a git bundle (`GET /v1/survey/download?format=patch|bundle`). **Export mine** downloads everything you changed since the content's last commit, committed or not, as JSON with every record before and after (`GET /v1/survey/export`). Admins merge commits in the web UI (lmoxide `docs/WORLD-CONTENT.md`).
 - **Import / export**: one file per set or playfield; importing previews duplicates,
   near-duplicates (within a distance and angle you set, each can be taken anyway) and conflicts.
 

@@ -238,9 +238,9 @@ export interface PlayfieldNotes {
   scripts: Script[]
 }
 
-/** One editor's changes to one feature in one playfield (0: definitions) that aren't published
+/** One editor's changes to one feature in one playfield (0: definitions) that aren't committed
  * yet (`GET /v1/survey/unpublished`): the content working copy's records changed since its last
- * commit and not in the publish queue. */
+ * commit and not on their author's branch as they are. */
 export interface Unpublished {
   playfield: number
   playfield_name: string
@@ -255,17 +255,45 @@ export interface Unpublished {
   items: { kind: 'placement' | 'trigger' | 'note' | 'script' | 'smash_rule' | 'record'; id: string; name: string; op: 'added' | 'changed' | 'removed'; details?: string[]; updated: number; tags?: string[] }[]
 }
 
-/** `POST /v1/survey/publish`: only the given playfield, feature, author (default: the caller;
- * `*`: everyone) and records. */
-export interface PublishRequest {
+/** `POST /v1/survey/commit`: one commit on the author's branch (`contrib/<name>`) of the given
+ * playfield's, feature's and records' changes of one author (default: the caller). */
+export interface CommitRequest {
+  /** what changed and why (the first line is the subject) */
+  message: string
   playfield?: number
   feature?: string
   author?: string
   ids?: string[]
 }
 
+/** `POST /v1/survey/commit`'s answer. */
+export interface Committed {
+  commit: string
+  branch: string
+  records: number
+  unpublished: Unpublished[]
+}
+
+/** A contributor's commit (`GET /v1/survey/commits`, lmoxide_content::contrib::Contribution). */
+export interface Contribution {
+  hash: string
+  branch: string
+  /** whose changes */
+  author: string
+  /** who committed them */
+  by: string
+  /** unix time */
+  created: number
+  subject: string
+  /** the whole message */
+  message: string
+  status: 'pending' | 'merged' | 'rejected'
+  decision?: { status: string; by: string; at: number; reason?: string; merged_as?: string }
+  records: { id: string; feature: string; change: 'added' | 'changed' | 'removed'; file: string; author: string; before: unknown; after: unknown }[]
+}
+
 /** `GET /v1/survey/export`: everything one editor changed since the working copy's last commit,
- * published or not, as a publish queue entry (lmoxide_content::queue::Entry, `status: exported`). */
+ * committed or not, as JSON (`status: exported`). */
 export interface ChangesExport {
   seq: number
   /** unix time */

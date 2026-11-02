@@ -93,7 +93,7 @@ export function Definitions({ ctx, content, kinds, tabs, at, setAt }: { ctx: Ctx
             <Button size="xs" variant={'problems' in folder ? 'default' : 'outline'} onClick={() => setFolder({ problems: true })} title="Records the content check finds problems in">
               <AlertTriangleIcon /> Problems
             </Button>
-            <Button size="xs" variant={'changed' in folder ? 'default' : 'outline'} onClick={() => setFolder({ changed: true })} title="Changed since the last commit (not published yet)">
+            <Button size="xs" variant={'changed' in folder ? 'default' : 'outline'} onClick={() => setFolder({ changed: true })} title="Changed since the content's last commit (not merged yet)">
               Unpublished
             </Button>
           </div>
@@ -165,7 +165,7 @@ export function Definitions({ ctx, content, kinds, tabs, at, setAt }: { ctx: Ctx
                       {show(v)}
                     </span>
                   ))}
-                {r.changed && <span className="text-warn" title="Not published yet">●</span>}
+                {r.changed && <span className="text-warn" title="Not merged into the content yet">●</span>}
                 {r.problems > 0 && (
                   <span className="text-destructive" title={`${r.problems} problems`}>
                     ⚠ {r.problems}

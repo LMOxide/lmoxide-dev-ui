@@ -19,7 +19,9 @@ import type {
   TagUse,
   Vec3,
   TriggerTargets,
-  PublishRequest,
+  CommitRequest,
+  Committed,
+  Contribution,
   Unpublished,
   ChangesExport,
   WallLook,
@@ -90,11 +92,15 @@ export interface SurveyBackend {
   forget(id: string): Promise<SurveyObject | null>
   /** Makes it exactly as the snapshot has it (undo and redo). */
   put(id: string, snapshot: SurveyObject): Promise<SurveyObject>
-  /** Changes not published yet (saved on the server, not seen by the progression and maxed modes), the caller's first. */
+  /** Changes not committed yet (saved on the server, not seen by the progression and maxed modes), the caller's first. */
   unpublished(): Promise<Unpublished[]>
-  /** Publishes changes (by default all of the caller's): they wait in the publish queue for an admin to approve. */
-  publish(req: PublishRequest): Promise<{ records: number; unpublished: Unpublished[] }>
-  /** Everything the caller changed since the last commit, published or not, to download. */
+  /** Commits one editor's changes (by default all of the caller's) to their branch, with a message: for an admin to merge. */
+  commit(req: CommitRequest): Promise<Committed>
+  /** The caller's commits (pending, merged, rejected with the reason), oldest first. */
+  commits(): Promise<Contribution[]>
+  /** The caller's commits not merged yet: patches (`git am`) or a git bundle. */
+  downloadCommits(format: 'patch' | 'bundle'): Promise<Blob>
+  /** Everything the caller changed since the last commit, committed or not, to download. */
   exportChanges(): Promise<ChangesExport>
   /** Every named playfield, with how much is in it. */
   playfields(): Promise<PlayfieldInfo[]>
@@ -267,8 +273,32 @@ export class HttpBackend implements SurveyBackend {
   unpublished() {
     return this.call<Unpublished[]>('GET', '/unpublished')
   }
-  publish(req: PublishRequest) {
-    return this.call<{ records: number; unpublished: Unpublished[] }>('POST', '/publish', req)
+  commit(req: CommitRequest) {
+    return this.call<Committed>('POST', '/commit', req)
+  }
+  commits() {
+    return this.call<Contribution[]>('GET', '/commits')
+  }
+  async downloadCommits(format: 'patch' | 'bundle') {
+    const headers: Record<string, string> = {}
+    if (this.token) headers.Authorization = `Bearer ${this.token}`
+    let res: Response
+    try {
+      res = await fetch(`${this.base}/v1/survey/download?format=${format}`, { headers })
+    } catch (e) {
+      throw new ApiError(0, 'network', `can't reach ${this.base} (${e instanceof Error ? e.message : e})`)
+    }
+    if (!res.ok) {
+      const text = await res.text()
+      let message = text.slice(0, 200) || res.statusText
+      try {
+        message = (JSON.parse(text) as { error?: { message?: string } }).error?.message ?? message
+      } catch {
+        // not JSON
+      }
+      throw new ApiError(res.status, `http_${res.status}`, message)
+    }
+    return res.blob()
   }
   exportChanges() {
     return this.call<ChangesExport>('GET', '/export')

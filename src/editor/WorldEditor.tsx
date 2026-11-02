@@ -14,7 +14,7 @@ import { PositionDock, usePositionCopy } from '../PositionCopy'
 import { Browser } from './Browser'
 import { useWorlds } from './worlds'
 import type { Suggestion } from './Suggest'
-import { Publish, recordCount } from './Publish'
+import { Commit, recordCount } from './Commit'
 import type { MockBackend } from './mock'
 import { FeaturePicker } from './Features'
 import { NewTagsPicker } from './Tags'
@@ -426,9 +426,9 @@ export function WorldEditor({
             <button
               className={mineUnpublished ? 'primary' : ''}
               onClick={() => setPublishing(true)}
-              title="Your work is saved on the server as you go; the progression and maxed modes only take in what you publish"
+              title="Your work is saved on the server as you go; the progression and maxed modes only get what you commit and an admin merges"
             >
-              {mineUnpublished ? `Publish (${mineUnpublished})` : 'Saved · all published'}
+              {mineUnpublished ? `Commit (${mineUnpublished})` : 'Saved · all committed'}
             </button>
           )}
           <span className="muted small">{backend.label}</span>
@@ -461,7 +461,7 @@ export function WorldEditor({
       </div>
       <Browser ctx={ctx} worlds={worlds} />
       <PositionDock place={state?.playfield_name ?? (whereabouts ? `Playfield ${whereabouts.playfield}` : undefined)} online={whereabouts} pc={positionCopy} empty="nobody chosen to edit as" />
-      {publishing && unpublished && <Publish backend={backend} unpublished={unpublished} setUnpublished={setUnpublished} onClose={() => setPublishing(false)} />}
+      {publishing && unpublished && <Commit backend={backend} unpublished={unpublished} setUnpublished={setUnpublished} onClose={() => setPublishing(false)} />}
     </div>
   )
 }
