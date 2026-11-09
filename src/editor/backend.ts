@@ -86,6 +86,8 @@ export interface SurveyBackend {
   teleport(account: number, pos: Vec3): Promise<PlayerState>
   edit(id: string, changes: ObjectChanges): Promise<SurveyObject>
   confirm(id: string): Promise<SurveyObject>
+  /** A moved live spawn back where live had it. */
+  revertLive(id: string): Promise<SurveyObject>
   /** Deletes it; the answer is the record that keeps it deleted (forget it to undo). */
   remove(id: string): Promise<{ id: string }>
   /** Drops a placement's record entirely; a guess it replaced comes back (its view). */
@@ -262,6 +264,9 @@ export class HttpBackend implements SurveyBackend {
   }
   confirm(id: string) {
     return this.call<SurveyObject>('POST', `/objects/${encodeURIComponent(id)}/confirm`)
+  }
+  revertLive(id: string) {
+    return this.call<SurveyObject>('POST', `/objects/${encodeURIComponent(id)}/revert-live`)
   }
   remove(id: string) {
     return this.call<{ id: string }>('DELETE', `/objects/${encodeURIComponent(id)}`)

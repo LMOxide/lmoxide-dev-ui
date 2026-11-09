@@ -375,9 +375,26 @@ export class MockBackend implements SurveyBackend {
     return this.snapshot()
   }
   async edit(id: string, changes: ObjectChanges) {
+    const live = this.get(id)
+    if (live.category === 'live') {
+      if (Object.keys(changes).some((k) => k !== 'pos' && k !== 'heading')) throw new Error('live spawns: only their position and heading can change')
+      const at = live.live_at ?? { pos: [...live.pos] as Vec3, heading: live.heading }
+      Object.assign(live, changes, { updated: now() })
+      const back = Math.hypot(...live.pos.map((v, i) => v - at.pos[i])) < 0.01 && Math.abs(live.heading - at.heading) < 0.001
+      live.live_at = back ? null : at
+      this.bump(live)
+      return structuredClone(live)
+    }
     const o = this.surveyed(this.get(id))
     Object.assign(o, changes, { updated: now() })
     if (o.kind !== 'enemy' && o.kind !== 'npc') delete o.patrol
+    this.bump(o)
+    return structuredClone(o)
+  }
+  async revertLive(id: string) {
+    const o = this.get(id)
+    if (!o.live_at) throw new Error(`${id} is where live had it`)
+    Object.assign(o, { pos: o.live_at.pos, heading: o.live_at.heading, live_at: null, updated: now() })
     this.bump(o)
     return structuredClone(o)
   }

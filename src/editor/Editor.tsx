@@ -58,6 +58,8 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
   const pending = useRef<ObjectChanges>({})
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const can = editable(object.category)
+  /** a live spawn: only moved and turned (it keeps where live had it) */
+  const live = object.category === 'live'
   const hidden = isHidden(object, new Set(state.hidden), state.shown_waves, ctx.notes.scripts)
   const walks = draft.kind === 'enemy' || draft.kind === 'npc'
   /** in the surveyor's world: what uses where they stand works */
@@ -140,6 +142,59 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
     setPatrol(p)
   }
 
+  /** where it stands and faces (live spawns too: only these) */
+  const placeFields = (
+    <>
+          {AXES.map((a, i) => (
+            <div className="sv-field" key={a}>
+              <span>{a}</span>
+              <div className="sv-row tight sv-nudge">
+                <button onClick={() => setAxis(i, draft.pos[i] - 1)}>−1</button>
+                <button onClick={() => setAxis(i, draft.pos[i] - 0.1)}>−.1</button>
+                <input className="sv-num" type="number" step={0.1} value={draft.pos[i]} onChange={(e) => e.target.value !== '' && setAxis(i, Number(e.target.value))} />
+                <button onClick={() => setAxis(i, draft.pos[i] + 0.1)}>+.1</button>
+                <button onClick={() => setAxis(i, draft.pos[i] + 1)}>+1</button>
+              </div>
+            </div>
+          ))}
+          <div className="sv-field">
+            <span>heading</span>
+            <div className="sv-row tight sv-nudge">
+              <button onClick={() => turn(-45)}>−45</button>
+              <button onClick={() => turn(-5)}>−5</button>
+              <input className="sv-num" type="number" min={0} max={359} value={draft.heading} onChange={(e) => e.target.value !== '' && change({ heading: Number(e.target.value) })} />
+              <button onClick={() => turn(5)}>+5</button>
+              <button onClick={() => turn(45)}>+45</button>
+              <Heading degrees={draft.heading} angle={false} />
+            </div>
+          </div>
+          {here && (
+            <>
+          <div className="sv-row">
+            <button onClick={() => change({ pos: [...state.pos] })} title={fmtPos(state.pos)}>
+              Move to me
+            </button>
+            <button onClick={() => change({ heading: toDegrees(state.heading) })} title="Face the way you face">
+              Face my way
+            </button>
+            <button onClick={() => change({ pos: [...state.pos], heading: toDegrees(state.heading) })}>Both</button>
+          </div>
+          <div className="sv-row">
+            <button onClick={() => change({ heading: toDegrees(state.heading + Math.PI / 2) })} title="Square to the way you face (a wall along your way instead of across it)">
+              Perpendicular to me
+            </button>
+            <button onClick={() => change({ heading: toDegrees(awayFrom(state.pos, draft.pos, state.heading)) })} title="Its back to you (an enemy that hasn't seen you yet)">
+              Face away from me
+            </button>
+            <button onClick={() => change({ heading: toDegrees(awayFrom(state.pos, draft.pos, state.heading) + Math.PI) })} title="Looking at you">
+              Face me
+            </button>
+          </div>
+            </>
+          )}
+    </>
+  )
+
   return (
     <div className="sv-panel">
       <div className="sv-row">
@@ -220,53 +275,7 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
               A guess. <b>Confirm</b> it if it's right; moving or changing it makes it surveyed too.
             </p>
           )}
-          {AXES.map((a, i) => (
-            <div className="sv-field" key={a}>
-              <span>{a}</span>
-              <div className="sv-row tight sv-nudge">
-                <button onClick={() => setAxis(i, draft.pos[i] - 1)}>−1</button>
-                <button onClick={() => setAxis(i, draft.pos[i] - 0.1)}>−.1</button>
-                <input className="sv-num" type="number" step={0.1} value={draft.pos[i]} onChange={(e) => e.target.value !== '' && setAxis(i, Number(e.target.value))} />
-                <button onClick={() => setAxis(i, draft.pos[i] + 0.1)}>+.1</button>
-                <button onClick={() => setAxis(i, draft.pos[i] + 1)}>+1</button>
-              </div>
-            </div>
-          ))}
-          <div className="sv-field">
-            <span>heading</span>
-            <div className="sv-row tight sv-nudge">
-              <button onClick={() => turn(-45)}>−45</button>
-              <button onClick={() => turn(-5)}>−5</button>
-              <input className="sv-num" type="number" min={0} max={359} value={draft.heading} onChange={(e) => e.target.value !== '' && change({ heading: Number(e.target.value) })} />
-              <button onClick={() => turn(5)}>+5</button>
-              <button onClick={() => turn(45)}>+45</button>
-              <Heading degrees={draft.heading} angle={false} />
-            </div>
-          </div>
-          {here && (
-            <>
-          <div className="sv-row">
-            <button onClick={() => change({ pos: [...state.pos] })} title={fmtPos(state.pos)}>
-              Move to me
-            </button>
-            <button onClick={() => change({ heading: toDegrees(state.heading) })} title="Face the way you face">
-              Face my way
-            </button>
-            <button onClick={() => change({ pos: [...state.pos], heading: toDegrees(state.heading) })}>Both</button>
-          </div>
-          <div className="sv-row">
-            <button onClick={() => change({ heading: toDegrees(state.heading + Math.PI / 2) })} title="Square to the way you face (a wall along your way instead of across it)">
-              Perpendicular to me
-            </button>
-            <button onClick={() => change({ heading: toDegrees(awayFrom(state.pos, draft.pos, state.heading)) })} title="Its back to you (an enemy that hasn't seen you yet)">
-              Face away from me
-            </button>
-            <button onClick={() => change({ heading: toDegrees(awayFrom(state.pos, draft.pos, state.heading) + Math.PI) })} title="Looking at you">
-              Face me
-            </button>
-          </div>
-            </>
-          )}
+          {placeFields}
           {draft.kind === 'enemy' && (
             <label className="sv-field">
               <span>level</span>
@@ -383,12 +392,27 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
         </>
       ) : (
         <>
-          <p className="muted small">
-            Recorded from the {object.category === 'client' ? 'client data' : object.category === 'demo' ? 'recorded demo session' : 'live server'}: it can only be hidden.
-          </p>
-          <p className="mono small">
-            {fmtPos(object.pos)} · <Heading degrees={toDegrees(object.heading)} />
-          </p>
+          {live ? (
+            <>
+              <p className="muted small">Recorded from the live server: you can move and turn it; everything else stays as live had it.</p>
+              {object.live_at && (
+                <p className="banner warn small">
+                  Moved from where live had it: <span className="mono">{fmtPos(object.live_at.pos)}</span> · <Heading degrees={toDegrees(object.live_at.heading)} />
+                  {object.live_at.at && <> (on {object.live_at.at})</>}. <b>Revert to live</b> puts it back.
+                </p>
+              )}
+              {placeFields}
+            </>
+          ) : (
+            <>
+              <p className="muted small">
+                Recorded from the {object.category === 'client' ? 'client data' : 'recorded demo session'}: it can only be hidden.
+              </p>
+              <p className="mono small">
+                {fmtPos(object.pos)} · <Heading degrees={toDegrees(object.heading)} />
+              </p>
+            </>
+          )}
           {(object.patrol?.length ?? 0) > 1 && <p className="small">Patrols a route of {object.patrol!.length} points.</p>}
         </>
       )}
@@ -414,7 +438,20 @@ export function Editor({ ctx, object }: { ctx: Ctx; object: SurveyObject }) {
             </button>
           </>
         )}
-        {can && (
+        {live && (
+          <button
+            disabled={!object.live_at}
+            title={object.live_at ? `Back to where live had it: ${fmtPos(object.live_at.pos)}` : 'It is where live had it'}
+            onClick={async () => {
+              const before = { pos: object.pos, heading: object.heading }
+              const o = await ctx.run(() => flush().then(() => backend.revertLive(object.id)), 'all')
+              if (o) ctx.history.record({ kind: 'edit', id: o.id, name: o.name, before, after: { pos: o.pos, heading: o.heading }, at: 0 })
+            }}
+          >
+            Revert to live
+          </button>
+        )}
+        {(can || live) && (
           <button
             disabled={!canReset}
             onClick={reset}

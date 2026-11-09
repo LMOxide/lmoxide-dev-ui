@@ -57,7 +57,7 @@ export interface WallSettings {
   once: boolean
 }
 
-/** live/demo/client: hide only. guessed: confirm, edit, delete. surveyed: edit, delete. */
+/** live: move, turn (and revert to live). demo/client: hide only. guessed: confirm, edit, delete. surveyed: edit, delete. */
 export type Category = 'live' | 'demo' | 'client' | 'guessed' | 'surveyed'
 
 export const CATEGORIES: Category[] = ['guessed', 'surveyed', 'live', 'demo', 'client']
@@ -98,6 +98,8 @@ export interface SurveyObject {
   action?: WallAction
   once?: boolean
   playfield?: number
+  /** a live spawn someone moved or turned: where live had it (Revert to live puts it back) */
+  live_at?: { pos: Vec3; heading: number; at?: string } | null
   /** the guess it replaces (Reset brings it back) */
   replaces?: { id: string; kind: Kind; monster_data?: number | null; template?: number | null; pos: Vec3 } | null
   comment?: string
