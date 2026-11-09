@@ -1294,3 +1294,63 @@ details.group > summary::after {
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
+
+/* Debug → Camera spots */
+.camera-save {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 6px;
+}
+.camera-save input:first-child {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+.camera-save input:nth-of-type(2) {
+  flex: 0 1 160px;
+  min-width: 0;
+}
+.camera-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+.camera-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+}
+.camera-name {
+  flex: 0 1 180px;
+  min-width: 0;
+  font-weight: 600;
+}
+.camera-list .muted {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.camera-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.camera-actions button.danger:hover:not(:disabled) {
+  color: var(--error);
+}
+.camera-io {
+  display: flex;
+  gap: 6px;
+}
+.camera-io label.button {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.camera-io label.button:hover {
+  background: var(--surface-2);
+}

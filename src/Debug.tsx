@@ -4,12 +4,13 @@ import { best, bossNames, modeName, places, playfieldName, score, type GameData 
 import type { Instances, MonsterData, Player } from './types'
 import { Heading } from './Heading'
 import { Group } from './Group'
+import { CameraSpots } from './CameraSpots'
 import { Achievements, Minifigures, Story } from './Progress'
 import type { Api } from './api'
 export { Heading }
 import type { PositionCopy } from './PositionCopy'
 
-export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'animations' | 'effects' | 'minifigures' | 'progress' | 'story' | 'dialogues' | 'instances' | 'commands'
+export type Section = 'quick' | 'teleport' | 'scenarios' | 'targets' | 'spawn' | 'looks' | 'camera' | 'animations' | 'effects' | 'minifigures' | 'progress' | 'story' | 'dialogues' | 'instances' | 'commands'
 
 /** The side tabs, in groups (a group without a heading: on its own at the top). */
 const SECTION_GROUPS: [string | null, [Section, string][]][] = [
@@ -48,6 +49,7 @@ const SECTION_GROUPS: [string | null, [Section, string][]][] = [
       ['animations', 'Animations'],
       ['effects', 'Effects'],
       ['looks', 'Looks & state'],
+      ['camera', 'Camera spots'],
     ],
   ],
   [
@@ -206,7 +208,7 @@ export function Debug({
       </nav>
       <div className={`section-body${section === 'effects' ? ' effects-body' : ''}`}>
         {section === 'effects' && effects}
-        {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && section !== 'instances' && section !== 'effects' && <Missing />}
+        {testsError && section !== 'quick' && section !== 'teleport' && section !== 'minifigures' && section !== 'instances' && section !== 'effects' && section !== 'camera' && <Missing />}
         {section === 'quick' && <Quick send={send} canSend={canSend} may={may} />}
         {section === 'teleport' && <Whereabouts data={data} online={online} pc={positionCopy} send={send} canSend={canSend} />}
         {section === 'teleport' && <MovePanel send={send} canSend={canSend} />}
@@ -241,6 +243,7 @@ export function Debug({
         )}
         {section === 'targets' && <Targets data={data} query={query} setQuery={setQuery} send={send} canSend={canSend} here={here} />}
         {section === 'spawn' && <Spawn data={data} query={query} setQuery={setQuery} send={send} canSend={canSend} />}
+        {section === 'camera' && <CameraSpots data={data} online={online} send={send} canSend={canSend} may={may} />}
         {section === 'looks' && <Looks data={data} query={query} setQuery={setQuery} send={send} canSend={canSend} />}
         {section === 'animations' && <Animations data={data} query={query} setQuery={setQuery} send={send} canSend={canSend} showEffect={showEffect} />}
         {section === 'minifigures' && (
