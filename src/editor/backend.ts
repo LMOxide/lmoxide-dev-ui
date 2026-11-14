@@ -153,6 +153,7 @@ export class HttpBackend implements SurveyBackend {
     if (body !== undefined) headers['Content-Type'] = 'application/json'
     let res: Response
     try {
+      // ids go in the query string, never the path: proxies such as Traefik refuse an encoded slash (%2F)
       res = await fetch(this.base + '/v1/survey' + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
     } catch (e) {
       throw new ApiError(0, 'network', `can't reach ${this.base} (${e instanceof Error ? e.message : e})`)
@@ -187,16 +188,16 @@ export class HttpBackend implements SurveyBackend {
     return this.call<PlayfieldNotes>('GET', `/playfields/${playfield}/notes`)
   }
   saveNote(playfield: number, note: Note) {
-    return this.call<Note>('PUT', `/playfields/${playfield}/notes/${encodeURIComponent(note.id)}`, note)
+    return this.call<Note>('PUT', `/playfields/${playfield}/note?id=${encodeURIComponent(note.id)}`, note)
   }
   async deleteNote(playfield: number, id: string) {
-    await this.call('DELETE', `/playfields/${playfield}/notes/${encodeURIComponent(id)}`)
+    await this.call('DELETE', `/playfields/${playfield}/note?id=${encodeURIComponent(id)}`)
   }
   saveScript(playfield: number, script: Script) {
-    return this.call<Script>('PUT', `/playfields/${playfield}/scripts/${encodeURIComponent(script.id)}`, script)
+    return this.call<Script>('PUT', `/playfields/${playfield}/script?id=${encodeURIComponent(script.id)}`, script)
   }
   async deleteScript(playfield: number, id: string) {
-    await this.call('DELETE', `/playfields/${playfield}/scripts/${encodeURIComponent(id)}`)
+    await this.call('DELETE', `/playfields/${playfield}/script?id=${encodeURIComponent(id)}`)
   }
   wear(account: number, what: Placeable | null) {
     return this.call<PlayerState>('POST', `/players/${account}/wear`, { what })
@@ -260,22 +261,22 @@ export class HttpBackend implements SurveyBackend {
     return this.call<PlayerState>('POST', `/players/${account}/teleport`, { pos })
   }
   edit(id: string, changes: ObjectChanges) {
-    return this.call<SurveyObject>('PATCH', `/objects/${encodeURIComponent(id)}`, changes)
+    return this.call<SurveyObject>('PATCH', `/object?id=${encodeURIComponent(id)}`, changes)
   }
   confirm(id: string) {
-    return this.call<SurveyObject>('POST', `/objects/${encodeURIComponent(id)}/confirm`)
+    return this.call<SurveyObject>('POST', `/object/confirm?id=${encodeURIComponent(id)}`)
   }
   revertLive(id: string) {
-    return this.call<SurveyObject>('POST', `/objects/${encodeURIComponent(id)}/revert-live`)
+    return this.call<SurveyObject>('POST', `/object/revert-live?id=${encodeURIComponent(id)}`)
   }
   remove(id: string) {
-    return this.call<{ id: string }>('DELETE', `/objects/${encodeURIComponent(id)}`)
+    return this.call<{ id: string }>('DELETE', `/object?id=${encodeURIComponent(id)}`)
   }
   forget(id: string) {
-    return this.call<SurveyObject | null>('POST', `/objects/${encodeURIComponent(id)}/forget`)
+    return this.call<SurveyObject | null>('POST', `/object/forget?id=${encodeURIComponent(id)}`)
   }
   put(id: string, snapshot: SurveyObject) {
-    return this.call<SurveyObject>('PUT', `/objects/${encodeURIComponent(id)}`, snapshot)
+    return this.call<SurveyObject>('PUT', `/object?id=${encodeURIComponent(id)}`, snapshot)
   }
   unpublished() {
     return this.call<Unpublished[]>('GET', '/unpublished')
@@ -287,8 +288,8 @@ export class HttpBackend implements SurveyBackend {
     return this.call<Branch[]>('GET', '/branches')
   }
   resetBranch(branch: string, remove: boolean) {
-    const path = '/branches/' + branch.replace(/^contrib\//, '')
-    return this.call<{ branch: Branch; reverted: number }>(remove ? 'DELETE' : 'POST', remove ? path : `${path}/reset`)
+    const q = `?branch=${encodeURIComponent(branch)}`
+    return this.call<{ branch: Branch; reverted: number }>(remove ? 'DELETE' : 'POST', remove ? `/branch${q}` : `/branch/reset${q}`)
   }
   async downloadBranch(branch: string, format: 'patch' | 'bundle') {
     const headers: Record<string, string> = {}
@@ -330,9 +331,9 @@ export class HttpBackend implements SurveyBackend {
     return this.call<EnemyName[]>('GET', '/enemy-names')
   }
   saveRule(key: string, rule: RuleBody) {
-    return this.call<SmashAchievement | null>('PUT', `/smash-achievements/${encodeURIComponent(key)}`, rule)
+    return this.call<SmashAchievement | null>('PUT', `/smash-achievement?key=${encodeURIComponent(key)}`, rule)
   }
   async deleteRule(key: string) {
-    await this.call('DELETE', `/smash-achievements/${encodeURIComponent(key)}`)
+    await this.call('DELETE', `/smash-achievement?key=${encodeURIComponent(key)}`)
   }
 }
